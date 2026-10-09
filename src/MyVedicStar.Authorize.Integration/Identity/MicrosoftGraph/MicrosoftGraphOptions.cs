@@ -33,24 +33,7 @@ public sealed class MicrosoftGraphOptions
     [Required]
     public string ClientId { get; set; } = string.Empty;
 
-    /// <summary>How this application proves its identity when requesting Graph tokens.</summary>
-    public MicrosoftGraphCredentialType CredentialType { get; set; } = MicrosoftGraphCredentialType.ClientSecret;
-
-    /// <summary>
-    /// Client secret of that app registration. Required when <see cref="CredentialType"/> is
-    /// <see cref="MicrosoftGraphCredentialType.ClientSecret"/>. Keep it in user secrets or a vault, never in source control.
-    /// </summary>
+    /// <summary>Client secret of that app registration. Supplied by Key Vault in Azure and user secrets locally; never source control.</summary>
+    [Required]
     public string ClientSecret { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Client ID of the user-assigned managed identity used with <see cref="MicrosoftGraphCredentialType.ManagedIdentityFederation"/>.
-    /// Leave empty to use the system-assigned identity.
-    /// </summary>
-    public string ManagedIdentityClientId { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Audience of the managed identity token presented as a federated client assertion, for example
-    /// <c>api://AzureADTokenExchange</c> in the public cloud.
-    /// </summary>
-    public string FederatedTokenAudience { get; set; } = string.Empty;
 }

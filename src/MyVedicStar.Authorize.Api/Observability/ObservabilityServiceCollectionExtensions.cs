@@ -1,4 +1,6 @@
+using System.Reflection;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Microsoft.Extensions.Options;
 using MyVedicStar.Authorize.Api.Health;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Resources;
@@ -27,16 +29,24 @@ internal static class ObservabilityServiceCollectionExtensions
         }
 
         var serviceName = configuration.GetSection(ObservabilityOptions.SectionName).Get<ObservabilityOptions>()?.ServiceName;
-        var serviceVersion = typeof(ObservabilityServiceCollectionExtensions).Assembly.GetName().Version?.ToString();
 
         services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(serviceName ?? string.Empty, serviceVersion: serviceVersion))
+            .ConfigureResource(resource => resource.AddService(serviceName ?? string.Empty, serviceVersion: GetServiceVersion()))
             .UseAzureMonitor();
 
         // Container probes hit the health endpoints every few seconds; they are not useful request telemetry.
-        services.Configure<AspNetCoreTraceInstrumentationOptions>(options =>
-            options.Filter = context => !context.IsHealthRequest());
+        services.AddOptions<AspNetCoreTraceInstrumentationOptions>()
+            .Configure<IOptions<HealthEndpointOptions>>((tracing, health) =>
+                tracing.Filter = context => !health.Value.IsHealthRequest(context.Request.Path));
 
         return services;
+    }
+
+    /// <summary>The build's informational version, which includes the source commit (for example <c>1.0.0+1a2b3c4d</c>).</summary>
+    private static string? GetServiceVersion()
+    {
+        var assembly = typeof(ObservabilityServiceCollectionExtensions).Assembly;
+        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString();
     }
 }

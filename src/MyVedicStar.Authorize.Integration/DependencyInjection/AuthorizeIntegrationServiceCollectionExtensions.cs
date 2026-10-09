@@ -1,4 +1,5 @@
 using Azure.Core;
+using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -19,12 +20,6 @@ public static class AuthorizeIntegrationServiceCollectionExtensions
         services.AddOptions<MicrosoftGraphOptions>()
             .Bind(configuration.GetSection(MicrosoftGraphOptions.SectionName))
             .ValidateDataAnnotations()
-            .Validate(
-                options => options.CredentialType != MicrosoftGraphCredentialType.ClientSecret || !string.IsNullOrWhiteSpace(options.ClientSecret),
-                $"{MicrosoftGraphOptions.SectionName}:{nameof(MicrosoftGraphOptions.ClientSecret)} is required when {nameof(MicrosoftGraphOptions.CredentialType)} is {nameof(MicrosoftGraphCredentialType.ClientSecret)}.")
-            .Validate(
-                options => options.CredentialType != MicrosoftGraphCredentialType.ManagedIdentityFederation || Uri.IsWellFormedUriString(options.FederatedTokenAudience, UriKind.Absolute),
-                $"{MicrosoftGraphOptions.SectionName}:{nameof(MicrosoftGraphOptions.FederatedTokenAudience)} must be an absolute URI when {nameof(MicrosoftGraphOptions.CredentialType)} is {nameof(MicrosoftGraphCredentialType.ManagedIdentityFederation)}.")
             .ValidateOnStart();
 
         services.AddHttpClient<IExternalIdentityService, MicrosoftGraphExternalIdentityService>((serviceProvider, httpClient) =>
@@ -36,7 +31,14 @@ public static class AuthorizeIntegrationServiceCollectionExtensions
 
         // One credential instance so app tokens are cached and reused until they near expiry.
         services.AddSingleton<TokenCredential>(serviceProvider =>
-            MicrosoftGraphCredentialFactory.Create(serviceProvider.GetRequiredService<IOptions<MicrosoftGraphOptions>>().Value));
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<MicrosoftGraphOptions>>().Value;
+            return new ClientSecretCredential(
+                options.TenantId,
+                options.ClientId,
+                options.ClientSecret,
+                new ClientSecretCredentialOptions { AuthorityHost = new Uri(options.AuthorityHost) });
+        });
 
         return services;
     }

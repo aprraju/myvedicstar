@@ -8,7 +8,8 @@ ARG DOTNET_VERSION=10.0
 
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS build
 ARG BUILD_CONFIGURATION=Release
-ARG APP_VERSION=1.0.0
+# Source commit, appended to the informational version reported in telemetry (for example 1.0.0+1a2b3c4d).
+ARG SOURCE_REVISION=
 WORKDIR /src
 
 # Restore first so the package layer is cached until a project file changes.
@@ -25,7 +26,7 @@ RUN dotnet publish src/MyVedicStar.Authorize.Api/MyVedicStar.Authorize.Api.cspro
     --no-restore \
     --output /app/publish \
     -p:UseAppHost=false \
-    -p:Version="${APP_VERSION}"
+    -p:SourceRevisionId="${SOURCE_REVISION}"
 
 # Chiseled: no shell or package manager, runs as a non-root user. "extra" adds ICU and tzdata,
 # which time-zone-aware Panchang calculations need.

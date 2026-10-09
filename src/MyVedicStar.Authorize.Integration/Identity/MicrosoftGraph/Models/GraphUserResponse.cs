@@ -10,4 +10,4 @@ internal sealed record GraphUserResponse(
     string? Surname);
 
 /// <summary>A sign-in identity on a Graph user (for example a local email account).</summary>
-internal sealed record GraphObjectIdentity(string? SignInType, string? Issuer, string? IssuerAssignedId);
+internal sealed record GraphObjectIdentity(string? SignInType, string? IssuerAssignedId);

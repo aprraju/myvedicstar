@@ -29,12 +29,15 @@ public sealed class AuthController : ControllerBase
     /// <response code="200">The user's profile.</response>
     /// <response code="401">The bearer token is missing, invalid or expired, or does not identify a user.</response>
     /// <response code="404">The user no longer exists in the directory.</response>
+    /// <response code="429">Too many requests from this client; retry after the time in the <c>Retry-After</c> header.</response>
     /// <response code="503">The identity provider or database is temporarily unavailable.</response>
     [HttpPost("userinfo")]
     [Authorize]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ProducesResponseType<UserInfoResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
     public async Task<ActionResult<UserInfoResponse>> SignInUser(CancellationToken cancellationToken)
     {

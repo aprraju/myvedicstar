@@ -3,7 +3,8 @@
     "Application-owned settings for the prod Container App, applied by deploy/scripts/deploy-app.ps1.",
     "Infrastructure (Container App, identity, registry, Key Vault, network) is owned by Terraform; resource names come from GitHub variables.",
     "Nothing here is secret. 'settings' become plain environment variables; 'secrets' map an environment variable to a Key Vault secret name.",
-    "Environment variables Terraform already sets on the container are kept unless a key below has the same name."
+    "Environment variables Terraform already sets on the container are kept unless a key below has the same name.",
+    "'removedSettings' lists retired application variables that a release deletes from the container."
   ],
   "containerName": "api",
   "keyVault": {
@@ -16,21 +17,34 @@
     "Authentication__EntraExternalId__Audience": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
     "Integrations__MicrosoftGraph__TenantId": "cbece845-e124-4de7-89d3-96a71abb7b83",
     "Integrations__MicrosoftGraph__ClientId": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
-    "Integrations__MicrosoftGraph__CredentialType": "ClientSecret",
     "FeatureFlags__UserPersistence": "false",
-    "ApiDocumentation__Enabled": "false",
+    "TransportSecurity__RedirectHttpToHttps": "false",
     "ForwardedHeaders__KnownNetworks__0": "10.2.0.0/23",
     "Observability__ServiceName": "myvedicstar-api"
   },
+  "removedSettings": [
+    "ApiDocumentation__Enabled",
+    "Integrations__MicrosoftGraph__CredentialType"
+  ],
   "secrets": {
     "Integrations__MicrosoftGraph__ClientSecret": "graph-client-secret"
   },
   "probes": {
+    "$comment": "Paths come from HealthChecks in src/MyVedicStar.Authorize.Api/appsettings.json; port matches ASPNETCORE_HTTP_PORTS.",
     "port": 8080,
-    "livenessPath": "/health/live",
-    "readinessPath": "/health/ready"
+    "startup": { "initialDelaySeconds": 2, "periodSeconds": 5, "timeoutSeconds": 3, "failureThreshold": 10 },
+    "liveness": { "periodSeconds": 15, "timeoutSeconds": 3, "failureThreshold": 3 },
+    "readiness": { "periodSeconds": 10, "timeoutSeconds": 5, "failureThreshold": 3 }
   },
   "terminationGracePeriodSeconds": 30,
-  "readyTimeoutMinutes": 10,
-  "smokeTest": true
+  "rollout": {
+    "readyTimeoutMinutes": 10,
+    "pollIntervalSeconds": 10
+  },
+  "smokeTest": {
+    "enabled": true,
+    "attempts": 12,
+    "retryDelaySeconds": 10,
+    "timeoutSeconds": 30
+  }
 }

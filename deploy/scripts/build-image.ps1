@@ -42,7 +42,7 @@ else {
         --registry $RegistryName `
         --image $image `
         --file (Join-Path $RepositoryRoot 'deploy/docker/Dockerfile') `
-        --build-arg "APP_VERSION=1.0.0+$ImageTag" `
+        --build-arg "SOURCE_REVISION=$ImageTag" `
         --platform linux/amd64 `
         $RepositoryRoot | Out-Host
     if ($LASTEXITCODE -ne 0) {

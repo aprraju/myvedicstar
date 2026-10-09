@@ -27,7 +27,10 @@ deploy/
 | Key Vault → Container App secret reference | Secrets (`graph-client-secret`) | a person, via `set-secrets.ps1` or the portal |
 
 `deploy-app.ps1` **merges** its settings into the container. A Terraform variable is kept unless
-`prod.json` defines one with the same name. The Container App reads secrets through its managed identity
+`prod.json` defines one with the same name. When an application setting is retired, list it under
+`removedSettings` so the next release deletes it from the container. Probe timings, rollout timeout and smoke-test
+retries are also in `prod.json`. Probe paths are read from `HealthChecks` in `appsettings.json`, so the app
+and its probes always agree. The Container App reads secrets through its managed identity
 `id-myvedicstar-api-prod`, which already has `Key Vault Secrets User`. No secret value passes through
 GitHub, the scripts or source control.
 
@@ -73,6 +76,8 @@ az role assignment create --assignee-object-id $SP --assignee-principal-type Ser
 az role assignment create --assignee-object-id $SP --assignee-principal-type ServicePrincipal \
   --role "Managed Identity Operator" --scope $APP_RG/Microsoft.ManagedIdentity/userAssignedIdentities/id-myvedicstar-api-prod
 az role assignment create --assignee-object-id $SP --assignee-principal-type ServicePrincipal \
+  --role "Container Apps Operator" --scope $APP_RG/Microsoft.App/managedEnvironments/cae-myvedicstar-prod-eus2  # join/action: every app update re-links its environment
+az role assignment create --assignee-object-id $SP --assignee-principal-type ServicePrincipal \
   --role Reader --scope $DATA_RG/Microsoft.KeyVault/vaults/kv-myvedicstar-prod-xw4t                 # secret names only
 ```
 
@@ -105,6 +110,25 @@ resource "azurerm_container_app" "api" {
 If Terraform should keep owning some environment variables, ignoring `env` means changes to them must be
 applied by a release (add them to `prod.json`) rather than by Terraform.
 
+### Application settings (`appsettings.json`)
+
+Values that are the same everywhere live in `appsettings.json`. Any of them can be overridden per environment
+with an environment variable (`Section__Key`) in `prod.json`.
+
+| Section | Purpose |
+|---|---|
+| `ApiDocumentation` | OpenAPI route, Swagger UI path (`/swagger`), titles and descriptions. Published in **every** environment, anonymously; the API operations still require a bearer token. |
+| `HealthChecks` | Liveness (`/health/live`) and readiness (`/health/ready`) paths, also used by the container probes. |
+| `RateLimiting` | Requests per client IP per window for API endpoints (default 60 per minute; 429 with `Retry-After` when exceeded). Counted per replica. Health and docs endpoints are not limited. |
+| `TransportSecurity` | In-app HTTP-to-HTTPS redirect. Off in prod, where the Container Apps ingress already redirects. |
+| `ForwardedHeaders` | Proxies trusted to send `X-Forwarded-For` / `X-Forwarded-Proto`. |
+| `Authentication`, `Authorize`, `Integrations`, `Database`, `FeatureFlags`, `Observability` | Identity provider, token claims, Microsoft Graph, PostgreSQL, feature switches, telemetry service name. |
+
+Fixed security behaviour is code, not configuration:
+- JWT signature, issuer, audience and lifetime validation.
+- Secure-by-default authorization: any endpoint without `AllowAnonymous` requires a token.
+- Security headers, no `Server` header, and `no-store` on profile responses.
+
 ## Releasing
 
 - **Automatic**: push to `main`. The workflow tests, builds `myvedicstar-authorize-api:<commit SHA>` in ACR, then
@@ -120,6 +144,8 @@ applied by a release (add them to `prod.json`) rather than by Terraform.
       -RegistryName crmyvedicstarprodxw4t -ImageTag $tag
   ```
 - **Secret rotation**: update the secret in Key Vault, then redeploy the current tag so the container reloads it.
+- **API documentation**: `https://<app FQDN>/swagger`, with the OpenAPI document at `/openapi/v1.json`.
+- **Version**: the image reports `<Version from the .csproj>+<commit SHA>` in telemetry (`service.version`).
 
 ## Open items
 

@@ -41,6 +41,9 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
     /// <summary>Value of the <c>FeatureFlags:UserPersistence</c> setting for this host.</summary>
     protected virtual bool UserPersistenceEnabled => true;
 
+    /// <summary>Value of the <c>RateLimiting:PermitLimit</c> setting; high by default so ordinary tests never hit it.</summary>
+    protected virtual int RateLimitPermitLimit => 10_000;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -52,6 +55,7 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Integrations:MicrosoftGraph:ClientSecret", "test-graph-secret");
         builder.UseSetting("Database:ApplyMigrationsOnStartup", "false");
         builder.UseSetting("ForwardedHeaders:KnownProxies:0", TrustedProxyIp);
+        builder.UseSetting("RateLimiting:PermitLimit", RateLimitPermitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         builder.ConfigureServices(services =>
         {

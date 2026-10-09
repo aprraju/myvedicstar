@@ -6,7 +6,8 @@
     Changes only what the application owns:
       - container image
       - application environment variables from deploy/environments/<env>.json, merged with the ones
-        Terraform already set (Terraform's values are kept unless the same name appears in the file)
+        Terraform already set (Terraform's values are kept unless the same name appears in the file);
+        names listed under "removedSettings" are deleted
       - Key Vault secret references (read by the platform with the app's managed identity)
       - startup, liveness and readiness probes and the termination grace period
     Infrastructure (the app itself, identity, registry, Key Vault, network, scale, CPU/memory) is not touched.
@@ -43,9 +44,29 @@ $config = Get-DeploymentConfig $Environment
 Initialize-AzCli
 $subscriptionId = Get-AzSubscriptionId
 
+function Get-HealthEndpointPaths {
+    # Single source of truth: the paths the application itself serves (HealthChecks section of appsettings.json).
+    $appSettingsPath = Join-Path $RepositoryRoot 'src/MyVedicStar.Authorize.Api/appsettings.json'
+    $healthChecks = (Get-Content -Raw -LiteralPath $appSettingsPath | ConvertFrom-Json).HealthChecks
+    Assert-Required $healthChecks.LivenessPath "HealthChecks:LivenessPath in $appSettingsPath"
+    Assert-Required $healthChecks.ReadinessPath "HealthChecks:ReadinessPath in $appSettingsPath"
+    return $healthChecks
+}
+
+function New-ContainerProbe([string] $Type, [string] $Path, [int] $Port, $Timing) {
+    # Timing values (initialDelaySeconds, periodSeconds, timeoutSeconds, failureThreshold) come from the environment file.
+    $probe = [ordered]@{ type = $Type; httpGet = @{ path = $Path; port = $Port } }
+    foreach ($setting in $Timing.PSObject.Properties) {
+        $probe[$setting.Name] = [int] $setting.Value
+    }
+    return [pscustomobject] $probe
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Pre-flight checks: fail before anything changes
 # ---------------------------------------------------------------------------------------------------------------------
+
+$healthPaths = Get-HealthEndpointPaths
 
 $appId = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/containerApps/$ContainerAppName"
 $app = Invoke-ArmGet $appId $ContainerAppsApiVersion
@@ -123,13 +144,14 @@ foreach ($setting in $config.settings.PSObject.Properties) {
 foreach ($mapping in $secretMappings) {
     $owned[$mapping.EnvironmentVariable] = [pscustomobject]@{ name = $mapping.EnvironmentVariable; secretRef = $mapping.SecretName }
 }
-$environmentVariables = @(@($container.env) | Where-Object { $_ -and -not $owned.ContainsKey($_.name) }) + @($owned.Values | Sort-Object name)
+$removed = @(if ($config.PSObject.Properties.Name -contains 'removedSettings') { $config.removedSettings })
+$environmentVariables = @(@($container.env) | Where-Object { $_ -and -not $owned.ContainsKey($_.name) -and $removed -notcontains $_.name }) + @($owned.Values | Sort-Object name)
 
-$probePort = [int] $config.probes.port
+# Startup and liveness use the liveness endpoint (process only); readiness uses the dependency checks.
 $probes = @(
-    [pscustomobject]@{ type = 'Startup'; httpGet = @{ path = $config.probes.livenessPath; port = $probePort }; initialDelaySeconds = 2; periodSeconds = 5; timeoutSeconds = 3; failureThreshold = 10 }
-    [pscustomobject]@{ type = 'Liveness'; httpGet = @{ path = $config.probes.livenessPath; port = $probePort }; periodSeconds = 15; timeoutSeconds = 3; failureThreshold = 3 }
-    [pscustomobject]@{ type = 'Readiness'; httpGet = @{ path = $config.probes.readinessPath; port = $probePort }; periodSeconds = 10; timeoutSeconds = 5; failureThreshold = 3 }
+    New-ContainerProbe 'Startup' $healthPaths.LivenessPath $config.probes.port $config.probes.startup
+    New-ContainerProbe 'Liveness' $healthPaths.LivenessPath $config.probes.port $config.probes.liveness
+    New-ContainerProbe 'Readiness' $healthPaths.ReadinessPath $config.probes.port $config.probes.readiness
 )
 
 $image = "$loginServer/$($ImageRepository):$ImageTag"
@@ -156,11 +178,11 @@ finally {
 # Wait for the new revision to become ready. Until then the previous revision keeps serving traffic.
 # ---------------------------------------------------------------------------------------------------------------------
 
-$deadline = (Get-Date).AddMinutes([int] $config.readyTimeoutMinutes)
+$deadline = (Get-Date).AddMinutes([int] $config.rollout.readyTimeoutMinutes)
 $revisionName = ''
 $state = ''
 do {
-    Start-Sleep -Seconds 10
+    Start-Sleep -Seconds ([int] $config.rollout.pollIntervalSeconds)
     $app = Invoke-ArmGet $appId $ContainerAppsApiVersion
     if ($null -eq $app) { continue }
 
@@ -187,23 +209,24 @@ do {
 } while ((Get-Date) -lt $deadline)
 
 if ($app.properties.latestReadyRevisionName -ne $revisionName -or [string]::IsNullOrEmpty($revisionName)) {
-    throw "Revision '$revisionName' did not become ready within $($config.readyTimeoutMinutes) minutes ($state). Traffic stays on '$previousRevision'."
+    throw "Revision '$revisionName' did not become ready within $($config.rollout.readyTimeoutMinutes) minutes ($state). Traffic stays on '$previousRevision'."
 }
 
 $appUrl = "https://$($app.properties.configuration.ingress.fqdn)"
 
-if ($config.smokeTest) {
+$smokeTest = $config.smokeTest
+if ($smokeTest.enabled) {
     # Through the public URL: wakes a scaled-to-zero app and checks TLS, ingress and the new container end to end.
-    $healthUrl = "$appUrl$($config.probes.readinessPath)"
+    $healthUrl = "$appUrl$($healthPaths.ReadinessPath)"
     $healthy = $false
-    for ($attempt = 1; $attempt -le 12 -and -not $healthy; $attempt++) {
+    for ($attempt = 1; $attempt -le [int] $smokeTest.attempts -and -not $healthy; $attempt++) {
         try {
-            $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 30
+            $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec ([int] $smokeTest.timeoutSeconds)
             $healthy = $response.StatusCode -eq 200
         }
         catch {
             Write-Host "Smoke test attempt $($attempt): $($_.Exception.Message)"
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds ([int] $smokeTest.retryDelaySeconds)
         }
     }
     if (-not $healthy) {

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.OpenApi;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+using MyVedicStar.Authorize.Api.Options;
 
 namespace MyVedicStar.Authorize.Api.OpenApi;
 
@@ -9,6 +11,13 @@ namespace MyVedicStar.Authorize.Api.OpenApi;
 /// </summary>
 internal sealed class BearerSecuritySchemeTransformer : IOpenApiDocumentTransformer
 {
+    private readonly ApiDocumentationOptions _options;
+
+    public BearerSecuritySchemeTransformer(IOptions<ApiDocumentationOptions> options)
+    {
+        _options = options.Value;
+    }
+
     public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
     {
         document.Components ??= new OpenApiComponents();
@@ -18,7 +27,7 @@ internal sealed class BearerSecuritySchemeTransformer : IOpenApiDocumentTransfor
             Type = SecuritySchemeType.Http,
             Scheme = "bearer",
             BearerFormat = "JWT",
-            Description = "Access token issued by Microsoft Entra External ID.",
+            Description = _options.BearerTokenDescription,
         };
 
         document.Security ??= [];
