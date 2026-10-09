@@ -19,12 +19,13 @@
     "Integrations__MicrosoftGraph__ClientId": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
     "FeatureFlags__UserPersistence": "false",
     "TransportSecurity__RedirectHttpToHttps": "false",
-    "ForwardedHeaders__KnownNetworks__0": "10.2.0.0/23",
+    "ApiProtection__TrustedProxies__0": "10.2.0.0/23",
     "Observability__ServiceName": "myvedicstar-api"
   },
   "removedSettings": [
     "ApiDocumentation__Enabled",
-    "Integrations__MicrosoftGraph__CredentialType"
+    "Integrations__MicrosoftGraph__CredentialType",
+    "ForwardedHeaders__KnownNetworks__0"
   ],
   "secrets": {
     "Integrations__MicrosoftGraph__ClientSecret": "graph-client-secret"

@@ -7,9 +7,9 @@ probes. The same image deploys without being rebuilt, and nothing environment-sp
 
 ```
 deploy/
-  docker/Dockerfile            Image build (context = repository root; see /.dockerignore)
+  docker/Dockerfile            Runtime image; its build context is the `dotnet publish` output
   environments/prod.json       Application-owned, non-secret settings for prod
-  scripts/build-image.ps1      Build the image in ACR (az acr build, no local Docker)
+  scripts/build-image.ps1      dotnet publish, then build the image in ACR (az acr build, no local Docker)
   scripts/deploy-app.ps1       Release a tag to the existing Container App and wait until it is healthy
   scripts/set-secrets.ps1      Store secrets in Key Vault (interactive; never runs in CI)
 .github/workflows/
@@ -81,12 +81,17 @@ az role assignment create --assignee-object-id $SP --assignee-principal-type Ser
   --role Reader --scope $DATA_RG/Microsoft.KeyVault/vaults/kv-myvedicstar-prod-xw4t                 # secret names only
 ```
 
-**3. The Graph client secret.** Create `graph-client-secret` in `kv-myvedicstar-prod-xw4t`: the client
+**3. Package access for this repository.** `MyVedicStar.ApiProtection` is published from
+`aprraju/myvedistar-common`. In GitHub, open the package → **Package settings** → **Manage Actions access** →
+add `aprraju/myvedicstar` with **Read**. Without this, `dotnet restore` in the workflow fails with 403 even
+though it has `packages: read`.
+
+**4. The Graph client secret.** Create `graph-client-secret` in `kv-myvedicstar-prod-xw4t`: the client
 secret of the Entra External ID app registration that has Microsoft Graph `User.Read.All`. Use the portal,
 or run `./deploy/scripts/set-secrets.ps1` from a network the vault allows (its firewall denies public access by
 default). You need `Key Vault Secrets Officer` on the vault.
 
-**4. Stop Terraform from reverting releases.** The release changes parts of the Container App that
+**5. Stop Terraform from reverting releases.** The release changes parts of the Container App that
 Terraform also declares. Without this, the next `terraform apply` resets the image to the placeholder and
 drops the application settings:
 
@@ -119,9 +124,8 @@ with an environment variable (`Section__Key`) in `prod.json`.
 |---|---|
 | `ApiDocumentation` | OpenAPI route, Swagger UI path (`/swagger`), titles and descriptions. Published in **every** environment, anonymously; the API operations still require a bearer token. |
 | `HealthChecks` | Liveness (`/health/live`) and readiness (`/health/ready`) paths, also used by the container probes. |
-| `RateLimiting` | Requests per client IP per window for API endpoints (default 60 per minute; 429 with `Retry-After` when exceeded). Counted per replica. Health and docs endpoints are not limited. |
+| `ApiProtection` | Settings for the shared [MyVedicStar.ApiProtection](https://github.com/aprraju/myvedistar-common) package. **Rate limits:** `/userinfo` uses `authenticated-standard` (120 per user per minute) and every request counts toward `Global` (200 per IP per minute); 429 responses are Problem Details. **Request size:** 64 KB POST/PUT/PATCH bodies, 413 when exceeded. **Correlation:** `X-Correlation-ID` on every response and in every log entry. **`TrustedProxies`:** the only sources whose `X-Forwarded-*` headers count (prod: the Container Apps subnet). **`HealthCheckPaths`:** never rate limited; must include both `HealthChecks` paths, or startup fails. **`SsrfProtection`:** applied to the Microsoft Graph client (HTTPS only; private and metadata addresses blocked). Limits are counted per replica, and every value needs a restart. |
 | `TransportSecurity` | In-app HTTP-to-HTTPS redirect. Off in prod, where the Container Apps ingress already redirects. |
-| `ForwardedHeaders` | Proxies trusted to send `X-Forwarded-For` / `X-Forwarded-Proto`. |
 | `Authentication`, `Authorize`, `Integrations`, `Database`, `FeatureFlags`, `Observability` | Identity provider, token claims, Microsoft Graph, PostgreSQL, feature switches, telemetry service name. |
 
 Fixed security behaviour is code, not configuration:
@@ -137,7 +141,8 @@ Fixed security behaviour is code, not configuration:
   traffic moves to the new revision only after its probes pass, and the deploy fails, leaving the previous
   revision serving, if the new one does not become ready. It then checks `GET /health/ready` through the
   public URL.
-- **Local**, with the same scripts after `az login`:
+- **Local**, with the same scripts after `az login` and with `$env:GITHUB_TOKEN` set to a PAT that has
+  `read:packages` (any `dotnet restore` needs it, because `MyVedicStar.*` comes from GitHub Packages):
   ```powershell
   $tag = ./deploy/scripts/build-image.ps1 -RegistryName crmyvedicstarprodxw4t
   ./deploy/scripts/deploy-app.ps1 -ResourceGroup rg-myvedicstar-prod-app-eus2 -ContainerAppName ca-myvedicstar-api-prod `

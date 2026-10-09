@@ -9,6 +9,9 @@
 # Repository variables used (not secrets: none of the values is sensitive):
 #   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
 #   REGISTRY_NAME, REGISTRY_RESOURCE_GROUP, RESOURCE_GROUP_NAME, CONTAINER_APP_NAME
+#
+# MyVedicStar.* packages are restored from GitHub Packages with the built-in GITHUB_TOKEN (packages: read).
+# The package must grant this repository read access: package settings -> Manage Actions access.
 
 name: Authorize API
 
@@ -40,6 +43,11 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read by nuget.config for GitHub Packages
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -79,10 +87,14 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: read
     outputs:
       image-tag: ${{ steps.build.outputs.image-tag }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
@@ -94,6 +106,7 @@ jobs:
         env:
           REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
           IMAGE_TAG: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # publish restores MyVedicStar.* from GitHub Packages
         run: ./deploy/scripts/build-image.ps1
 
   deploy-prod:

@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Options;
+using MyVedicStar.ApiProtection.Extensions;
 using MyVedicStar.Authorize.Api.Authentication;
 using MyVedicStar.Authorize.Api.ErrorHandling;
 using MyVedicStar.Authorize.Api.Health;
 using MyVedicStar.Authorize.Api.Logging;
-using MyVedicStar.Authorize.Api.Networking;
 using MyVedicStar.Authorize.Api.Observability;
 using MyVedicStar.Authorize.Api.OpenApi;
-using MyVedicStar.Authorize.Api.RateLimiting;
 using MyVedicStar.Authorize.Api.Security;
 using MyVedicStar.Authorize.Business.DependencyInjection;
 
@@ -22,11 +21,11 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+// Rate limiting, request-size limits, correlation IDs, trusted proxies and SSRF protection (ApiProtection section).
+builder.Services.AddMyVedicStarApiProtection(builder.Configuration);
 builder.Services.AddApiDocumentation(builder.Configuration);
 builder.Services.AddHealthEndpoints(builder.Configuration);
 builder.Services.AddApiObservability(builder.Configuration);
-builder.Services.AddApiRateLimiting(builder.Configuration);
-builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
 builder.Services.AddEntraExternalIdAuthentication(builder.Configuration);
 builder.Services.AddAuthorizeBusiness(builder.Configuration);
 
@@ -36,6 +35,9 @@ var healthEndpoints = app.Services.GetRequiredService<IOptions<HealthEndpointOpt
 
 app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
+// Routing first: the protection middleware picks request-size limits from endpoint metadata.
+app.UseRouting();
+app.UseMyVedicStarApiProtection();
 app.UseWhen(context => !healthEndpoints.IsHealthRequest(context.Request.Path), branch => branch.UseMiddleware<RequestLoggingMiddleware>());
 app.UseExceptionHandler();
 app.UseStatusCodePages();
@@ -53,11 +55,12 @@ if (transportSecurity.RedirectHttpToHttps)
 
 app.UseApiDocumentation();
 app.UseAuthentication();
+// After authentication so authenticated callers are partitioned by user rather than by IP.
 app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealthEndpoints();
-app.MapControllers().RequireRateLimiting(RateLimitingServiceCollectionExtensions.ApiPolicy);
+app.MapControllers();
 
 app.Run();
 

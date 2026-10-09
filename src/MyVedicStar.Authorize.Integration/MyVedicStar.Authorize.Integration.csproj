@@ -10,6 +10,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <!-- Shared API protection (rate limiting, request size, correlation, trusted proxies, SSRF). Pin exactly;
+         keep the same version in MyVedicStar.Authorize.Api and MyVedicStar.Authorize.Integration. -->
+    <PackageReference Include="MyVedicStar.ApiProtection" Version="1.3.0" />
   </ItemGroup>
 
   <PropertyGroup>
