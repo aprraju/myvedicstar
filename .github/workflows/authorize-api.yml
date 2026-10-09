@@ -3,7 +3,8 @@
 # Container App (deploy/scripts/deploy-app.ps1).
 #
 # Azure sign-in uses OpenID Connect: no Azure credentials are stored in GitHub. The app registration in
-# AZURE_CLIENT_ID needs a federated credential with subject  repo:<owner>/<repo>:environment:prod
+# AZURE_CLIENT_ID needs a federated credential whose subject matches the token exactly; this repository
+# uses immutable IDs:  repo:aprraju@867910/myvedicstar@1396964516:environment:prod
 #
 # Repository variables used (not secrets: none of the values is sensitive):
 #   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,

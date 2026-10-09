@@ -55,11 +55,13 @@ SP=8e41e8a4-01d7-4b1c-8bd2-436e0ec19453
 APP_RG=/subscriptions/$SUB/resourceGroups/rg-myvedicstar-prod-app-eus2/providers
 DATA_RG=/subscriptions/$SUB/resourceGroups/rg-myvedicstar-prod-data-eus2/providers
 
-# 1. Trust GitHub Actions jobs that run in the "prod" environment of aprraju/myvedicstar
+# 1. Trust GitHub Actions jobs that run in the "prod" environment of aprraju/myvedicstar.
+#    This repository's OIDC tokens use immutable owner/repo IDs in the subject (owner@id/repo@id), so the
+#    subject must match that form exactly. The exact value appears in AADSTS700213 errors if it ever changes.
 az ad app federated-credential create --id 6a0e280e-1397-42c4-a1e0-cda080f3d3cb --parameters '{
   "name": "github-myvedicstar-prod",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:aprraju/myvedicstar:environment:prod",
+  "subject": "repo:aprraju@867910/myvedicstar@1396964516:environment:prod",
   "audiences": ["api://AzureADTokenExchange"]
 }'
 
