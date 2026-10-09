@@ -1,0 +1,5 @@
+{
+  "dotnet.defaultSolution": "MyVedicStar.slnx",
+  // Never start the debugger on a stale build when the pre-launch build fails.
+  "debug.onTaskErrors": "abort"
+}

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
 namespace MyVedicStar.Authorize.Api.Authentication;
@@ -44,11 +43,6 @@ internal static class AuthenticationServiceCollectionExtensions
                 jwtBearer.TokenValidationParameters.RequireSignedTokens = true;
                 jwtBearer.TokenValidationParameters.RequireExpirationTime = true;
             });
-
-        // Secure by default: an endpoint without its own policy still requires an authenticated caller.
-        // Health and documentation endpoints opt out explicitly with AllowAnonymous.
-        services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
         return services;
     }

@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicStar.Authorize.Tests.Integration" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Local-machine settings never leave the developer's machine: excluded from publish output and so from the image. -->
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>

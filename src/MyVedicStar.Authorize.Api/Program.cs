@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using MyVedicStar.ApiProtection.Extensions;
 using MyVedicStar.Authorize.Api.Authentication;
+using MyVedicStar.Authorize.Api.Authorization;
 using MyVedicStar.Authorize.Api.ErrorHandling;
 using MyVedicStar.Authorize.Api.Health;
 using MyVedicStar.Authorize.Api.Logging;
@@ -17,7 +18,7 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
 // Graceful shutdown: finish in-flight requests within the container's termination grace period.
 builder.Services.Configure<HostOptions>(builder.Configuration.GetSection(nameof(HostOptions)));
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(mvc => mvc.Conventions.Add(new DenyAnonymousControllersConvention()));
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
@@ -27,6 +28,7 @@ builder.Services.AddApiDocumentation(builder.Configuration);
 builder.Services.AddHealthEndpoints(builder.Configuration);
 builder.Services.AddApiObservability(builder.Configuration);
 builder.Services.AddEntraExternalIdAuthentication(builder.Configuration);
+builder.Services.AddApiAuthorization(builder.Configuration);
 builder.Services.AddAuthorizeBusiness(builder.Configuration);
 
 var app = builder.Build();
@@ -60,7 +62,8 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealthEndpoints();
-app.MapControllers();
+// Every controller endpoint requires a signed-in user with the API scope, even one that forgets [Authorize].
+app.MapControllers().RequireAuthorization(AuthorizationPolicies.SignedInUser);
 
 app.Run();
 

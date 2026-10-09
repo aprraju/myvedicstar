@@ -29,6 +29,9 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
     public const string Audience = "test-api-client-id";
     public const string TrustedProxyIp = "10.0.0.1";
 
+    /// <summary>The delegated scope the API requires (Authorization:RequiredScopes in appsettings.json).</summary>
+    public const string ApiScope = "access_as_user";
+
     /// <summary>Test-only header that sets the TCP peer address, since the test server has no real socket.</summary>
     public const string RemoteIpTestHeader = "X-Test-Remote-Ip";
 
@@ -93,9 +96,16 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
         string issuer = Issuer,
         string audience = Audience,
         DateTime? expiresUtc = null,
-        RsaSecurityKey? signingKey = null)
+        RsaSecurityKey? signingKey = null,
+        string? scope = ApiScope)
     {
         var expires = expiresUtc ?? DateTime.UtcNow.AddMinutes(30);
+
+        // User tokens carry the API's delegated scope; pass scope: null to mimic an app-only token.
+        if (scope is not null)
+        {
+            claims = claims.Append(("scp", scope));
+        }
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {

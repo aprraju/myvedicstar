@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using MyVedicStar.ApiProtection.Abstractions;
 using MyVedicStar.ApiProtection.RateLimiting;
+using MyVedicStar.Authorize.Api.Authorization;
 using MyVedicStar.Authorize.Api.Contracts;
 using MyVedicStar.Authorize.Business;
 
@@ -10,6 +11,7 @@ namespace MyVedicStar.Authorize.Api.Controllers;
 
 /// <summary>Endpoints for the signed-in user.</summary>
 [ApiController]
+[Authorize(Policy = AuthorizationPolicies.SignedInUser)]
 [Route("api/v1/auth")]
 [Produces("application/json")]
 public sealed class AuthController : ControllerBase
@@ -32,16 +34,17 @@ public sealed class AuthController : ControllerBase
     /// </remarks>
     /// <response code="200">The user's profile.</response>
     /// <response code="401">The bearer token is missing, invalid or expired, or does not identify a user.</response>
+    /// <response code="403">The token is valid but lacks the API scope (for example an app-only token).</response>
     /// <response code="404">The user no longer exists in the directory.</response>
     /// <response code="413">The request body exceeds the allowed size.</response>
     /// <response code="429">Too many requests from this user; retry later.</response>
     /// <response code="503">The identity provider or database is temporarily unavailable.</response>
     [HttpPost("userinfo")]
-    [Authorize]
     [EnableRateLimiting(RateLimitPolicyNames.AuthenticatedStandard)]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ProducesResponseType<UserInfoResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
