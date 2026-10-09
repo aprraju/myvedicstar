@@ -14,7 +14,9 @@
   "keyVaultIdentityName": "id-myvedicstar-api-prod",
   "settings": {
     "Authentication__EntraExternalId__MetadataAddress": "https://myvedicstarexternal.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0/.well-known/openid-configuration",
-    "Authentication__EntraExternalId__Audience": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
+    "Authentication__EntraExternalId__TenantDomain": "cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com",
+    "Authentication__EntraExternalId__TenantId": "cbece845-e124-4de7-89d3-96a71abb7b83",
+    "Authentication__EntraExternalId__ClientId": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
     "Integrations__MicrosoftGraph__TenantId": "cbece845-e124-4de7-89d3-96a71abb7b83",
     "Integrations__MicrosoftGraph__ClientId": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
     "FeatureFlags__UserPersistence": "false",
@@ -25,7 +27,8 @@
   "removedSettings": [
     "ApiDocumentation__Enabled",
     "Integrations__MicrosoftGraph__CredentialType",
-    "ForwardedHeaders__KnownNetworks__0"
+    "ForwardedHeaders__KnownNetworks__0",
+    "Authentication__EntraExternalId__Audience"
   ],
   "secrets": {
     "Integrations__MicrosoftGraph__ClientSecret": "graph-client-secret"

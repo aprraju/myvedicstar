@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
+using MyVedicStar.ApiProtection.Auth;
 using MyVedicStar.Authorize.Data;
 using MyVedicStar.Authorize.Data.Users;
 using MyVedicStar.Authorize.Integration.Identity;
@@ -25,7 +26,8 @@ namespace MyVedicStar.Authorize.Tests.Integration;
 /// </summary>
 public class AuthorizeApiFactory : WebApplicationFactory<Program>
 {
-    public const string Issuer = "https://test-tenant.ciamlogin.com/test-tenant/v2.0";
+    public const string TenantId = "test-tenant";
+    public const string Issuer = $"https://{TenantId}.ciamlogin.com/{TenantId}/v2.0";
     public const string Audience = "test-api-client-id";
     public const string TrustedProxyIp = "10.0.0.1";
 
@@ -53,8 +55,10 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("FeatureFlags:UserPersistence", UserPersistenceEnabled.ToString());
+        builder.UseSetting("Authentication:EntraExternalId:TenantDomain", $"{TenantId}.ciamlogin.com");
+        builder.UseSetting("Authentication:EntraExternalId:TenantId", TenantId);
+        builder.UseSetting("Authentication:EntraExternalId:ClientId", Audience);
         builder.UseSetting("Authentication:EntraExternalId:MetadataAddress", $"{Issuer}/.well-known/openid-configuration");
-        builder.UseSetting("Authentication:EntraExternalId:Audience", Audience);
         builder.UseSetting("Integrations:MicrosoftGraph:TenantId", "test-tenant");
         builder.UseSetting("Integrations:MicrosoftGraph:ClientId", "test-graph-client");
         builder.UseSetting("Integrations:MicrosoftGraph:ClientSecret", "test-graph-secret");
@@ -65,7 +69,7 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            services.PostConfigure<JwtBearerOptions>(ProviderSchemeNames.EntraExternalId, options =>
             {
                 var configuration = new OpenIdConnectConfiguration { Issuer = Issuer };
                 configuration.SigningKeys.Add(_signingKey);

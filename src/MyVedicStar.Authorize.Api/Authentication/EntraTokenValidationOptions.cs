@@ -3,28 +3,12 @@ using System.ComponentModel.DataAnnotations;
 namespace MyVedicStar.Authorize.Api.Authentication;
 
 /// <summary>
-/// Settings for authenticating bearer tokens issued by a Microsoft Entra External ID tenant.
-/// All values are supplied by configuration and validated at startup.
+/// Extra validation applied to the Entra External ID bearer scheme registered by MyVedicStar.ApiProtection.
+/// Bound from <c>Authentication:EntraExternalId</c>, next to the package's own TenantDomain / TenantId / ClientId.
 /// </summary>
-public sealed class EntraExternalIdAuthenticationOptions
+public sealed class EntraTokenValidationOptions
 {
     public const string SectionName = "Authentication:EntraExternalId";
-
-    /// <summary>
-    /// OpenID Connect metadata document, for example
-    /// <c>https://{subdomain}.ciamlogin.com/{tenantId}/v2.0/.well-known/openid-configuration</c>.
-    /// The token issuer and signing keys are read from it.
-    /// </summary>
-    [Required]
-    [Url]
-    public string MetadataAddress { get; set; } = string.Empty;
-
-    /// <summary>Whether the metadata document must be served over HTTPS.</summary>
-    public bool RequireHttpsMetadata { get; set; }
-
-    /// <summary>Expected token audience: the application (client) ID of this API's app registration.</summary>
-    [Required]
-    public string Audience { get; set; } = string.Empty;
 
     /// <summary>Signing algorithms accepted for incoming tokens, for example <c>RS256</c>.</summary>
     [Required]

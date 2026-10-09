@@ -27,7 +27,7 @@ builder.Services.AddMyVedicStarApiProtection(builder.Configuration);
 builder.Services.AddApiDocumentation(builder.Configuration);
 builder.Services.AddHealthEndpoints(builder.Configuration);
 builder.Services.AddApiObservability(builder.Configuration);
-builder.Services.AddEntraExternalIdAuthentication(builder.Configuration);
+builder.Services.AddApiAuthentication(builder.Configuration);
 builder.Services.AddApiAuthorization(builder.Configuration);
 builder.Services.AddAuthorizeBusiness(builder.Configuration);
 

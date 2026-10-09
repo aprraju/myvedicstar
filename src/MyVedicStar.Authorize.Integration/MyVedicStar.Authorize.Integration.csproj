@@ -12,7 +12,12 @@
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
     <!-- Shared API protection (rate limiting, request size, correlation, trusted proxies, SSRF). Pin exactly;
          keep the same version in MyVedicStar.Authorize.Api and MyVedicStar.Authorize.Integration. -->
-    <PackageReference Include="MyVedicStar.ApiProtection" Version="1.3.0" />
+    <PackageReference Include="MyVedicStar.ApiProtection" Version="1.4.0" />
+    <!-- MyVedicStar.ApiProtection 1.4.0 depends on JwtBearer 8.0.0, which brings IdentityModel 7.0.3
+         (GHSA-59j7-ghrg-fj52). Pin the patched version the API already resolves through JwtBearer 10;
+         remove these once the package references a patched JwtBearer. -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
   </ItemGroup>
 
   <PropertyGroup>
