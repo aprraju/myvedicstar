@@ -1,0 +1,8 @@
+@HostAddress = http://localhost:5014
+@AccessToken = <paste access token from Entra External ID>
+
+POST {{HostAddress}}/api/v1/auth/userinfo
+Authorization: Bearer {{AccessToken}}
+Accept: application/json
+
+###

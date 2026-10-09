@@ -1,0 +1,36 @@
+{
+  "$comment": [
+    "Application-owned settings for the prod Container App, applied by deploy/scripts/deploy-app.ps1.",
+    "Infrastructure (Container App, identity, registry, Key Vault, network) is owned by Terraform; resource names come from GitHub variables.",
+    "Nothing here is secret. 'settings' become plain environment variables; 'secrets' map an environment variable to a Key Vault secret name.",
+    "Environment variables Terraform already sets on the container are kept unless a key below has the same name."
+  ],
+  "containerName": "api",
+  "keyVault": {
+    "name": "kv-myvedicstar-prod-xw4t",
+    "resourceGroup": "rg-myvedicstar-prod-data-eus2"
+  },
+  "keyVaultIdentityName": "id-myvedicstar-api-prod",
+  "settings": {
+    "Authentication__EntraExternalId__MetadataAddress": "https://myvedicstarexternal.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0/.well-known/openid-configuration",
+    "Authentication__EntraExternalId__Audience": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
+    "Integrations__MicrosoftGraph__TenantId": "cbece845-e124-4de7-89d3-96a71abb7b83",
+    "Integrations__MicrosoftGraph__ClientId": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
+    "Integrations__MicrosoftGraph__CredentialType": "ClientSecret",
+    "FeatureFlags__UserPersistence": "false",
+    "ApiDocumentation__Enabled": "false",
+    "ForwardedHeaders__KnownNetworks__0": "10.2.0.0/23",
+    "Observability__ServiceName": "myvedicstar-api"
+  },
+  "secrets": {
+    "Integrations__MicrosoftGraph__ClientSecret": "graph-client-secret"
+  },
+  "probes": {
+    "port": 8080,
+    "livenessPath": "/health/live",
+    "readinessPath": "/health/ready"
+  },
+  "terminationGracePeriodSeconds": 30,
+  "readyTimeoutMinutes": 10,
+  "smokeTest": true
+}

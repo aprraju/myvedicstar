@@ -1,0 +1,16 @@
+# Build context for deploy/docker/Dockerfile is the repository root. Only src/ is needed.
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+# Local-development settings never ship in the image.
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/secrets.json
+.git/
+.github/
+deploy/
+tests/
+artifacts/
+*.md
+.env
