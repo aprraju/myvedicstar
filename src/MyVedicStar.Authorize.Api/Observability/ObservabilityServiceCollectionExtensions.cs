@@ -2,6 +2,8 @@ using System.Reflection;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.Extensions.Options;
 using MyVedicStar.Authorize.Api.Health;
+using MyVedicStar.Shared.Caching;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Resources;
 
@@ -32,6 +34,7 @@ internal static class ObservabilityServiceCollectionExtensions
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName ?? string.Empty, serviceVersion: GetServiceVersion()))
+            .WithMetrics(metrics => metrics.AddMeter(CacheMetrics.MeterName))
             .UseAzureMonitor();
 
         // Container probes hit the health endpoints every few seconds; they are not useful request telemetry.

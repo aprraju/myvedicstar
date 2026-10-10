@@ -48,7 +48,7 @@ Use:
 - Nullable reference types
 - Centralized exception handling
 - Structured logging
-- Distributed caching
+- In-memory caching behind an abstraction
 - OpenAPI / Swagger
 - Unit and integration testing
 
@@ -106,7 +106,7 @@ The API must NOT directly access:
 - database contexts
 - Panchang calculation classes
 - external integrations
-- Redis implementation
+- cache implementation
 - internal business services
 
 The API communicates with the Business layer through its **public Facade**.
@@ -168,7 +168,7 @@ Do NOT access DbContext directly from Controllers.
 
 Do NOT call external integrations directly from Controllers.
 
-Do NOT implement Redis logic directly in Controllers.
+Do NOT implement caching logic directly in Controllers.
 
 ---
 
@@ -535,15 +535,30 @@ All database calls should be asynchronous where appropriate and accept Cancellat
 
 # 14. Caching Architecture
 
-Use a distributed cache such as Redis.
+Use an in-memory cache (`IMemoryCache`) per API instance.
 
 Caching must be behind an abstraction.
+
+The shared cache contract is `ICacheStore` (`MyVedicStar.Shared.Caching`), registered with
+`services.AddMyVedicStarCaching(configuration)`. Its current implementation, `MemoryCacheStore`, uses a
+private, size-limited `MemoryCache`; do not use the shared `IMemoryCache` service directly.
+
+Each domain wraps `ICacheStore` in its own abstraction that owns key building and expiration rules.
 
 Example:
 
 `IPanchangCache`
 
-The Business Layer must not contain provider-specific Redis commands.
+The Business Layer must not depend on the cache implementation (`MemoryCache`, or any future provider).
+
+Consequences of an in-memory cache, which callers must accept:
+
+- each API instance has its own cache; entries are not shared between replicas
+- entries are lost on restart and deployment
+- cached data must therefore be derivable (recalculable), never authoritative state
+
+`ICacheStore` is asynchronous so a distributed cache (for example Redis) can replace the implementation
+later without changing callers, if replica count or calculation cost makes per-instance caching insufficient.
 
 Cache Panchang primarily at:
 
@@ -591,7 +606,7 @@ API Request
 
 → Business Facade
 
-→ Check distributed cache
+→ Check cache
 
 If HIT:
 → Return cached Panchang
@@ -604,7 +619,8 @@ If MISS:
 
 Prevent cache stampedes when many requests simultaneously request the same uncached location/date.
 
-Consider distributed locking, request coalescing, or another appropriate mechanism.
+`ICacheStore.GetOrCreateAsync` coalesces concurrent misses for the same key within an instance, so each
+instance runs the calculation once per key. Instances do not coordinate with each other.
 
 ---
 
@@ -877,7 +893,6 @@ Important metrics include:
 - Panchang calculation latency
 - Cache hit ratio
 - Cache miss ratio
-- Redis latency
 - Database latency
 - External provider latency
 - Calculation failures
@@ -916,13 +931,13 @@ Never commit secrets to source control.
 
 Design APIs to be stateless.
 
-Do not depend on server-local memory for authoritative shared cache/state.
+Do not depend on server-local memory for authoritative shared state. The in-memory cache is allowed
+because it holds only recalculable data (see section 14).
 
 Support:
 
 API instances
 → Load Balancer / API Gateway
-→ Distributed Redis
 → Database
 → Integration providers
 
@@ -930,8 +945,7 @@ The application should be horizontally scalable.
 
 Design for:
 
-- multiple API instances
-- distributed caching
+- multiple API instances, each with its own in-memory cache
 - transient failures
 - graceful degradation
 - health checks
@@ -1062,7 +1076,7 @@ Use strongly typed Options Pattern.
 
 Examples:
 
-`RedisOptions`
+`CachingOptions`
 
 `DatabaseOptions`
 
@@ -1160,7 +1174,7 @@ Most importantly:
 
 **Controller → Facade → Internal Business Services → Calculation/Data/Integration**
 
-The Controller must never bypass the Facade to directly access Calculation, Data, Redis, or external integrations.
+The Controller must never bypass the Facade to directly access Calculation, Data, the cache, or external integrations.
 
 The **Panchang Calculation Engine must remain independently testable and isolated from API, UI, database, and external-provider implementation details.**
 

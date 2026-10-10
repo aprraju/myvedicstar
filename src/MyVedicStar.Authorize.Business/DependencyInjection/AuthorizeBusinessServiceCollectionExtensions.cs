@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Authorize.Business.Users;
 using MyVedicStar.Authorize.Data.DependencyInjection;
+using MyVedicStar.Shared.Caching;
 
 namespace MyVedicStar.Authorize.Business.DependencyInjection;
 
@@ -17,6 +18,8 @@ public static class AuthorizeBusinessServiceCollectionExtensions
             .Bind(configuration.GetSection(UserIdentityClaimOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        services.AddMyVedicStarCaching(configuration);
 
         // Decided at registration time: with persistence off, no database services, settings or migrations are registered.
         var featureFlags = configuration.GetSection(FeatureFlagOptions.SectionName).Get<FeatureFlagOptions>() ?? new FeatureFlagOptions();
