@@ -60,14 +60,17 @@ else {
         }
 
         # az acr build reads the Dockerfile from inside the build context.
-        Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'deploy/docker/Dockerfile') -Destination $publishDir
+        $dockerfile = Join-Path $publishDir 'Dockerfile'
+        Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'deploy/docker/Dockerfile') -Destination $dockerfile
 
         Write-Host "Building $image in $RegistryName..."
         # Streamed to the host (not captured) so build logs appear live and never mix with the script's output.
+        # --file is absolute: newer Azure CLI versions resolve a relative --file against the current directory,
+        # not the build context.
         & az acr build `
             --registry $RegistryName `
             --image $image `
-            --file Dockerfile `
+            --file $dockerfile `
             --platform linux/amd64 `
             $publishDir | Out-Host
         if ($LASTEXITCODE -ne 0) {
