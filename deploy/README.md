@@ -13,8 +13,10 @@ deploy/
   scripts/deploy-app.ps1       Release a tag to the existing Container App and wait until it is healthy
   scripts/set-secrets.ps1      Store secrets in Key Vault (interactive; never runs in CI)
 .github/workflows/
-  authorize-api.yml            PR: build, test, checks.  main: build image, then deploy to prod
+  authorize-api.yml            Code scan (advisory), restore + build + test; on main also build image and deploy to prod
   authorize-api-deploy.yml     Deploy a given tag to prod (also used manually for rollback)
+.github/scripts/
+  code-scan.ps1                Advisory checks run by the code-scan job (never fails)
 ```
 
 ## Configuration
@@ -136,6 +138,19 @@ Fixed security behaviour is code, not configuration:
 - JWT signature, issuer, audience and lifetime validation.
 - Secure-by-default authorization: any endpoint without `AllowAnonymous` requires a token.
 - Security headers, no `Server` header, and `no-store` on profile responses.
+
+## Pipeline
+
+| Stage | Job | Runs on | Blocks the release? |
+|---|---|---|---|
+| 1. Code scan | `code-scan` | push, PR; manual runs unless `run-code-scan` is off | **No.** Findings are annotations and a job summary. It checks compiler and .NET analyzer diagnostics, code style (`dotnet format`), vulnerable packages (High/Critical shown as errors) and the deployment scripts (PSScriptAnalyzer). |
+| 2. Restore | `test` | every run | Yes. Packages come from nuget.org, and `MyVedicStar.*` from GitHub Packages (see `nuget.config`). The package cache is keyed on the project files. |
+| 3. Tests | `test` | every run | Yes. Results (TRX) and coverage (Cobertura) are uploaded as the `test-results` artifact and summarised in the run. |
+| 4. Build image | `build-image` | push to `main`, manual | Yes |
+| 5. Deploy | `deploy-prod` | after the image build | Yes |
+
+Run a scan locally with PowerShell 7: `./.github/scripts/code-scan.ps1 -Check Analyzers|Format|Packages|Scripts`.
+Vulnerable packages no longer fail the build. Watch the code-scan summary, and act on any High or Critical finding.
 
 ## Releasing
 

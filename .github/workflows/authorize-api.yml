@@ -1,6 +1,12 @@
-# CI for every PR; on main also builds the image and releases it to prod.
-# Infrastructure is managed by Terraform; this workflow only builds the image and updates the existing
-# Container App (deploy/scripts/deploy-app.ps1).
+# Release pipeline for the Authorize API. Infrastructure is managed by Terraform; this workflow only builds the
+# image and updates the existing Container App (deploy/scripts/deploy-app.ps1).
+#
+#   1. code-scan     optional, advisory: analyzers, code style, vulnerable packages, deployment scripts.
+#                    Findings are annotations and a job summary; it never fails the run or gates a release.
+#   2. test          restore from nuget.org and GitHub Packages, build, test (gates everything below)
+#   3. (test)        test results and coverage are published with the run
+#   4. build-image   main / manual runs: publish and build myvedicstar-authorize-api:<commit SHA> in ACR
+#   5. deploy-prod   release that tag (authorize-api-deploy.yml, also used manually for rollback)
 #
 # Azure sign-in uses OpenID Connect: no Azure credentials are stored in GitHub. The app registration in
 # AZURE_CLIENT_ID needs a federated credential whose subject matches the token exactly; this repository
@@ -10,7 +16,8 @@
 #   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
 #   REGISTRY_NAME, REGISTRY_RESOURCE_GROUP, RESOURCE_GROUP_NAME, CONTAINER_APP_NAME
 #
-# MyVedicStar.* packages are restored from GitHub Packages with the built-in GITHUB_TOKEN (packages: read).
+# MyVedicStar.* packages are restored from GitHub Packages with the built-in GITHUB_TOKEN (packages: read);
+# every other package comes from nuget.org (package source mapping in nuget.config).
 # The package must grant this repository read access: package settings -> Manage Actions access.
 
 name: Authorize API
@@ -23,11 +30,18 @@ on:
       - 'tests/**'
       - 'deploy/**'
       - 'MyVedicStar.slnx'
+      - 'nuget.config'
       - '.dockerignore'
       - '.github/workflows/authorize-api*.yml'
+      - '.github/scripts/**'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      run-code-scan:
+        description: Run the advisory code scan (never blocks the release)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -41,6 +55,51 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  code-scan:
+    # Push and PR runs always scan; a manual run can skip it. Every check reports and exits 0, and the job is
+    # also continue-on-error, so the scan can never fail the workflow. Nothing depends on it.
+    if: github.event_name != 'workflow_dispatch' || inputs.run-code-scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read by nuget.config for GitHub Packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        id: restore
+        continue-on-error: true
+        run: dotnet restore MyVedicStar.slnx
+      - name: Compiler and .NET analyzers
+        if: steps.restore.outcome == 'success'
+        shell: pwsh
+        run: ./.github/scripts/code-scan.ps1 -Check Analyzers
+      - name: Code style
+        if: steps.restore.outcome == 'success'
+        shell: pwsh
+        run: ./.github/scripts/code-scan.ps1 -Check Format
+      - name: Vulnerable packages
+        if: steps.restore.outcome == 'success'
+        shell: pwsh
+        run: ./.github/scripts/code-scan.ps1 -Check Packages
+      - name: Deployment scripts
+        shell: pwsh
+        run: ./.github/scripts/code-scan.ps1 -Check Scripts
+      - name: Report skipped checks
+        if: steps.restore.outcome != 'success'
+        run: echo "::warning title=Code scan incomplete::Package restore failed, so analyzer, style and package checks were skipped. The test job reports the cause."
+
   test:
     runs-on: ubuntu-latest
     permissions:
@@ -53,31 +112,55 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config') }}
+          restore-keys: nuget-${{ runner.os }}-
 
-      - name: Restore
+      - name: Restore packages (nuget.org and GitHub Packages)
+        id: restore
         run: dotnet restore MyVedicStar.slnx
-      - name: Check for vulnerable packages
+      - name: Explain restore failure
+        if: failure() && steps.restore.outcome == 'failure'
         run: |
-          dotnet list MyVedicStar.slnx package --vulnerable --include-transitive | tee vulnerable.txt
-          ! grep -q -i "has the following vulnerable packages" vulnerable.txt
+          echo "::error title=Package restore failed::If the log shows 401/403 or 'NU1301' for nuget.pkg.github.com, the MyVedicStar.* package (aprraju/myvedistar-common) must grant this repository read access: package settings -> Manage Actions access. If it shows NU1101 for a MyVedicStar.* package, that version has not been published. Other packages come from nuget.org."
+
       - name: Build
         run: dotnet build MyVedicStar.slnx --no-restore --configuration Release
       - name: Test
-        run: dotnet test MyVedicStar.slnx --no-build --configuration Release
+        id: test
+        run: >-
+          dotnet test MyVedicStar.slnx --no-build --configuration Release
+          --logger trx --results-directory TestResults
+          --collect "XPlat Code Coverage"
+      - name: Test summary
+        if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        shell: pwsh
+        run: |
+          $rows = foreach ($file in Get-ChildItem TestResults -Recurse -Filter *.trx) {
+            $counters = ([xml](Get-Content -Raw $file.FullName)).TestRun.ResultSummary.Counters
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+            "| $name | $($counters.total) | $($counters.passed) | $($counters.failed) | $([int]$counters.notExecuted) |"
+          }
+          $coverage = @(Get-ChildItem TestResults -Recurse -Filter coverage.cobertura.xml).Count
+          @(
+            '### Tests', '',
+            '| Results file | Total | Passed | Failed | Skipped |', '|---|---:|---:|---:|---:|'
+            $rows
+            '', "Coverage reports: $coverage (artifact ``test-results``)."
+          ) -join "`n" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+      - name: Upload test results
+        if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          retention-days: 14
 
       - name: Validate deployment configuration
         shell: pwsh
         run: Get-ChildItem deploy/environments -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }
-      - name: Analyze deployment scripts
-        shell: pwsh
-        run: |
-          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
-            Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
-          }
-          $findings = Invoke-ScriptAnalyzer -Path deploy/scripts -Recurse -Severity Error, Warning `
-            -ExcludeRule PSAvoidUsingWriteHost, PSUseShouldProcessForStateChangingFunctions
-          $findings | Format-Table -AutoSize | Out-String | Write-Host
-          if ($findings | Where-Object Severity -eq 'Error') { throw 'PSScriptAnalyzer reported errors.' }
 
   build-image:
     if: github.event_name != 'pull_request'
