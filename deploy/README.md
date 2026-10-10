@@ -122,7 +122,7 @@ with an environment variable (`Section__Key`) in `prod.json`.
 
 | Section | Purpose |
 |---|---|
-| `ApiDocumentation` | OpenAPI route, Swagger UI path (`/swagger`), titles and descriptions. Published in **every** environment, anonymously; the API operations still require a bearer token. |
+| `ApiDocumentation` | OpenAPI route, Swagger UI path (`/swagger`), titles and descriptions. Published in **every** environment, anonymously; the API operations still require a bearer token. `HttpsServerUrlsOnly` (on everywhere except Development) makes the OpenAPI `servers` URL `https://` so Swagger UI calls the API over HTTPS behind the TLS-terminating ingress. |
 | `HealthChecks` | Liveness (`/health/live`) and readiness (`/health/ready`) paths, also used by the container probes. |
 | `ApiProtection` | Settings for the shared [MyVedicStar.ApiProtection](https://github.com/aprraju/myvedistar-common) package. **Rate limits:** `/userinfo` uses `authenticated-standard` (120 per user per minute) and every request counts toward `Global` (200 per IP per minute); 429 responses are Problem Details. **Request size:** 64 KB POST/PUT/PATCH bodies, 413 when exceeded. **Correlation:** `X-Correlation-ID` on every response and in every log entry. **`TrustedProxies`:** the only sources whose `X-Forwarded-*` headers count (prod: the Container Apps subnet). **`HealthCheckPaths`:** never rate limited; must include both `HealthChecks` paths, or startup fails. **`SsrfProtection`:** applied to the Microsoft Graph client (HTTPS only; private and metadata addresses blocked). Limits are counted per replica, and every value needs a restart. |
 | `TransportSecurity` | In-app HTTP-to-HTTPS redirect. Off in prod, where the Container Apps ingress already redirects. |

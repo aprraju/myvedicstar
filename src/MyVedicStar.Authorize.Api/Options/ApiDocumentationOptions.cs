@@ -27,6 +27,12 @@ public sealed class ApiDocumentationOptions
     /// <summary>API description shown in the OpenAPI document.</summary>
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Advertise only <c>https://</c> server URLs in the OpenAPI document. Enabled wherever TLS terminates in front
+    /// of the app (the Container Apps ingress); disabled for local development over plain HTTP.
+    /// </summary>
+    public bool HttpsServerUrlsOnly { get; set; }
+
     /// <summary>Description of the bearer token callers must send.</summary>
     [Required]
     public string BearerTokenDescription { get; set; } = string.Empty;

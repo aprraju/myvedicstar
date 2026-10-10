@@ -17,6 +17,7 @@ internal static class ApiDocumentationExtensions
         {
             options.AddDocumentTransformer<DocumentInfoTransformer>();
             options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+            options.AddDocumentTransformer<HttpsServerUrlTransformer>();
         });
 
         return services;
