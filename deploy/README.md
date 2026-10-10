@@ -13,8 +13,8 @@ deploy/
   scripts/deploy-app.ps1       Release a tag to the existing Container App and wait until it is healthy
   scripts/set-secrets.ps1      Store secrets in Key Vault (interactive; never runs in CI)
 .github/workflows/
-  authorize-api.yml            Code scan (advisory), restore + build + test; on main also build image and deploy to prod
-  authorize-api-deploy.yml     Deploy a given tag to prod (also used manually for rollback)
+  authorize-api.yml            Code scan (advisory), restore + build + test; on main also build image and deploy to
+                               prod. Run manually with image-tag to redeploy or roll back an existing tag.
 .github/scripts/
   code-scan.ps1                Advisory checks run by the code-scan job (never fails)
 ```
@@ -156,7 +156,7 @@ Vulnerable packages no longer fail the build. Watch the code-scan summary, and a
 
 - **Automatic**: push to `main`. The workflow tests, builds `myvedicstar-authorize-api:<commit SHA>` in ACR, then
   deploys it to prod.
-- **Manual / rollback**: run *Authorize API - deploy* with an earlier commit SHA. The revision mode is single:
+- **Manual / rollback**: run *Authorize API* manually (Actions → Run workflow) with `image-tag` set to an earlier commit SHA; tests and the image build are skipped. The revision mode is single:
   traffic moves to the new revision only after its probes pass, and the deploy fails, leaving the previous
   revision serving, if the new one does not become ready. It then checks `GET /health/ready` through the
   public URL.

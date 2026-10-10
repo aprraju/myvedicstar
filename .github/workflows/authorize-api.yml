@@ -6,7 +6,10 @@
 #   2. test          restore from nuget.org and GitHub Packages, build, test (gates everything below)
 #   3. (test)        test results and coverage are published with the run
 #   4. build-image   main / manual runs: publish and build myvedicstar-authorize-api:<commit SHA> in ACR
-#   5. deploy-prod   release that tag (authorize-api-deploy.yml, also used manually for rollback)
+#   5. deploy-prod   release that tag to the Container App (deploy/scripts/deploy-app.ps1)
+#
+# Redeploy / rollback: run this workflow manually with "image-tag" set to a commit SHA already in ACR. Stages 1-4
+# are skipped and only that tag is deployed (no rebuild, no tests).
 #
 # Azure sign-in uses OpenID Connect: no Azure credentials are stored in GitHub. The app registration in
 # AZURE_CLIENT_ID needs a federated credential whose subject matches the token exactly; this repository
@@ -38,8 +41,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
+      image-tag:
+        description: Redeploy / roll back to this existing image tag (a commit SHA in ACR). Leave empty to build and deploy this commit.
+        type: string
+        default: ''
       run-code-scan:
-        description: Run the advisory code scan (never blocks the release)
+        description: Run the advisory code scan (never blocks the release; ignored for a redeploy)
         type: boolean
         default: true
 
@@ -56,9 +63,9 @@ env:
 
 jobs:
   code-scan:
-    # Push and PR runs always scan; a manual run can skip it. Every check reports and exits 0, and the job is
-    # also continue-on-error, so the scan can never fail the workflow. Nothing depends on it.
-    if: github.event_name != 'workflow_dispatch' || inputs.run-code-scan
+    # Push and PR runs always scan; a manual run can skip it, and a redeploy never runs it. Every check reports
+    # and exits 0, and the job is also continue-on-error, so the scan can never fail the workflow. Nothing depends on it.
+    if: github.event_name != 'workflow_dispatch' || (inputs.run-code-scan && inputs.image-tag == '')
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -101,6 +108,7 @@ jobs:
         run: echo "::warning title=Code scan incomplete::Package restore failed, so analyzer, style and package checks were skipped. The test job reports the cause."
 
   test:
+    if: github.event_name != 'workflow_dispatch' || inputs.image-tag == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -163,7 +171,7 @@ jobs:
         run: Get-ChildItem deploy/environments -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }
 
   build-image:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.image-tag == '')
     needs: test
     runs-on: ubuntu-latest
     environment: prod
@@ -193,11 +201,37 @@ jobs:
         run: ./deploy/scripts/build-image.ps1
 
   deploy-prod:
+    # After a successful image build, or on its own for a manual redeploy (build-image is then skipped).
     needs: build-image
-    uses: ./.github/workflows/authorize-api-deploy.yml
+    if: >-
+      always() && github.event_name != 'pull_request' &&
+      (needs.build-image.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && inputs.image-tag != '' && needs.build-image.result == 'skipped'))
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+      url: ${{ steps.deploy.outputs.app-url }}
+    concurrency:
+      group: authorize-api-deploy-prod
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
-    with:
-      environment: prod
-      image-tag: ${{ needs.build-image.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy to Container App
+        id: deploy
+        shell: pwsh
+        # Inputs reach the script as environment variables, never interpolated into script text.
+        env:
+          DEPLOY_ENVIRONMENT: prod
+          IMAGE_TAG: ${{ inputs.image-tag || needs.build-image.outputs.image-tag }}
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
+          CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
+        run: ./deploy/scripts/deploy-app.ps1
