@@ -1,5 +1,4 @@
 using System.Net;
-using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Business.Users;
 
@@ -9,10 +8,5 @@ namespace MyVedicStar.Authorize.Business.Users;
 /// </summary>
 internal interface IUserSignInRecorder
 {
-    /// <returns>The user ID to expose to the client.</returns>
-    Task<string> RecordSignInAsync(
-        string externalUserId,
-        ExternalUserProfile profile,
-        IPAddress? clientIpAddress,
-        CancellationToken cancellationToken);
+    Task RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken);
 }

@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MyVedicStar.Authorize.Api\MyVedicStar.Authorize.Api.csproj" />
-    <ProjectReference Include="..\..\src\MyVedicStar.Authorize.Integration\MyVedicStar.Authorize.Integration.csproj" />
     <ProjectReference Include="..\..\src\MyVedicStar.Authorize.Data\MyVedicStar.Authorize.Data.csproj" />
   </ItemGroup>
 

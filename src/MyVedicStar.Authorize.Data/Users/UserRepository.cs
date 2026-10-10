@@ -13,13 +13,11 @@ internal sealed class UserRepository : IUserRepository
     private static readonly string UpsertSql = $"""
         INSERT INTO "{AuthorizeDbContext.Schema}"."{UserEntityConfiguration.TableName}" (
             "{nameof(UserEntity.Id)}", "{nameof(UserEntity.ExternalId)}", "{nameof(UserEntity.Email)}",
-            "{nameof(UserEntity.GivenName)}", "{nameof(UserEntity.Surname)}",
-            "{nameof(UserEntity.CreatedUtc)}", "{nameof(UserEntity.UpdatedUtc)}")
-        VALUES (@id, @externalId, @email, @givenName, @surname, now(), now())
+            "{nameof(UserEntity.Name)}", "{nameof(UserEntity.CreatedUtc)}", "{nameof(UserEntity.UpdatedUtc)}")
+        VALUES (@id, @externalId, @email, @name, now(), now())
         ON CONFLICT ("{nameof(UserEntity.ExternalId)}") DO UPDATE SET
             "{nameof(UserEntity.Email)}" = EXCLUDED."{nameof(UserEntity.Email)}",
-            "{nameof(UserEntity.GivenName)}" = EXCLUDED."{nameof(UserEntity.GivenName)}",
-            "{nameof(UserEntity.Surname)}" = EXCLUDED."{nameof(UserEntity.Surname)}",
+            "{nameof(UserEntity.Name)}" = EXCLUDED."{nameof(UserEntity.Name)}",
             "{nameof(UserEntity.UpdatedUtc)}" = now()
         RETURNING "{nameof(UserEntity.Id)}" AS "Value"
         """;
@@ -39,8 +37,7 @@ internal sealed class UserRepository : IUserRepository
                 new NpgsqlParameter("id", Guid.CreateVersion7()),
                 new NpgsqlParameter("externalId", profile.ExternalId),
                 CreateNullableParameter("email", profile.Email),
-                CreateNullableParameter("givenName", profile.GivenName),
-                CreateNullableParameter("surname", profile.Surname))
+                CreateNullableParameter("name", profile.Name))
             .ToListAsync(cancellationToken);
 
         return userIds.Single();

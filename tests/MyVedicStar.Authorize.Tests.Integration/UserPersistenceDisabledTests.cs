@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MyVedicStar.Authorize.Data;
 using MyVedicStar.Authorize.Data.Users;
-using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
@@ -36,16 +35,14 @@ public sealed class UserPersistenceDisabledTests : IClassFixture<PersistenceDisa
     {
         _factory = factory;
         _factory.ResetFakes();
-        _factory.ExternalIdentityService.AddProfile(new ExternalUserProfile(
-            ObjectId, "john.smith@example.com", "John", "Smith"));
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task UserInfo_PersistenceDisabled_ReturnsGraphProfileWithObjectIdAsId()
+    public async Task UserInfo_PersistenceDisabled_ReturnsTokenProfileWithObjectIdAsId()
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/userinfo");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _factory.CreateToken([("oid", ObjectId)]));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _factory.CreateToken([("oid", ObjectId), ("name", "John Smith"), ("email", "john.smith@example.com")]));
 
         var response = await _client.SendAsync(request);
 

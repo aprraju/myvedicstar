@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyVedicStar.Shared\MyVedicStar.Shared.csproj" />
-    <ProjectReference Include="..\MyVedicStar.Authorize.Integration\MyVedicStar.Authorize.Integration.csproj" />
     <ProjectReference Include="..\MyVedicStar.Authorize.Data\MyVedicStar.Authorize.Data.csproj" />
   </ItemGroup>
 

@@ -15,14 +15,13 @@ using Microsoft.IdentityModel.Tokens;
 using MyVedicStar.ApiProtection.Auth;
 using MyVedicStar.Authorize.Data;
 using MyVedicStar.Authorize.Data.Users;
-using MyVedicStar.Authorize.Integration.Identity;
 using MyVedicStar.Authorize.Tests.Integration.Fakes;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
 /// <summary>
 /// Hosts the real API pipeline with the Development configuration. The JWT handler trusts a test issuer and
-/// signing key; Microsoft Graph and PostgreSQL are replaced by in-memory fakes.
+/// signing key; PostgreSQL is replaced by an in-memory fake.
 /// </summary>
 public class AuthorizeApiFactory : WebApplicationFactory<Program>
 {
@@ -38,8 +37,6 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
     public const string RemoteIpTestHeader = "X-Test-Remote-Ip";
 
     private readonly RsaSecurityKey _signingKey = CreateKey("test-tenant-key");
-
-    public FakeExternalIdentityService ExternalIdentityService { get; } = new();
 
     public InMemoryUserStore UserStore { get; } = new();
 
@@ -59,9 +56,6 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Authentication:EntraExternalId:TenantId", TenantId);
         builder.UseSetting("Authentication:EntraExternalId:ClientId", Audience);
         builder.UseSetting("Authentication:EntraExternalId:MetadataAddress", $"{Issuer}/.well-known/openid-configuration");
-        builder.UseSetting("Integrations:MicrosoftGraph:TenantId", "test-tenant");
-        builder.UseSetting("Integrations:MicrosoftGraph:ClientId", "test-graph-client");
-        builder.UseSetting("Integrations:MicrosoftGraph:ClientSecret", "test-graph-secret");
         builder.UseSetting("Database:ApplyMigrationsOnStartup", "false");
         builder.UseSetting("ApiProtection:TrustedProxies:0", TrustedProxyIp);
         builder.UseSetting("ApiProtection:RateLimiting:AuthenticatedStandard:PermitLimit", RateLimitPermitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -77,9 +71,6 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
                 options.Configuration = configuration;
                 options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
             });
-
-            services.RemoveAll<IExternalIdentityService>();
-            services.AddSingleton<IExternalIdentityService>(ExternalIdentityService);
 
             if (UserPersistenceEnabled)
             {
@@ -125,7 +116,6 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
 
     public void ResetFakes()
     {
-        ExternalIdentityService.Reset();
         UserStore.Reset();
     }
 

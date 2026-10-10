@@ -6,18 +6,18 @@ namespace MyVedicStar.Authorize.Business;
 
 internal sealed class AuthorizeFacade : IAuthorizeFacade
 {
-    private readonly ExternalUserIdResolver _externalUserIdResolver;
+    private readonly SignedInUserReader _signedInUserReader;
     private readonly UserSignInService _userSignInService;
 
-    public AuthorizeFacade(ExternalUserIdResolver externalUserIdResolver, UserSignInService userSignInService)
+    public AuthorizeFacade(SignedInUserReader signedInUserReader, UserSignInService userSignInService)
     {
-        _externalUserIdResolver = externalUserIdResolver;
+        _signedInUserReader = signedInUserReader;
         _userSignInService = userSignInService;
     }
 
     public Task<UserInfo> SignInUserAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
     {
-        var externalUserId = _externalUserIdResolver.GetExternalUserId(user);
-        return _userSignInService.SignInAsync(externalUserId, clientIpAddress, cancellationToken);
+        var signedInUser = _signedInUserReader.GetSignedInUser(user);
+        return _userSignInService.SignInAsync(signedInUser, clientIpAddress, cancellationToken);
     }
 }

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using MyVedicStar.ApiProtection.Auth;
 using MyVedicStar.ApiProtection.Auth.Authorization;
-using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
@@ -22,7 +21,6 @@ public sealed class AuthorizationTests : IClassFixture<PersistenceDisabledApiFac
     {
         _factory = factory;
         _factory.ResetFakes();
-        _factory.ExternalIdentityService.AddProfile(new ExternalUserProfile(ObjectId, "john.smith@example.com", "John", "Smith"));
         _client = factory.CreateClient();
     }
 

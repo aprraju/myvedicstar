@@ -4,5 +4,4 @@ namespace MyVedicStar.Authorize.Data.Users;
 public sealed record UserProfileData(
     string ExternalId,
     string? Email,
-    string? GivenName,
-    string? Surname);
+    string? Name);

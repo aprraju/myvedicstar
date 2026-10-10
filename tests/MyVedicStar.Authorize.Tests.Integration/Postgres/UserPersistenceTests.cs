@@ -49,8 +49,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         Assert.NotNull(stored);
         Assert.Equal(userId, stored.Id);
         Assert.Equal("john.smith@example.com", stored.Email);
-        Assert.Equal("John", stored.GivenName);
-        Assert.Equal("Smith", stored.Surname);
+        Assert.Equal("John Smith", stored.Name);
         Assert.Equal(DateTimeKind.Utc, stored.CreatedUtc.Kind);
     }
 
@@ -62,12 +61,11 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         var firstId = await UpsertInNewScopeAsync(original);
         var created = (await FindUserAsync(original.ExternalId))!.CreatedUtc;
 
-        var secondId = await UpsertInNewScopeAsync(original with { GivenName = "Jonathan", Surname = null, Email = "new@example.com" });
+        var secondId = await UpsertInNewScopeAsync(original with { Name = "Jonathan", Email = "new@example.com" });
 
         var stored = await FindUserAsync(original.ExternalId);
         Assert.Equal(firstId, secondId);
-        Assert.Equal("Jonathan", stored!.GivenName);
-        Assert.Null(stored.Surname);
+        Assert.Equal("Jonathan", stored!.Name);
         Assert.Equal("new@example.com", stored.Email);
         Assert.Equal(created, stored.CreatedUtc);
         Assert.True(stored.UpdatedUtc >= stored.CreatedUtc);
@@ -151,8 +149,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     private static UserProfileData CreateProfile() => new(
         ExternalId: Guid.NewGuid().ToString(),
         Email: "john.smith@example.com",
-        GivenName: "John",
-        Surname: "Smith");
+        Name: "John Smith");
 
     private async Task<Guid> UpsertInNewScopeAsync(UserProfileData profile)
     {

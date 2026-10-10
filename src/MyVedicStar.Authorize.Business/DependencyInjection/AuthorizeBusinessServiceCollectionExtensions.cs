@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Authorize.Business.Users;
 using MyVedicStar.Authorize.Data.DependencyInjection;
-using MyVedicStar.Authorize.Integration.DependencyInjection;
 
 namespace MyVedicStar.Authorize.Business.DependencyInjection;
 
@@ -19,8 +18,6 @@ public static class AuthorizeBusinessServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddAuthorizeIntegrations(configuration);
-
         // Decided at registration time: with persistence off, no database services, settings or migrations are registered.
         var featureFlags = configuration.GetSection(FeatureFlagOptions.SectionName).Get<FeatureFlagOptions>() ?? new FeatureFlagOptions();
         if (featureFlags.UserPersistence)
@@ -33,7 +30,7 @@ public static class AuthorizeBusinessServiceCollectionExtensions
             services.AddScoped<IUserSignInRecorder, DisabledUserSignInRecorder>();
         }
 
-        services.AddSingleton<ExternalUserIdResolver>();
+        services.AddSingleton<SignedInUserReader>();
         services.AddScoped<UserSignInService>();
         services.AddScoped<IAuthorizeFacade, AuthorizeFacade>();
 

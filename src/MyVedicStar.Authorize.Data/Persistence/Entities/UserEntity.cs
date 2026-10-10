@@ -10,9 +10,7 @@ internal sealed class UserEntity
 
     public string? Email { get; set; }
 
-    public string? GivenName { get; set; }
-
-    public string? Surname { get; set; }
+    public string? Name { get; set; }
 
     public DateTime CreatedUtc { get; set; }
 

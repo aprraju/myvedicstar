@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
@@ -10,9 +9,8 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
 {
     private const string UserInfoPath = "/api/v1/auth/userinfo";
     private const string ObjectId = "11111111-2222-3333-4444-555555555555";
-
-    private static readonly ExternalUserProfile GraphProfile = new(
-        ObjectId, "john.smith@example.com", "John", "Smith");
+    private const string Name = "John Smith";
+    private const string Email = "john.smith@example.com";
 
     private readonly AuthorizeApiFactory _factory;
     private readonly HttpClient _client;
@@ -21,25 +19,32 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     {
         _factory = factory;
         _factory.ResetFakes();
-        _factory.ExternalIdentityService.AddProfile(GraphProfile);
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task UserInfo_ValidToken_ReturnsMinimalProfileWithInternalId()
+    public async Task UserInfo_ValidToken_ReturnsOnlyIdNameAndEmailFromToken()
     {
         var response = await PostUserInfoAsync(ValidToken());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(
-            ["id", "givenName", "surname", "name", "email"],
-            body.EnumerateObject().Select(property => property.Name));
-        Assert.Equal(_factory.UserStore.FindUserId(ObjectId)?.ToString(), body.GetProperty("id").GetString());
-        Assert.Equal("John", body.GetProperty("givenName").GetString());
-        Assert.Equal("Smith", body.GetProperty("surname").GetString());
-        Assert.Equal("John Smith", body.GetProperty("name").GetString());
-        Assert.Equal("john.smith@example.com", body.GetProperty("email").GetString());
+        Assert.Equal(["id", "name", "email"], body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(ObjectId, body.GetProperty("id").GetString());
+        Assert.Equal(Name, body.GetProperty("name").GetString());
+        Assert.Equal(Email, body.GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public async Task UserInfo_TokenWithoutNameOrEmail_ReturnsNulls()
+    {
+        var response = await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId)]));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(ObjectId, body.GetProperty("id").GetString());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("name").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("email").ValueKind);
     }
 
     [Fact]
@@ -48,7 +53,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         await PostUserInfoAsync(ValidToken());
 
         Assert.Equal(
-            new Data.Users.UserProfileData(ObjectId, "john.smith@example.com", "John", "Smith"),
+            new Data.Users.UserProfileData(ObjectId, Email, Name),
             _factory.UserStore.FindUser(ObjectId));
 
         var login = Assert.Single(_factory.UserStore.Logins);
@@ -59,12 +64,12 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     [Fact]
     public async Task UserInfo_CalledTwice_KeepsSameUserAndRecordsTwoLogins()
     {
-        var first = await (await PostUserInfoAsync(ValidToken())).Content.ReadFromJsonAsync<JsonElement>();
-        _factory.ExternalIdentityService.AddProfile(GraphProfile with { Surname = "Smith-Jones" });
-        var second = await (await PostUserInfoAsync(ValidToken())).Content.ReadFromJsonAsync<JsonElement>();
+        await PostUserInfoAsync(ValidToken());
+        var firstUserId = _factory.UserStore.FindUserId(ObjectId);
+        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "John Smith-Jones"), ("email", Email)]));
 
-        Assert.Equal(first.GetProperty("id").GetString(), second.GetProperty("id").GetString());
-        Assert.Equal("Smith-Jones", _factory.UserStore.FindUser(ObjectId)?.Surname);
+        Assert.Equal(firstUserId, _factory.UserStore.FindUserId(ObjectId));
+        Assert.Equal("John Smith-Jones", _factory.UserStore.FindUser(ObjectId)?.Name);
         Assert.Equal(2, _factory.UserStore.Logins.Count);
     }
 
@@ -131,27 +136,6 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     [Fact]
-    public async Task UserInfo_UserMissingFromDirectory_Returns404AndStoresNothing()
-    {
-        var response = await PostUserInfoAsync(_factory.CreateToken([("oid", "unknown-object-id")]));
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Empty(_factory.UserStore.Logins);
-    }
-
-    [Fact]
-    public async Task UserInfo_GraphUnavailable_Returns503WithoutInternalDetails()
-    {
-        _factory.ExternalIdentityService.IsUnavailable = true;
-
-        var response = await PostUserInfoAsync(ValidToken());
-
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.DoesNotContain("MicrosoftGraph", await response.Content.ReadAsStringAsync());
-        Assert.Empty(_factory.UserStore.Logins);
-    }
-
-    [Fact]
     public async Task UserInfo_Get_IsNotAllowed()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, UserInfoPath);
@@ -162,7 +146,8 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
-    private string ValidToken() => _factory.CreateToken([("oid", ObjectId), ("sub", "pairwise-subject")]);
+    private string ValidToken() =>
+        _factory.CreateToken([("oid", ObjectId), ("sub", "pairwise-subject"), ("name", Name), ("email", Email)]);
 
     private Task<HttpResponseMessage> PostUserInfoAsync(string token, string? remoteIp = null, string? forwardedFor = null)
     {

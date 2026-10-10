@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
@@ -64,12 +63,7 @@ public sealed class RateLimitingTests : IClassFixture<LowRateLimitApiFactory>
         }
     }
 
-    private string AddUser()
-    {
-        var objectId = Guid.NewGuid().ToString();
-        _factory.ExternalIdentityService.AddProfile(new ExternalUserProfile(objectId, "john.smith@example.com", "John", "Smith"));
-        return objectId;
-    }
+    private static string AddUser() => Guid.NewGuid().ToString();
 
     private Task<HttpResponseMessage> PostUserInfoAsync(string objectId, string clientIp = "203.0.113.10")
     {

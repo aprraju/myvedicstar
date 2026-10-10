@@ -20,8 +20,7 @@ internal sealed class UserEntityConfiguration : IEntityTypeConfiguration<UserEnt
         builder.HasIndex(user => user.ExternalId).IsUnique().HasDatabaseName(ExternalIdUniqueIndexName);
 
         builder.Property(user => user.Email).HasMaxLength(320);
-        builder.Property(user => user.GivenName).HasMaxLength(256);
-        builder.Property(user => user.Surname).HasMaxLength(256);
+        builder.Property(user => user.Name).HasMaxLength(256);
 
         builder.Property(user => user.CreatedUtc).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()");
         builder.Property(user => user.UpdatedUtc).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()");

@@ -23,8 +23,8 @@ deploy/
 |---|---|---|
 | `appsettings.json` (in the image) | Defaults that are safe in every environment | app code |
 | Container App environment variables set by Terraform | Infrastructure endpoints (App Insights, Key Vault URI, ...) | Terraform |
-| `deploy/environments/prod.json` → Container App environment variables | Application settings (auth audience, Graph tenant, feature flags, ...) | this repo |
-| Key Vault → Container App secret reference | Secrets (`graph-client-secret`) | a person, via `set-secrets.ps1` or the portal |
+| `deploy/environments/prod.json` → Container App environment variables | Application settings (auth audience, feature flags, ...) | this repo |
+| Key Vault → Container App secret reference | Secrets (none at present; listed under `secrets` in `prod.json`) | a person, via `set-secrets.ps1` or the portal |
 
 `deploy-app.ps1` **merges** its settings into the container. A Terraform variable is kept unless
 `prod.json` defines one with the same name. When an application setting is retired, list it under
@@ -86,10 +86,12 @@ az role assignment create --assignee-object-id $SP --assignee-principal-type Ser
 add `aprraju/myvedicstar` with **Read**. Without this, `dotnet restore` in the workflow fails with 403 even
 though it has `packages: read`.
 
-**4. The Graph client secret.** Create `graph-client-secret` in `kv-myvedicstar-prod-xw4t`: the client
-secret of the Entra External ID app registration that has Microsoft Graph `User.Read.All`. Use the portal,
-or run `./deploy/scripts/set-secrets.ps1` from a network the vault allows (its firewall denies public access by
-default). You need `Key Vault Secrets Officer` on the vault.
+**4. Name and email claims in the access token.** `POST /api/v1/auth/userinfo` returns `id`, `name` and
+`email` straight from the validated access token (`oid`, `name`, `email`; see `Authorize:UserIdentityClaims`).
+Nothing is looked up in Microsoft Graph. In the Entra External ID tenant, open the API app registration
+(`1a3384a0-…`) → **Token configuration** → **Add optional claim** → **Access** and add `email` (and `name`
+if the tokens do not already carry it). Without them the API still works but returns `null` for the
+missing values.
 
 **5. Stop Terraform from reverting releases.** The release changes parts of the Container App that
 Terraform also declares. Without this, the next `terraform apply` resets the image to the placeholder and
@@ -124,11 +126,11 @@ with an environment variable (`Section__Key`) in `prod.json`.
 |---|---|
 | `ApiDocumentation` | OpenAPI route, Swagger UI path (`/swagger`), titles and descriptions. Published in **every** environment, anonymously; the API operations still require a bearer token. `HttpsServerUrlsOnly` (on everywhere except Development) makes the OpenAPI `servers` URL `https://` so Swagger UI calls the API over HTTPS behind the TLS-terminating ingress. |
 | `HealthChecks` | Liveness (`/health/live`) and readiness (`/health/ready`) paths, also used by the container probes. |
-| `ApiProtection` | Settings for the shared [MyVedicStar.ApiProtection](https://github.com/aprraju/myvedistar-common) package. **Rate limits:** `/userinfo` uses `authenticated-standard` (120 per user per minute) and every request counts toward `Global` (200 per IP per minute); 429 responses are Problem Details. **Request size:** 64 KB POST/PUT/PATCH bodies, 413 when exceeded. **Correlation:** `X-Correlation-ID` on every response and in every log entry. **`TrustedProxies`:** the only sources whose `X-Forwarded-*` headers count (prod: the Container Apps subnet). **`HealthCheckPaths`:** never rate limited; must include both `HealthChecks` paths, or startup fails. **`SsrfProtection`:** applied to the Microsoft Graph client (HTTPS only; private and metadata addresses blocked). Limits are counted per replica, and every value needs a restart. |
+| `ApiProtection` | Settings for the shared [MyVedicStar.ApiProtection](https://github.com/aprraju/myvedistar-common) package. **Rate limits:** `/userinfo` uses `authenticated-standard` (120 per user per minute) and every request counts toward `Global` (200 per IP per minute); 429 responses are Problem Details. **Request size:** 64 KB POST/PUT/PATCH bodies, 413 when exceeded. **Correlation:** `X-Correlation-ID` on every response and in every log entry. **`TrustedProxies`:** the only sources whose `X-Forwarded-*` headers count (prod: the Container Apps subnet). **`HealthCheckPaths`:** never rate limited; must include both `HealthChecks` paths, or startup fails. **`SsrfProtection`:** applied to outbound HTTP clients (HTTPS only; private and metadata addresses blocked); none are registered at present. Limits are counted per replica, and every value needs a restart. |
 | `TransportSecurity` | In-app HTTP-to-HTTPS redirect. Off in prod, where the Container Apps ingress already redirects. |
 | `Authentication` | Read by `AddMyVedicStarAuthentication` (MyVedicStar.ApiProtection). Multi-scheme bearer authentication: each token is routed by its `iss` claim to the Entra External ID, Google, Apple or Facebook scheme. Only **Entra External ID** is enabled, because the UI signs everyone in through Entra (social providers are federated inside it). `TenantDomain` must be `{TenantId}.ciamlogin.com`, the host in the token issuer, even though users sign in at `myvedicstarexternal.ciamlogin.com`; startup fails otherwise. `ClientId` is the API app registration (the token audience). `ValidAlgorithms`, `ClockSkew` and the metadata timings harden the Entra scheme. `RequireAuthenticatedByDefault: true` makes the scope policy the default and fallback. `LogTokenRejectionDetails` (on in Development only) logs why a token was rejected. |
 | `Authorization` | Delegated scope the `myvedicstar-api-scope` policy requires (`access_as_user`). Every controller requires that policy, and startup fails if a controller allows anonymous access. |
-| `Authorize`, `Integrations`, `Database`, `FeatureFlags`, `Observability` | Token claims, Microsoft Graph, PostgreSQL, feature switches, telemetry service name. |
+| `Authorize`, `Database`, `FeatureFlags`, `Observability` | Token claims for the user's ID, name and email; PostgreSQL; feature switches; telemetry service name. |
 
 Fixed security behaviour is code, not configuration:
 - JWT signature, issuer, audience and lifetime validation.
@@ -156,9 +158,9 @@ Fixed security behaviour is code, not configuration:
 
 ## Open items
 
-- **Graph client ID**: `prod.json` assumes the API app registration (`1a3384a0-…`, the token audience) is
-  also the one with Graph `User.Read.All`. Change `Integrations__MicrosoftGraph__ClientId` if a separate
-  registration is used.
+- **Retired Graph secret**: the Container App may still define the `graph-client-secret` Key Vault reference
+  and the vault still holds the secret. Neither is used any more; remove them when convenient
+  (`az containerapp secret remove ... --secret-names graph-client-secret`).
 - **Terraform variables the app does not read yet**: `Authentication__Authority`/`Authentication__Audience`
   (the app reads `Authentication__EntraExternalId__*`, set by `prod.json`), `Database__*` (passwordless PostgreSQL
   via managed identity), `KeyVault__Uri`, `Storage__BlobEndpoint` and `Security__OriginVerify*`.

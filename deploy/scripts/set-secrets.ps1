@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Asks for each Key Vault secret named under "secrets" in deploy/environments/<env>.json
-    (for prod: graph-client-secret, the Microsoft Graph app registration's client secret).
+    (prod currently references none).
 
     Deliberately interactive and refused in CI: a person with Key Vault Secrets Officer enters values
     straight into Key Vault, so they never exist as GitHub secrets or in pipeline logs. The vault denies
@@ -18,7 +18,7 @@
     ./set-secrets.ps1
 
 .EXAMPLE
-    ./set-secrets.ps1 -Environment prod -Name graph-client-secret
+    ./set-secrets.ps1 -Environment prod -Name <secret-name>
 #>
 [CmdletBinding()]
 param(

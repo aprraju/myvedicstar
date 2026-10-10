@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
-using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
@@ -18,7 +17,6 @@ public sealed class ApiProtectionTests : IClassFixture<PersistenceDisabledApiFac
     {
         _factory = factory;
         _factory.ResetFakes();
-        _factory.ExternalIdentityService.AddProfile(new ExternalUserProfile(ObjectId, "john.smith@example.com", "John", "Smith"));
         _client = factory.CreateClient();
     }
 
