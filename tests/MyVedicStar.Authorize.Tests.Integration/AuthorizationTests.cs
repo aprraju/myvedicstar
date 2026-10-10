@@ -4,7 +4,8 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
-using MyVedicStar.Authorize.Api.Authorization;
+using MyVedicStar.ApiProtection.Auth;
+using MyVedicStar.ApiProtection.Auth.Authorization;
 using MyVedicStar.Authorize.Integration.Identity;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
@@ -64,7 +65,7 @@ public sealed class AuthorizationTests : IClassFixture<PersistenceDisabledApiFac
     }
 
     [Fact]
-    public void EveryControllerAction_RequiresTheSignedInUserPolicyAndNoneAllowsAnonymous()
+    public void EveryControllerAction_RequiresTheApiScopePolicyAndNoneAllowsAnonymous()
     {
         var actions = typeof(Program).Assembly.GetTypes()
             .Where(type => typeof(ControllerBase).IsAssignableFrom(type) && !type.IsAbstract)
@@ -79,7 +80,7 @@ public sealed class AuthorizationTests : IClassFixture<PersistenceDisabledApiFac
                 .Concat(entry.Action.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true))
                 .Cast<AuthorizeAttribute>()
                 .Select(attribute => attribute.Policy);
-            Assert.Contains(AuthorizationPolicies.SignedInUser, policies);
+            Assert.Contains(AuthPolicyNames.ApiScope, policies);
             Assert.Empty(entry.Controller.GetCustomAttributes(typeof(IAllowAnonymous), inherit: true));
             Assert.Empty(entry.Action.GetCustomAttributes(typeof(IAllowAnonymous), inherit: true));
         });

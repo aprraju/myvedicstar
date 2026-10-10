@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using MyVedicStar.ApiProtection.Abstractions;
+using MyVedicStar.ApiProtection.Auth;
 using MyVedicStar.ApiProtection.RateLimiting;
-using MyVedicStar.Authorize.Api.Authorization;
 using MyVedicStar.Authorize.Api.Contracts;
 using MyVedicStar.Authorize.Business;
 
@@ -11,7 +11,7 @@ namespace MyVedicStar.Authorize.Api.Controllers;
 
 /// <summary>Endpoints for the signed-in user.</summary>
 [ApiController]
-[Authorize(Policy = AuthorizationPolicies.SignedInUser)]
+[Authorize(Policy = AuthPolicyNames.ApiScope)]
 [Route("api/v1/auth")]
 [Produces("application/json")]
 public sealed class AuthController : ControllerBase

@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Options;
+using MyVedicStar.ApiProtection.Auth;
+using MyVedicStar.ApiProtection.Auth.Authorization;
+using MyVedicStar.ApiProtection.Auth.Extensions;
 using MyVedicStar.ApiProtection.Extensions;
-using MyVedicStar.Authorize.Api.Authentication;
-using MyVedicStar.Authorize.Api.Authorization;
 using MyVedicStar.Authorize.Api.ErrorHandling;
 using MyVedicStar.Authorize.Api.Health;
 using MyVedicStar.Authorize.Api.Logging;
@@ -18,7 +19,8 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
 // Graceful shutdown: finish in-flight requests within the container's termination grace period.
 builder.Services.Configure<HostOptions>(builder.Configuration.GetSection(nameof(HostOptions)));
 
-builder.Services.AddControllers(mvc => mvc.Conventions.Add(new DenyAnonymousControllersConvention()));
+// Startup fails if any controller allows anonymous access.
+builder.Services.AddControllers().DenyAnonymousControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
@@ -27,8 +29,9 @@ builder.Services.AddMyVedicStarApiProtection(builder.Configuration);
 builder.Services.AddApiDocumentation(builder.Configuration);
 builder.Services.AddHealthEndpoints(builder.Configuration);
 builder.Services.AddApiObservability(builder.Configuration);
-builder.Services.AddApiAuthentication(builder.Configuration);
-builder.Services.AddApiAuthorization(builder.Configuration);
+// Multi-scheme bearer authentication, the scope policy and secure-by-default authorization (Authentication and
+// Authorization sections).
+builder.Services.AddMyVedicStarAuthentication(builder.Configuration);
 builder.Services.AddAuthorizeBusiness(builder.Configuration);
 
 var app = builder.Build();
@@ -63,7 +66,7 @@ app.UseAuthorization();
 
 app.MapHealthEndpoints();
 // Every controller endpoint requires a signed-in user with the API scope, even one that forgets [Authorize].
-app.MapControllers().RequireAuthorization(AuthorizationPolicies.SignedInUser);
+app.MapControllers().RequireAuthorization(AuthPolicyNames.ApiScope);
 
 app.Run();
 
