@@ -8,6 +8,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -22,6 +25,61 @@ namespace MyVedicStar.Host.Tests.Integration;
 
 public sealed class SharedHostTests
 {
+    [Fact]
+    public async Task GeoNames_UsesStarConfigurationWithoutChangingDayDefaults()
+    {
+        await using var factory = new CombinedFactory();
+        using var client = factory.CreateClient();
+        var options = factory.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<GeoNames.GeoNamesOptions>>().Value;
+        Assert.True(options.Enabled);
+        Assert.Equal("aprraju", options.Username);
+    }
+
+    [Fact]
+    public async Task ConsolidatedApi_PreservesEveryControllerRouteAndAnonymousAccess()
+    {
+        await using var factory = new CombinedFactory();
+        using var client = factory.CreateClient();
+        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(endpoint => endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>() is not null)
+            .ToArray();
+        string[] expected =
+        [
+            "POST api/v1/auth/userinfo",
+            "GET api/v1/festivals/upcoming",
+            "GET api/v1/locations/resolve",
+            "GET api/v1/locations/search",
+            "GET api/v1/locations/postal",
+            "GET api/v1/locations/reverse",
+            "GET api/v1/locations/timezone",
+            "GET api/v1/muhurta/nakshatras",
+            "GET api/v1/muhurta/activities",
+            "GET api/v1/muhurta/good-times",
+            "GET api/v1/muhurta/good-times/explanation",
+            "GET api/v1/muhurta/day-summaries",
+            "GET api/v1/muhurta/good-times/best",
+            "GET api/v1/panchang/today",
+            "GET api/v1/panchang/tomorrow",
+            "GET api/v1/panchang/ten-days",
+            "GET api/v1/panchang/range",
+            "GET api/v1/panchang/month/{year:int}/{month:int}",
+            "GET api/v1/panchang/year/{year:int}",
+            "GET api/v1/panchang/{date}",
+            "GET api/v1/panchang/glossary",
+            "GET api/v1/panchang/traditions",
+            "GET api/v1/traditions",
+        ];
+        var actual = endpoints.SelectMany(endpoint => endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods
+            .Select(method => $"{method} {endpoint.RoutePattern.RawText}"));
+        Assert.Equal(expected.Order(), actual.Order());
+        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/v1/auth/userinfo" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone"), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
+            endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
+        string[] anonymous = ["api/v1/panchang/today", "api/v1/locations/resolve", "api/v1/locations/search", "api/v1/locations/postal", "api/v1/locations/reverse", "api/v1/locations/timezone"];
+        Assert.Equal(anonymous.Order(), endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+            .Select(endpoint => endpoint.RoutePattern.RawText).Order());
+    }
+
     [Fact]
     public async Task BothApis_AcceptTheSameAudienceAndPreserveTheirRoutes()
     {

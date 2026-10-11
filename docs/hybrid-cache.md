@@ -1,6 +1,6 @@
 # Shared HybridCache
 
-Both standalone APIs and MyVedicStar.Host register one reusable MyVedicStar.Caching module. The host owns one native Microsoft HybridCache instance, one dedicated bounded L1, and one optional PostgreSQL L2. Day's IDistributedObjectCache and Star's ICacheStore are thin compatibility adapters. Superseded Redis options, the bespoke memory store and the old JSON cache provider were removed; their behavior tests were replaced by native-cache and adapter coverage. Legacy CachingOptions is accepted for source/configuration compatibility, but active bounds use ApplicationCacheOptions. User profiles, login results, tokens, authorization decisions, rate-limit state and other security data have no new cache call sites.
+Standalone MyVedicDay.Api and the combined MyVedicStar.API register one reusable MyVedicStar.Caching module. The host owns one native Microsoft HybridCache instance, one dedicated bounded L1, and one optional PostgreSQL L2. Day's IDistributedObjectCache and Star's ICacheStore are thin compatibility adapters. Superseded Redis options, the bespoke memory store and the old JSON cache provider were removed; their behavior tests were replaced by native-cache and adapter coverage. Legacy CachingOptions is accepted for source/configuration compatibility, but active bounds use ApplicationCacheOptions. User profiles, login results, tokens, authorization decisions, rate-limit state and other security data have no new cache call sites.
 
 ## Provider and storage
 

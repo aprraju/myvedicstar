@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MyVedicStar.Authorize.Api.Options;
+namespace MyVedicStar.API.Authorization.Options;
 
 /// <summary>OpenAPI document and Swagger UI settings. Documentation is published in every environment.</summary>
 public sealed class ApiDocumentationOptions

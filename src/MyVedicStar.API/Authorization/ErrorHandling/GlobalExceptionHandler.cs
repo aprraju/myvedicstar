@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using MyVedicStar.Shared.Exceptions;
 
-namespace MyVedicStar.Authorize.Api.ErrorHandling;
+namespace MyVedicStar.API.Authorization.ErrorHandling;
 
 /// <summary>
 /// Maps unhandled exceptions to RFC 7807 Problem Details without exposing internal details.

@@ -23,11 +23,11 @@ public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApi
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var root = document.RootElement;
-        Assert.Equal("MyVedicStar Authorize API v1", root.GetProperty("info").GetProperty("title").GetString());
+        Assert.Equal("MyVedicDay API", root.GetProperty("info").GetProperty("title").GetString());
         Assert.True(root.GetProperty("paths").TryGetProperty("/api/v1/auth/userinfo", out _));
         Assert.Equal(
-            "Access token issued by Microsoft Entra External ID.",
-            root.GetProperty("components").GetProperty("securitySchemes").GetProperty("Bearer").GetProperty("description").GetString());
+            "JWT Bearer token from any supported identity provider: Google, Azure Entra External ID, Apple, or Facebook.",
+            root.GetProperty("components").GetProperty("securitySchemes").GetProperty("BearerAuth").GetProperty("description").GetString());
     }
 
     [Fact]

@@ -23,7 +23,7 @@ namespace MyVedicStar.Authorize.Tests.Integration;
 /// Hosts the real API pipeline with the Development configuration. The JWT handler trusts a test issuer and
 /// signing key; PostgreSQL is replaced by an in-memory fake.
 /// </summary>
-public class AuthorizeApiFactory : WebApplicationFactory<Program>
+public class AuthorizeApiFactory : WebApplicationFactory<StarApiProgram>
 {
     public const string TenantId = "test-tenant";
     public const string Issuer = $"https://{TenantId}.ciamlogin.com/{TenantId}/v2.0";
@@ -51,12 +51,15 @@ public class AuthorizeApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+        builder.UseSetting("ApiDocumentation:HttpsServerUrlsOnly", "false");
         builder.UseSetting("FeatureFlags:UserPersistence", UserPersistenceEnabled.ToString());
         builder.UseSetting("Authentication:EntraExternalId:TenantDomain", $"{TenantId}.ciamlogin.com");
         builder.UseSetting("Authentication:EntraExternalId:TenantId", TenantId);
         builder.UseSetting("Authentication:EntraExternalId:ClientId", Audience);
         builder.UseSetting("Authentication:EntraExternalId:MetadataAddress", $"{Issuer}/.well-known/openid-configuration");
         builder.UseSetting("Database:ApplyMigrationsOnStartup", "false");
+        // Persistence uses fake repositories; provide valid options without relying on local developer settings.
+        builder.UseSetting("Database:ConnectionString", "Host=127.0.0.1;Port=1;Database=unused;Username=unused;Timeout=1");
         builder.UseSetting("ApiProtection:TrustedProxies:0", TrustedProxyIp);
         builder.UseSetting("ApiProtection:RateLimiting:AuthenticatedStandard:PermitLimit", RateLimitPermitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
         builder.UseSetting("ApiProtection:RateLimiting:Global:PermitLimit", "10000");

@@ -48,7 +48,7 @@ else {
 
     try {
         Write-Host "Publishing both APIs ($ImageTag)..."
-        & dotnet publish (Join-Path $RepositoryRoot 'src/MyVedicStar.Host/MyVedicStar.Host.csproj') `
+        & dotnet publish (Join-Path $RepositoryRoot 'src/MyVedicStar.API/MyVedicStar.API.csproj') `
             --configuration Release `
             --output $publishDir `
             -p:UseAppHost=false `

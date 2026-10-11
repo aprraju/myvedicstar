@@ -4,10 +4,10 @@ using Microsoft.AspNetCore.RateLimiting;
 using MyVedicStar.ApiProtection.Abstractions;
 using MyVedicStar.ApiProtection.Auth;
 using MyVedicStar.ApiProtection.RateLimiting;
-using MyVedicStar.Authorize.Api.Contracts;
+using MyVedicStar.API.Contracts;
 using MyVedicStar.Authorize.Business;
 
-namespace MyVedicStar.Authorize.Api.Controllers;
+namespace MyVedicStar.API.Controllers;
 
 /// <summary>Endpoints for the signed-in user.</summary>
 [ApiController]

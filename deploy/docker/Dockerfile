@@ -21,4 +21,4 @@ EXPOSE 8080
 
 COPY . .
 USER $APP_UID
-ENTRYPOINT ["dotnet", "MyVedicStar.Host.dll"]
+ENTRYPOINT ["dotnet", "MyVedicStar.API.dll"]

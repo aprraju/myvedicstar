@@ -1,4 +1,4 @@
-namespace MyVedicStar.Authorize.Api.Contracts;
+namespace MyVedicStar.API.Contracts;
 
 /// <summary>Minimal profile of the signed-in user.</summary>
 /// <param name="Id">The user's Entra object ID from the access token.</param>

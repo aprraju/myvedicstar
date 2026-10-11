@@ -8,6 +8,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/MyVedicStar.Host/MyVedicStar.Host.csproj" Aliases="SharedHost" />
+    <ProjectReference Include="../../src/MyVedicStar.API/MyVedicStar.API.csproj" Aliases="SharedHost" />
   </ItemGroup>
 </Project>

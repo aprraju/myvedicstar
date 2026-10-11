@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
-using MyVedicStar.Authorize.Api.Options;
+using MyVedicStar.API.Authorization.Options;
 
-namespace MyVedicStar.Authorize.Api.OpenApi;
+namespace MyVedicStar.API.Authorization.OpenApi;
 
 /// <summary>
 /// Rewrites <c>http://</c> server URLs in the OpenAPI document to <c>https://</c> when
