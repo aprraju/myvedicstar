@@ -10,7 +10,7 @@ namespace MyVedicStar.Authorize.Data.Persistence;
 /// <summary>
 /// Applies pending migrations at startup when <see cref="DatabaseOptions.ApplyMigrationsOnStartup"/> is enabled.
 /// </summary>
-internal sealed class DatabaseMigrationHostedService : IHostedService
+internal sealed partial class DatabaseMigrationHostedService : IHostedService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DatabaseOptions _options;
@@ -36,9 +36,12 @@ internal sealed class DatabaseMigrationHostedService : IHostedService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AuthorizeDbContext>();
 
-        _logger.LogInformation("Applying database migrations");
+        LogApplyingMigrations(_logger);
         await dbContext.Database.MigrateAsync(cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Applying database migrations")]
+    private static partial void LogApplyingMigrations(ILogger logger);
 }

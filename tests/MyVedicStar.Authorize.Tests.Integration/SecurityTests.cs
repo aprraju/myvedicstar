@@ -32,6 +32,24 @@ public sealed class SecurityTests : IClassFixture<PersistenceDisabledApiFactory>
     }
 
     [Fact]
+    public async Task ExceptionHandlerResponse_KeepsSecurityHeaders()
+    {
+        // A valid token without the user ID claim makes the Business layer throw; the exception handler clears the
+        // response before writing Problem Details, which must not drop the security headers.
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/userinfo");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _factory.CreateToken([("sub", "pairwise-subject")]));
+
+        var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("DENY", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
+        Assert.Equal("no-referrer", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Opener-Policy")));
+    }
+
+    [Fact]
     public async Task UnmappedPath_WithoutToken_IsRejectedByFallbackPolicy()
     {
         var response = await _client.GetAsync("/api/v1/not-a-real-endpoint");

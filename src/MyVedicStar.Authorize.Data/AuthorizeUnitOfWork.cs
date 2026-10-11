@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using MyVedicStar.Authorize.Data.Persistence;
 using MyVedicStar.Shared.Exceptions;
 
@@ -8,12 +7,10 @@ namespace MyVedicStar.Authorize.Data;
 internal sealed class AuthorizeUnitOfWork : IAuthorizeUnitOfWork
 {
     private readonly AuthorizeDbContext _dbContext;
-    private readonly ILogger<AuthorizeUnitOfWork> _logger;
 
-    public AuthorizeUnitOfWork(AuthorizeDbContext dbContext, ILogger<AuthorizeUnitOfWork> logger)
+    public AuthorizeUnitOfWork(AuthorizeDbContext dbContext)
     {
         _dbContext = dbContext;
-        _logger = logger;
     }
 
     public async Task<TResult> ExecuteInTransactionAsync<TResult>(
@@ -49,7 +46,7 @@ internal sealed class AuthorizeUnitOfWork : IAuthorizeUnitOfWork
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Database transaction failed");
+            // Not logged here: the API's exception handler logs the wrapped exception, including this inner one.
             throw new DataAccessException(
                 "Your details could not be saved. Please try again later.",
                 $"Database transaction failed: {ex.GetType().Name}.",

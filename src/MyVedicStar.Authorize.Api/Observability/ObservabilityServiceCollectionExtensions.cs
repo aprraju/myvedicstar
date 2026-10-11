@@ -3,7 +3,6 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.Extensions.Options;
 using MyVedicStar.Authorize.Api.Health;
 using MyVedicStar.Shared.Caching;
-using OpenTelemetry.Metrics;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Resources;
 

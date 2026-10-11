@@ -64,6 +64,55 @@ public sealed class DatabaseUserSignInRecorderTests
         await _userLoginRepository.DidNotReceiveWithAnyArgs().AddAsync(default!, default);
     }
 
+    [Fact]
+    public async Task RecordSignInAsync_NameLongerThanColumn_StoresShortenedName()
+    {
+        var user = User with { Name = new string('a', UserProfileData.MaxNameLength + 10) };
+
+        await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
+
+        await _userRepository.Received(1).UpsertAsync(
+            Arg.Is<UserProfileData>(profile => profile.Name == new string('a', UserProfileData.MaxNameLength)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RecordSignInAsync_NameCutInsideSurrogatePair_DropsTheWholeCharacter()
+    {
+        // "𝔸" is one character made of two UTF-16 code units; the limit falls between them.
+        var user = User with { Name = new string('a', UserProfileData.MaxNameLength - 1) + "𝔸" };
+
+        await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
+
+        await _userRepository.Received(1).UpsertAsync(
+            Arg.Is<UserProfileData>(profile => profile.Name == new string('a', UserProfileData.MaxNameLength - 1)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RecordSignInAsync_EmailLongerThanColumn_StoresNoEmail()
+    {
+        var user = User with { Email = new string('a', UserProfileData.MaxEmailLength) + "@example.com" };
+
+        await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
+
+        await _userRepository.Received(1).UpsertAsync(
+            Arg.Is<UserProfileData>(profile => profile.Email == null && profile.Name == User.Name),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RecordSignInAsync_UserIdLongerThanColumn_ThrowsAuthenticationFailedAndStoresNothing()
+    {
+        var user = User with { ExternalUserId = new string('a', UserProfileData.MaxExternalIdLength + 1) };
+
+        await Assert.ThrowsAsync<AuthenticationFailedException>(
+            () => _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None));
+
+        Assert.Equal(0, _unitOfWork.TransactionCount);
+        await _userRepository.DidNotReceiveWithAnyArgs().UpsertAsync(default!, default);
+    }
+
     /// <summary>Runs the operation directly and counts how many transactions were requested.</summary>
     private sealed class InlineUnitOfWork : IAuthorizeUnitOfWork
     {

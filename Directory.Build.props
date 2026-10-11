@@ -1,0 +1,13 @@
+<Project>
+
+  <!-- Code analysis for every project. Rule severities and exceptions are in .editorconfig. -->
+  <PropertyGroup>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Required for the compiler to report unused usings (IDE0005) during build. Missing XML comments (CS1591)
+         are not reported: public contracts are documented where it adds meaning, not mechanically. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

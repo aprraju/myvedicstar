@@ -7,7 +7,8 @@ namespace MyVedicStar.Authorize.Api.ErrorHandling;
 /// <summary>
 /// Maps unhandled exceptions to RFC 7807 Problem Details without exposing internal details.
 /// </summary>
-internal sealed class GlobalExceptionHandler : IExceptionHandler
+/// <remarks>The single place failures are logged: lower layers wrap and throw rather than log and rethrow.</remarks>
+internal sealed partial class GlobalExceptionHandler : IExceptionHandler
 {
     private readonly IProblemDetailsService _problemDetailsService;
     private readonly ILogger<GlobalExceptionHandler> _logger;
@@ -24,11 +25,11 @@ internal sealed class GlobalExceptionHandler : IExceptionHandler
 
         if (statusCode >= StatusCodes.Status500InternalServerError)
         {
-            _logger.LogError(exception, "Request failed with {StatusCode}", statusCode);
+            LogServerError(_logger, exception, statusCode);
         }
         else
         {
-            _logger.LogWarning("Request failed with {StatusCode}: {Reason}", statusCode, exception.Message);
+            LogClientError(_logger, statusCode, exception.Message);
         }
 
         httpContext.Response.StatusCode = statusCode;
@@ -55,4 +56,10 @@ internal sealed class GlobalExceptionHandler : IExceptionHandler
         DataAccessException e => (StatusCodes.Status503ServiceUnavailable, "Service unavailable", e.PublicMessage),
         _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
     };
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Request failed with {StatusCode}")]
+    private static partial void LogServerError(ILogger logger, Exception exception, int statusCode);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Request failed with {StatusCode}: {Reason}")]
+    private static partial void LogClientError(ILogger logger, int statusCode, string reason);
 }

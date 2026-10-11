@@ -72,6 +72,22 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     }
 
     [SkippableFact]
+    public async Task Upsert_ValuesAtPublishedMaximumLengths_AreStored()
+    {
+        SkipIfUnavailable();
+        var profile = new UserProfileData(
+            ExternalId: Guid.NewGuid().ToString().PadRight(UserProfileData.MaxExternalIdLength, 'x'),
+            Email: new string('e', UserProfileData.MaxEmailLength),
+            Name: new string('n', UserProfileData.MaxNameLength));
+
+        await UpsertInNewScopeAsync(profile);
+
+        var stored = await FindUserAsync(profile.ExternalId);
+        Assert.Equal(profile.Email, stored?.Email);
+        Assert.Equal(profile.Name, stored?.Name);
+    }
+
+    [SkippableFact]
     public async Task Upsert_ConcurrentFirstSignIns_CreateExactlyOneUser()
     {
         SkipIfUnavailable();
