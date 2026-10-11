@@ -1,15 +1,18 @@
+> This guide was migrated from the original Day repository. Run its commands from the combined repository root.
+> Shared hosting and deployment are documented in [the repository README](../../README.md).
+
 # MyVedicDay
 
 Location-aware Vedic Panchang platform. Phase 1 provides a REST API that calculates the daily Panchang (sunrise,
 sunset, Tithi, Nakshatra, Yoga, Karana, Rahu Kalam, Yamagandam, Gulika Kalam, Dur Muhurtam, Varjyam, Abhijit
 Muhurat, Amrit Kalam, Brahma Muhurta) for any coordinates, with DST-safe time zones and daily caching.
 
-Architecture and design decisions: [docs/architecture](docs/architecture/README.md) and [docs/adr](docs/adr).
+Architecture and design decisions: [docs/architecture](architecture/README.md) and [docs/adr](adr).
 
 ## Solution layout
 
 A modular monolith: one API host, feature domains, and shared platform modules
-([ADR-0008](docs/adr/0008-platform-modules-and-single-api-host.md)).
+([ADR-0008](adr/0008-platform-modules-and-single-api-host.md)).
 
 | Kind | Projects |
 |------|----------|
@@ -108,7 +111,7 @@ activity-specific questions ("a good day for a marriage?") are for the planned M
 
 Pick an activity (Business, Travel, Property, Vehicle, Agreement, Education, Puja / Spiritual, Wedding, Housewarming,
 General, or Other with a description) and the backend evaluates the day for it
-([design](docs/architecture/find-a-good-time.md), [ADR-0011](docs/adr/0011-muhurta-module-and-rules-engine.md)).
+([design](architecture/find-a-good-time.md), [ADR-0011](adr/0011-muhurta-module-and-rules-engine.md)).
 
 - **Rules engine.** The day is cut wherever an input changes (every Muhurta boundary, every Tithi, Nakshatra, Yoga and
   Karana change). Each segment gets a status (`HighlyFavorable`, `Favorable`, `Mixed`, `Caution`, `Avoid`) from the
@@ -122,7 +125,7 @@ General, or Other with a description) and the backend evaluates the day for it
   groups, defaults, the activities and per-tradition overrides (Choghadiya for Gujarati business, Varjyam for Telugu).
   New activities are data plus content. Wedding and Housewarming are `partial` (no Lagna or personal charts) and
   capped at Favorable.
-- **Generative AI (optional, [ADR-0012](docs/adr/0012-provider-neutral-generative-ai.md)).** Explains the result and maps
+- **Generative AI (optional, [ADR-0012](adr/0012-provider-neutral-generative-ai.md)).** Explains the result and maps
   "Other" text to an activity; it never decides statuses or times. Switch provider in configuration:
 
   ```bash
@@ -150,7 +153,7 @@ Panchang day also carries `festivals`, so the today, ten-day, month and year vie
   hides the generic observance on the same day.
 - **Rules:** `src/MyVedicDay.Festivals.Data/Content/festival-rules.json` (versioned, provisional). Names are in
   `festivals-content.{language}.json`, with regional names keyed `{tradition}/festivals.{key}`. See
-  [ADR-0010](docs/adr/0010-festivals-feature-module.md) for the method and its known simplifications.
+  [ADR-0010](adr/0010-festivals-feature-module.md) for the method and its known simplifications.
 
 ## Panchang traditions
 
@@ -246,7 +249,7 @@ environment variables or Key Vault, never from these files. Every section is val
 | `Traditions` | `DefaultTradition` |
 | `Panchang` | `MaxRangeDays`, `PastDateCacheLifetime`, `MaxCacheLifetime`, `PeriodClassifications` |
 | `Redis` | `ConnectionString` (supply from a secret store), `InstanceName` |
-| `ApiProtection` | Shared edge protection ([ADR-0014](docs/adr/0014-shared-api-protection-library.md)): `RateLimiting` (`Global`, `PublicRead`, `GoodTime`, `ExpensiveAstrology`, … each `PermitLimit`/`WindowSeconds`), `RequestSize:StandardPostBytes`, `TrustedProxies` (IPs/CIDRs whose `X-Forwarded-For` is trusted), `HealthCheckPaths` (never rate limited), `UserIdClaim`, `IssuerClaim` |
+| `ApiProtection` | Shared edge protection ([ADR-0014](adr/0014-shared-api-protection-library.md)): `RateLimiting` (`Global`, `PublicRead`, `GoodTime`, `ExpensiveAstrology`, … each `PermitLimit`/`WindowSeconds`), `RequestSize:StandardPostBytes`, `TrustedProxies` (IPs/CIDRs whose `X-Forwarded-For` is trusted), `HealthCheckPaths` (never rate limited), `UserIdClaim`, `IssuerClaim` |
 | `Muhurta` | `DefaultActivity`, `MaxRangeDays`, `BestDefaultCount`, `BestSearchDefaultDays`, `BestSearchMaxDays`, `BestMaxCount`, `OtherTextMaxLength`, `OtherTextMinimumConfidence` (AI match threshold for "Other"), `PastDateCacheLifetime`, `MaxCacheLifetime` |
 | `Festivals` | `MaxUpcomingDays`, `MaxRangeDays`, `PastDateCacheLifetime`, `MaxCacheLifetime` |
 | `Ai` | `Enabled`, `Provider` (`None`, `Anthropic`, `OpenAI`, `AzureOpenAI`), `Model`, `MaxOutputTokens`, `Anthropic:Model`, `Anthropic:ApiKey`, `OpenAI:ApiKey`, `AzureOpenAI:Endpoint`/`Deployment`/`ApiKey` (keys from user-secrets or Key Vault). Resilience uses `ApiProtection:Timeouts:IntegrationCallMs`, `CircuitBreaker` and `Bulkhead`. |

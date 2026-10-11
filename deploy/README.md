@@ -1,3 +1,9 @@
+> Both APIs are released together from `src/MyVedicStar.Host` as `myvedicstar-api:<commit SHA>`.
+> Set `CONTAINER_APP_NAME=ca-myvedicstar-api-prod` in the GitHub `prod` environment.
+> `/health/ready` covers the cache and, when enabled, the authorization database. The release requires Single revision mode.
+> To roll back a combined release, run `deploy-app.ps1 -ImageTag <previous-combined-tag>` with the same configured registry and target.
+> Older standalone images use the previous image repository and are not combined releases.
+
 # MyVedicStar: release to Azure Container Apps
 
 **Terraform owns the infrastructure**: the Container App, its identity, the registry, Key Vault,
@@ -13,8 +19,10 @@ deploy/
   scripts/deploy-app.ps1       Release a tag to the existing Container App and wait until it is healthy
   scripts/set-secrets.ps1      Store secrets in Key Vault (interactive; never runs in CI)
 .github/workflows/
-  authorize-api.yml            Code scan (advisory), restore + build + test; on main also build image and deploy to
-                               prod. Run manually with image-tag to redeploy or roll back an existing tag.
+  authorize-api.yml            Independent Star code scan, build and tests (including PostgreSQL)
+  myvedicday-ci.yml            Independent Day code scan, build and tests (including Redis)
+  shared-deploy.yml            Validate both APIs and the combined host; build one combined image and deploy
+                               it to the existing VedicStar Container App on main
 .github/scripts/
   code-scan.ps1                Advisory checks run by the code-scan job (never fails)
 ```
@@ -49,10 +57,9 @@ Jobs that touch Azure run in the GitHub environment **`prod`**. Add required rev
 
 ## One-time Azure setup
 
-The GitHub identity is the `myvedicstar` app registration (client ID `6a0e280e-…`, service principal object
-ID `8e41e8a4-01d7-4b1c-8bd2-436e0ec19453`). It currently has **no federated credential and no role
-assignments**, so the workflows cannot sign in until these exist. Prefer adding them to Terraform; the
-equivalent CLI commands are:
+Configure the GitHub deployment identity's federated credential and scoped Azure roles before enabling releases.
+The following commands document the intended existing production resources; verify them against your subscription
+and use the `prod` GitHub environment. This source migration does not change role assignments.
 
 ```bash
 SUB=e77bb964-ac4f-44f5-89eb-ba00a5d889d1

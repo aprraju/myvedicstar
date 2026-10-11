@@ -1,3 +1,4 @@
+using MyVedicPlatform.Api;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using MyVedicDay.Shared.Exceptions;
@@ -61,7 +62,7 @@ internal sealed partial class GlobalExceptionHandler(
         IntegrationException or DataAccessException => new ProblemDetails
         {
             Status = StatusCodes.Status503ServiceUnavailable,
-            Title = "A dependency is temporarily unavailable. Please retry later.",
+            Title = ProblemDetailsPolicy.DependencyTitle,
         },
         CalculationException => new ProblemDetails
         {
@@ -71,7 +72,7 @@ internal sealed partial class GlobalExceptionHandler(
         _ => new ProblemDetails
         {
             Status = StatusCodes.Status500InternalServerError,
-            Title = "An unexpected error occurred.",
+            Title = ProblemDetailsPolicy.UnexpectedTitle,
         },
     };
 

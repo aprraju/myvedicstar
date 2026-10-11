@@ -29,6 +29,7 @@ internal sealed class SecurityHeadersMiddleware(RequestDelegate next)
             headers["Referrer-Policy"] = "no-referrer";
             headers.ContentSecurityPolicy = contentSecurityPolicy;
             headers["Cross-Origin-Resource-Policy"] = "same-site";
+            headers["Cross-Origin-Opener-Policy"] = "same-origin";
             // Deny all browser features this API never needs (OWASP recommended for public APIs).
             headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=(), payment=(), usb=(), autoplay=()";
             return Task.CompletedTask;

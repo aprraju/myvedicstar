@@ -1,3 +1,4 @@
+using OpenTelemetry.Metrics;
 using MyVedicPlatform.Api;
 using Microsoft.Extensions.Options;
 using MyVedicStar.ApiProtection.Auth;
@@ -22,6 +23,7 @@ public static class MyVedicStarApiModule
         services.AddControllers().AddApplicationPart(typeof(MyVedicStarApiModule).Assembly);
         services.Configure<HostOptions>(configuration.GetSection(nameof(HostOptions)));
         services.AddAuthorizeBusiness(configuration);
+        services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(MyVedicStar.Shared.Caching.CacheMetrics.MeterName));
         services.AddSingleton<GlobalExceptionHandler>();
         services.AddExceptionHandler<StarDomainExceptionHandler>();
         return services;

@@ -1,3 +1,4 @@
+using MyVedicPlatform.Api;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using MyVedicStar.Shared.Exceptions;
@@ -52,8 +53,8 @@ internal sealed partial class GlobalExceptionHandler : IExceptionHandler
         ValidationException e => (StatusCodes.Status400BadRequest, "Invalid request", e.PublicMessage),
         AuthenticationFailedException e => (StatusCodes.Status401Unauthorized, "Authentication failed", e.PublicMessage),
         ResourceNotFoundException e => (StatusCodes.Status404NotFound, "Not found", e.PublicMessage),
-        IntegrationException or DataAccessException => (StatusCodes.Status503ServiceUnavailable, "A dependency is temporarily unavailable. Please retry later.", null),
-        _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", null),
+        IntegrationException or DataAccessException => (StatusCodes.Status503ServiceUnavailable, ProblemDetailsPolicy.DependencyTitle, null),
+        _ => (StatusCodes.Status500InternalServerError, ProblemDetailsPolicy.UnexpectedTitle, null),
     };
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Request failed with {StatusCode}")]

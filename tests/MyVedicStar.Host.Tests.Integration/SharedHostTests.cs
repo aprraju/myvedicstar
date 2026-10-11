@@ -90,6 +90,8 @@ public sealed class SharedHostTests
         var response = await client.PostAsync("/api/v1/auth/userinfo", null);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("same-origin", Assert.Single(response.Headers.GetValues("Cross-Origin-Opener-Policy")));
+        Assert.Equal("shared-host-error", Assert.Single(response.Headers.GetValues("X-Correlation-ID")));
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("A dependency is temporarily unavailable. Please retry later.", problem.RootElement.GetProperty("title").GetString());
         Assert.Equal("shared-host-error", problem.RootElement.GetProperty("correlationId").GetString());

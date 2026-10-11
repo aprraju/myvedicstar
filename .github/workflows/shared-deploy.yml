@@ -53,6 +53,9 @@ jobs:
         run: ./tests/deployment/DeploymentContract.Tests.ps1
       - name: Verify combined publish
         run: dotnet publish src/MyVedicStar.Host/MyVedicStar.Host.csproj --configuration Release --no-restore --output combined-publish -p:UseAppHost=false
+      - name: Smoke test published host
+        shell: pwsh
+        run: ./tests/deployment/PublishedHost.Smoke.Tests.ps1 -PublishDirectory combined-publish
       - uses: actions/upload-artifact@v4
         if: always()
         with:
