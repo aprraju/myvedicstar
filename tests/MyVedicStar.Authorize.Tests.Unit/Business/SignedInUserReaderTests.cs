@@ -54,6 +54,29 @@ public sealed class SignedInUserReaderTests
         Assert.Equal("John Smith", _reader.GetSignedInUser(user).Name);
     }
 
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("aprraju@gmail.com")]
+    public void PlaceholderOrEmailName_WithPreferredUsername_ReturnsEmailWithoutInventingName(string name)
+    {
+        var result = _reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("name", name), ("preferred_username", "aprraju@gmail.com")));
+        Assert.Equal("aprraju@gmail.com", result.Email);
+        Assert.Null(result.Name);
+    }
+
+    [Fact]
+    public void PlaceholderName_UsesGivenAndFamilyNameClaims()
+    {
+        var result = _reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("name", "unknown"), ("given_name", " Jane "), ("family_name", " Doe ")));
+        Assert.Equal("Jane Doe", result.Name);
+    }
+
+    [Theory]
+    [InlineData("login-handle")]
+    [InlineData("Name <user@example.com>")]
+    public void PreferredUsername_ThatIsNotAnEmail_ReturnsNullEmail(string username) =>
+        Assert.Null(_reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("preferred_username", username))).Email);
+
     [Fact]
     public void GetSignedInUser_OnlySubjectPresent_ThrowsBecauseSubjectIsNotTheDirectoryId()
     {

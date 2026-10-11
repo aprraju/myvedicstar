@@ -47,6 +47,24 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         Assert.Equal(JsonValueKind.Null, body.GetProperty("email").ValueKind);
     }
 
+    [Theory]
+    [InlineData("unknown", null, null, null)]
+    [InlineData("aprraju@gmail.com", "Jane", "Doe", "Jane Doe")]
+    public async Task UserInfo_PreferredUsernameEmail_ReturnsSeparateEmailAndUsableName(string name, string? given, string? family, string? expectedName)
+    {
+        var claims = new List<(string, string)> { ("oid", ObjectId), ("name", name), ("preferred_username", "aprraju@gmail.com") };
+        if (given is not null) claims.Add(("given_name", given));
+        if (family is not null) claims.Add(("family_name", family));
+        var response = await PostUserInfoAsync(_factory.CreateToken(claims));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(["id", "name", "email"], body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(ObjectId, body.GetProperty("id").GetString());
+        Assert.Equal(expectedName, body.GetProperty("name").GetString());
+        Assert.Equal("aprraju@gmail.com", body.GetProperty("email").GetString());
+        Assert.Equal("aprraju@gmail.com", _factory.UserStore.FindUser(ObjectId)?.Email);
+    }
+
     [Fact]
     public async Task UserInfo_ValidToken_StoresProfileAndRecordsOneLoginInOneTransaction()
     {

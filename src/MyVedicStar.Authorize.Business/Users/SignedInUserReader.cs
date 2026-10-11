@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Net.Mail;
 using Microsoft.Extensions.Options;
 using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Shared.Exceptions;
@@ -42,8 +43,22 @@ internal sealed class SignedInUserReader
             : FindFirstValue(user, ["iat"]) is { } issued ? "iat:" + issued
             : throw new AuthenticationFailedException("The token does not identify a session. Supply X-Auth-Session-Id.");
         var sessionKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(session)));
-        return new SignedInUser(externalUserId, FindFirstValue(user, _options.Name), FindFirstValue(user, _options.Email), issuer, sessionKey);
+        var email = _options.Email.Select(type => FindFirstValue(user, [type])).FirstOrDefault(IsEmail);
+        var name = _options.Name.Select(type => FindFirstValue(user, [type])).FirstOrDefault(IsUsableName);
+        if (name is null)
+        {
+            var parts = new[] { FindFirstValue(user, ["given_name"]), FindFirstValue(user, ["family_name"]) }.Where(IsUsableName);
+            name = string.Join(" ", parts);
+            if (name.Length == 0) name = null;
+        }
+        return new SignedInUser(externalUserId, name, email, issuer, sessionKey);
     }
+
+    private static bool IsEmail(string? value) => value is not null && value.Contains('@')
+        && MailAddress.TryCreate(value, out var address) && address.Address.Equals(value, StringComparison.Ordinal);
+
+    private static bool IsUsableName(string? value) => !string.IsNullOrWhiteSpace(value)
+        && !value.Equals("unknown", StringComparison.OrdinalIgnoreCase) && !IsEmail(value);
 
     private static string? FindFirstValue(ClaimsPrincipal user, IEnumerable<string> claimTypes) =>
         claimTypes
