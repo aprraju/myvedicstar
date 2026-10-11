@@ -26,6 +26,9 @@ internal sealed partial class UserSignInService
         return new UserInfo(user.ExternalUserId, user.Name, user.Email);
     }
 
+    public Task SignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>
+        _signInRecorder.RecordSignOutAsync(user, clientIpAddress, cancellationToken);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "User {UserId} signed in")]
     private static partial void LogUserSignedIn(ILogger logger, string userId);
 }

@@ -9,37 +9,42 @@ public sealed class InMemoryUserStore : IUserRepository, IUserLoginRepository, I
 {
     private readonly ConcurrentDictionary<string, (Guid Id, UserProfileData Profile)> _users = new();
     private readonly ConcurrentQueue<UserLoginData> _logins = new();
+    private readonly ConcurrentDictionary<(Guid, string, int), bool> _events = new();
+    private readonly ConcurrentDictionary<Guid, bool> _inactive = new();
 
     public IReadOnlyCollection<UserLoginData> Logins => _logins.ToArray();
 
     public int TransactionCount { get; private set; }
 
-    public UserProfileData? FindUser(string externalId) =>
-        _users.TryGetValue(externalId, out var user) ? user.Profile : null;
+    public UserProfileData? FindUser(string externalId, string issuer = AuthorizeApiFactory.Issuer) =>
+        _users.TryGetValue(issuer + "|" + externalId, out var user) ? user.Profile : null;
 
-    public Guid? FindUserId(string externalId) =>
-        _users.TryGetValue(externalId, out var user) ? user.Id : null;
+    public Guid? FindUserId(string externalId, string issuer = AuthorizeApiFactory.Issuer) =>
+        _users.TryGetValue(issuer + "|" + externalId, out var user) ? user.Id : null;
+    public void Deactivate(Guid id) => _inactive[id] = true;
+    public Task<Guid?> FindIdAsync(string issuer, string externalId, CancellationToken cancellationToken) =>
+        Task.FromResult(FindUserId(externalId, issuer));
 
     public void Reset()
     {
         _users.Clear();
         _logins.Clear();
+        _events.Clear();
+        _inactive.Clear();
         TransactionCount = 0;
     }
 
     public Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken)
     {
-        var user = _users.AddOrUpdate(
-            profile.ExternalId,
-            _ => (Guid.CreateVersion7(), profile),
-            (_, existing) => (existing.Id, profile));
+        var user = _users.GetOrAdd(profile.Issuer + "|" + profile.ExternalId, _ => (Guid.CreateVersion7(), profile));
+        if (_inactive.ContainsKey(user.Id)) throw new Shared.Exceptions.AccountInactiveException();
 
         return Task.FromResult(user.Id);
     }
 
     public Task AddAsync(UserLoginData login, CancellationToken cancellationToken)
     {
-        _logins.Enqueue(login);
+        if (login.SessionKey is null || _events.TryAdd((login.UserId, login.SessionKey, login.Type), true)) _logins.Enqueue(login);
         return Task.CompletedTask;
     }
 

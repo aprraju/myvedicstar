@@ -11,7 +11,7 @@ internal static class AuthorizeDbContextOptionsConfigurator
         if (options is null)
         {
             // Design time (dotnet ef migrations add) needs the provider but no live connection.
-            builder.UseNpgsql(ConfigureNpgsql);
+            builder.UseNpgsql("Host=localhost;Database=myvedicstar_design_time", ConfigureNpgsql);
             return;
         }
 

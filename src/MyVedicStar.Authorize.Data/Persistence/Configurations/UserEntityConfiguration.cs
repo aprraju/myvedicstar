@@ -8,7 +8,7 @@ namespace MyVedicStar.Authorize.Data.Persistence.Configurations;
 internal sealed class UserEntityConfiguration : IEntityTypeConfiguration<UserEntity>
 {
     public const string TableName = "User";
-    public const string ExternalIdUniqueIndexName = "UX_User_ExternalId";
+    public const string ExternalIdUniqueIndexName = "UX_User_Issuer_ExternalId";
 
     public void Configure(EntityTypeBuilder<UserEntity> builder)
     {
@@ -18,7 +18,9 @@ internal sealed class UserEntityConfiguration : IEntityTypeConfiguration<UserEnt
         builder.Property(user => user.Id).ValueGeneratedNever();
 
         builder.Property(user => user.ExternalId).HasMaxLength(UserProfileData.MaxExternalIdLength).IsRequired();
-        builder.HasIndex(user => user.ExternalId).IsUnique().HasDatabaseName(ExternalIdUniqueIndexName);
+        builder.Property(user => user.Issuer).HasMaxLength(UserProfileData.MaxIssuerLength).IsRequired();
+        builder.Property(user => user.IsActive).HasDefaultValue(true);
+        builder.HasIndex(user => new { user.Issuer, user.ExternalId }).IsUnique().HasDatabaseName(ExternalIdUniqueIndexName);
 
         builder.Property(user => user.Email).HasMaxLength(UserProfileData.MaxEmailLength);
         builder.Property(user => user.Name).HasMaxLength(UserProfileData.MaxNameLength);

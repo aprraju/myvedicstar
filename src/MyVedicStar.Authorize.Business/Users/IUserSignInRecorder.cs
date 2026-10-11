@@ -9,4 +9,5 @@ namespace MyVedicStar.Authorize.Business.Users;
 internal interface IUserSignInRecorder
 {
     Task RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken);
+    Task RecordSignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken);
 }

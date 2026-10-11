@@ -43,6 +43,16 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<string>("Name")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -54,9 +64,9 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExternalId")
+                    b.HasIndex("Issuer", "ExternalId")
                         .IsUnique()
-                        .HasDatabaseName("UX_User_ExternalId");
+                        .HasDatabaseName("UX_User_Issuer_ExternalId");
 
                     b.ToTable("User", "myvedicstar");
                 });
@@ -65,7 +75,8 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
+                        .HasColumnType("bigint")
+                        .HasColumnName("AuditId");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
 
@@ -75,7 +86,17 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
                     b.Property<DateTime>("LoginTimeUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
+                        .HasColumnName("Time")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("SessionKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -84,7 +105,14 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
 
                     b.HasIndex("UserId", "LoginTimeUtc");
 
-                    b.ToTable("UserLogin", "myvedicstar");
+                    b.HasIndex("UserId", "SessionKey", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("UX_loginaudit_User_Session_Type");
+
+                    b.ToTable("loginaudit", "myvedicstar", t =>
+                        {
+                            t.HasCheckConstraint("CK_loginaudit_Type", "\"Type\" IN (1, 99)");
+                        });
                 });
 
             modelBuilder.Entity("MyVedicStar.Authorize.Data.Persistence.Entities.UserLoginEntity", b =>
@@ -92,7 +120,7 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
                     b.HasOne("MyVedicStar.Authorize.Data.Persistence.Entities.UserEntity", "User")
                         .WithMany("Logins")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("User");

@@ -185,9 +185,9 @@ Vulnerable packages no longer fail the build. Watch the code-scan summary, and a
   (`az containerapp secret remove ... --secret-names graph-client-secret`).
 - **Terraform variables the app does not read yet**: `Authentication__Authority`/`Authentication__Audience`
   (the app reads `Authentication__EntraExternalId__*`, set by `prod.json`), `KeyVault__Uri`, `Storage__BlobEndpoint` and `Security__OriginVerify*`.
-  User persistence stays off (`FeatureFlags__UserPersistence=false`) until the app supports managed-identity
-  database authentication; the Terraform migration job `caj-myvedicstar-migrate-prod` is then the place to run
-  migrations.
+  User persistence is enabled (`FeatureFlags__UserPersistence=true`). Before deploying, provide the existing
+  PostgreSQL `Database__ConnectionString` through a secret and apply EF migrations using the migration job
+  `caj-myvedicstar-migrate-prod`. The API does not acquire managed-identity database tokens automatically.
 - **Capacity**: Terraform sets 0.25 vCPU / 0.5 GiB, `maxReplicas: 1` and scale-to-zero. Raise `minReplicas` to at
   least 1 (2 for zone resilience) to avoid cold starts and single-instance outages.
 

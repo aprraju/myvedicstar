@@ -13,7 +13,7 @@ public sealed class DatabaseUserSignInRecorderTests
     private static readonly Guid InternalUserId = Guid.Parse("0199a3b4-0000-7000-8000-000000000001");
     private static readonly IPAddress ClientIp = IPAddress.Parse("203.0.113.7");
 
-    private static readonly SignedInUser User = new("object-id", "John Smith", "john.smith@example.com");
+    private static readonly SignedInUser User = new("object-id", "John Smith", "john.smith@example.com", "https://accounts.google.com", "session-key");
 
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly IUserLoginRepository _userLoginRepository = Substitute.For<IUserLoginRepository>();
@@ -32,7 +32,7 @@ public sealed class DatabaseUserSignInRecorderTests
         await _recorder.RecordSignInAsync(User, ClientIp, CancellationToken.None);
 
         await _userRepository.Received(1).UpsertAsync(
-            new UserProfileData("object-id", "john.smith@example.com", "John Smith"),
+            new UserProfileData("object-id", "john.smith@example.com", "John Smith", User.Issuer),
             Arg.Any<CancellationToken>());
     }
 
@@ -41,7 +41,7 @@ public sealed class DatabaseUserSignInRecorderTests
     {
         await _recorder.RecordSignInAsync(User, ClientIp, CancellationToken.None);
 
-        await _userLoginRepository.Received(1).AddAsync(new UserLoginData(InternalUserId, ClientIp), Arg.Any<CancellationToken>());
+        await _userLoginRepository.Received(1).AddAsync(new UserLoginData(InternalUserId, ClientIp, User.SessionKey), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -111,6 +111,23 @@ public sealed class DatabaseUserSignInRecorderTests
 
         Assert.Equal(0, _unitOfWork.TransactionCount);
         await _userRepository.DidNotReceiveWithAnyArgs().UpsertAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Logout_UsesRegisteredIdentityAndAppendsType99WithoutRegistration()
+    {
+        _userRepository.FindIdAsync(User.Issuer, User.ExternalUserId, Arg.Any<CancellationToken>()).Returns(InternalUserId);
+        await _recorder.RecordSignOutAsync(User, ClientIp, default);
+        await _userLoginRepository.Received(1).AddAsync(new UserLoginData(InternalUserId, ClientIp, User.SessionKey, 99), Arg.Any<CancellationToken>());
+        await _userRepository.DidNotReceiveWithAnyArgs().UpsertAsync(default!, default);
+        Assert.Equal(1, _unitOfWork.TransactionCount);
+    }
+
+    [Fact]
+    public async Task Logout_UnknownAccount_DoesNotCreateAudit()
+    {
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() => _recorder.RecordSignOutAsync(User, null, default));
+        await _userLoginRepository.DidNotReceiveWithAnyArgs().AddAsync(default!, default);
     }
 
     /// <summary>Runs the operation directly and counts how many transactions were requested.</summary>

@@ -1,8 +1,8 @@
 namespace MyVedicStar.Authorize.Data.Users;
 
-/// <summary>Persistence operations for the user sign-in audit trail.</summary>
+/// <summary>Append-only login/logout auditing with database-enforced session idempotency.</summary>
 public interface IUserLoginRepository
 {
-    /// <summary>Records a sign-in. The login time is set by the database server in UTC.</summary>
+    /// <summary>Records an event once per user, session and type. The database assigns its UTC time.</summary>
     Task AddAsync(UserLoginData login, CancellationToken cancellationToken);
 }

@@ -6,7 +6,7 @@ using MyVedicStar.Shared.Exceptions;
 namespace MyVedicStar.Authorize.Business.Users;
 
 /// <summary>
-/// Upserts the user and inserts the login audit record in one database transaction.
+/// Registers the account if needed and appends its session event in one database transaction.
 /// </summary>
 internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
 {
@@ -32,11 +32,20 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
             async token =>
             {
                 var userId = await _userRepository.UpsertAsync(profile, token);
-                await _userLoginRepository.AddAsync(new UserLoginData(userId, clientIpAddress), token);
+                await _userLoginRepository.AddAsync(new UserLoginData(userId, clientIpAddress, user.SessionKey), token);
                 return userId;
             },
             cancellationToken);
     }
+
+    public Task RecordSignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>
+        _unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            var userId = await _userRepository.FindIdAsync(user.Issuer, user.ExternalUserId, token)
+                ?? throw new ResourceNotFoundException("The registered user was not found.");
+            await _userLoginRepository.AddAsync(new UserLoginData(userId, clientIpAddress, user.SessionKey, 99), token);
+            return userId;
+        }, cancellationToken);
 
     /// <summary>
     /// Fits the token's values to what can be stored, so an unusually long claim never blocks sign-in: the display
@@ -46,7 +55,7 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
     /// <exception cref="AuthenticationFailedException">The user ID is too long to store.</exception>
     private static UserProfileData ToUserProfileData(SignedInUser user)
     {
-        if (user.ExternalUserId.Length > UserProfileData.MaxExternalIdLength)
+        if (user.ExternalUserId.Length > UserProfileData.MaxExternalIdLength || user.Issuer.Length > UserProfileData.MaxIssuerLength)
         {
             throw new AuthenticationFailedException(
                 "The token does not identify a user.",
@@ -54,7 +63,7 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
         }
 
         var email = user.Email?.Length <= UserProfileData.MaxEmailLength ? user.Email : null;
-        return new UserProfileData(user.ExternalUserId, email, Truncate(user.Name, UserProfileData.MaxNameLength));
+        return new UserProfileData(user.ExternalUserId, email, Truncate(user.Name, UserProfileData.MaxNameLength), user.Issuer);
     }
 
     /// <summary>Shortens <paramref name="value"/> to at most <paramref name="maxLength"/> characters without splitting a surrogate pair.</summary>

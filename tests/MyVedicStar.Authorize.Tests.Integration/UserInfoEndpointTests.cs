@@ -53,7 +53,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         await PostUserInfoAsync(ValidToken());
 
         Assert.Equal(
-            new Data.Users.UserProfileData(ObjectId, Email, Name),
+            new Data.Users.UserProfileData(ObjectId, Email, Name, AuthorizeApiFactory.Issuer),
             _factory.UserStore.FindUser(ObjectId));
 
         var login = Assert.Single(_factory.UserStore.Logins);
@@ -62,15 +62,16 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     [Fact]
-    public async Task UserInfo_CalledTwice_KeepsSameUserAndRecordsTwoLogins()
+    public async Task UserInfo_CalledTwiceInSameSession_PreservesProfileAndRecordsOneLogin()
     {
-        await PostUserInfoAsync(ValidToken());
+        var token = _factory.CreateToken([("oid", ObjectId), ("name", Name), ("email", Email), ("sid", "session-1")]);
+        await PostUserInfoAsync(token);
         var firstUserId = _factory.UserStore.FindUserId(ObjectId);
-        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "John Smith-Jones"), ("email", Email)]));
+        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "John Smith-Jones"), ("email", Email), ("sid", "session-1")]));
 
         Assert.Equal(firstUserId, _factory.UserStore.FindUserId(ObjectId));
-        Assert.Equal("John Smith-Jones", _factory.UserStore.FindUser(ObjectId)?.Name);
-        Assert.Equal(2, _factory.UserStore.Logins.Count);
+        Assert.Equal(Name, _factory.UserStore.FindUser(ObjectId)?.Name);
+        Assert.Single(_factory.UserStore.Logins);
     }
 
     [Fact]

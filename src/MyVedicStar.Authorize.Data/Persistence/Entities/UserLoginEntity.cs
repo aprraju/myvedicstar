@@ -8,6 +8,8 @@ internal sealed class UserLoginEntity
     public long Id { get; set; }
 
     public Guid UserId { get; set; }
+    public int Type { get; set; } = 1;
+    public string? SessionKey { get; set; }
 
     /// <summary>Set by the database server (UTC) when the row is inserted.</summary>
     public DateTime LoginTimeUtc { get; set; }

@@ -21,6 +21,12 @@ internal sealed partial class DisabledUserSignInRecorder : IUserSignInRecorder
         return Task.CompletedTask;
     }
 
+    public Task RecordSignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
+    {
+        LogPersistenceDisabled(_logger);
+        return Task.CompletedTask;
+    }
+
     // Debug, not Warning: skipping persistence is the configured behaviour, not a fault, and happens on every sign-in.
     [LoggerMessage(Level = LogLevel.Debug, Message = "User persistence is disabled by feature flag; profile and login were not stored")]
     private static partial void LogPersistenceDisabled(ILogger logger);

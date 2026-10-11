@@ -4,9 +4,9 @@ namespace MyVedicStar.Authorize.Data.Users;
 public interface IUserRepository
 {
     /// <summary>
-    /// Creates the user if no user has <see cref="UserProfileData.ExternalId"/>, otherwise overwrites the stored
-    /// profile with <paramref name="profile"/>. Safe to repeat and safe under concurrent calls for the same user.
+    /// Creates an account identified by issuer and external ID, preserving existing profiles and active status.
     /// </summary>
     /// <returns>The internal MyVedicStar user ID.</returns>
     Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken);
+    Task<Guid?> FindIdAsync(string issuer, string externalId, CancellationToken cancellationToken);
 }

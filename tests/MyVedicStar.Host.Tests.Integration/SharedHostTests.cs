@@ -61,6 +61,8 @@ public sealed class SharedHostTests
         string[] expected =
         [
             "POST api/v1/auth/userinfo",
+            "POST api/v1/auth/login",
+            "POST api/v1/auth/logout",
             "GET api/v1/festivals/upcoming",
             "GET api/v1/locations/resolve",
             "GET api/v1/locations/search",
@@ -87,9 +89,9 @@ public sealed class SharedHostTests
         var actual = endpoints.SelectMany(endpoint => endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods
             .Select(method => $"{method} {endpoint.RoutePattern.RawText}"));
         Assert.Equal(expected.Order(), actual.Order());
-        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/v1/auth/userinfo" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone"), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
+        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/v1/auth/userinfo" or "api/v1/auth/login" or "api/v1/auth/logout" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone"), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
-        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is not ("api/v1/auth/userinfo" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone")), endpoint => Assert.Equal("MyVedicDay.Api",
+        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is not ("api/v1/auth/userinfo" or "api/v1/auth/login" or "api/v1/auth/logout" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone")), endpoint => Assert.Equal("MyVedicDay.Api",
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly.GetName().Name));
         string[] anonymous = ["api/v1/panchang/today", "api/v1/locations/resolve", "api/v1/locations/search", "api/v1/locations/postal", "api/v1/locations/reverse", "api/v1/locations/timezone"];
         Assert.Equal(anonymous.Order(), endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
@@ -248,6 +250,10 @@ public sealed class SharedHostTests
 
     private sealed class FailingFacade : IAuthorizeFacade
     {
+        public Task<UserInfo> LoginAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken) =>
+            SignInUserAsync(user, clientIpAddress, cancellationToken);
+        public Task LogoutAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken) =>
+            throw new MyVedicStar.Shared.Exceptions.DataAccessException("internal database details");
         public Task<UserInfo> SignInUserAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>
             throw new MyVedicStar.Shared.Exceptions.DataAccessException("internal database details");
     }

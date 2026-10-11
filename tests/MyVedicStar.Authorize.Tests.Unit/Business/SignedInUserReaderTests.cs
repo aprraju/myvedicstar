@@ -20,7 +20,11 @@ public sealed class SignedInUserReaderTests
     {
         var user = CreateUser(("oid", "object-id"), ("sub", "pairwise-subject"), ("name", "John Smith"), ("email", "john.smith@example.com"));
 
-        Assert.Equal(new SignedInUser("object-id", "John Smith", "john.smith@example.com"), _reader.GetSignedInUser(user));
+        var result = _reader.GetSignedInUser(user);
+        Assert.Equal("object-id", result.ExternalUserId);
+        Assert.Equal("John Smith", result.Name);
+        Assert.Equal("john.smith@example.com", result.Email);
+        Assert.Equal("https://test.ciamlogin.com/test/v2.0", result.Issuer);
     }
 
     [Fact]
@@ -28,7 +32,10 @@ public sealed class SignedInUserReaderTests
     {
         var user = CreateUser(("oid", "object-id"));
 
-        Assert.Equal(new SignedInUser("object-id", null, null), _reader.GetSignedInUser(user));
+        var result = _reader.GetSignedInUser(user);
+        Assert.Equal("object-id", result.ExternalUserId);
+        Assert.Null(result.Name);
+        Assert.Null(result.Email);
     }
 
     [Fact]
@@ -64,5 +71,45 @@ public sealed class SignedInUserReaderTests
     }
 
     private static ClaimsPrincipal CreateUser(params (string Type, string Value)[] claims) =>
-        new(new ClaimsIdentity(claims.Select(claim => new Claim(claim.Type, claim.Value)), authenticationType: "Test"));
+        new(new ClaimsIdentity(claims.Select(claim => new Claim(claim.Type, claim.Value))
+            .Concat([new Claim("iss", "https://test.ciamlogin.com/test/v2.0"), new Claim("iat", "123456")]), authenticationType: "Test"));
+
+    [Theory]
+    [InlineData("https://accounts.google.com")]
+    [InlineData("https://appleid.apple.com")]
+    [InlineData("https://www.facebook.com")]
+    public void OtherProviders_UseStableSubjectAndValidatedIssuer(string issuer)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim("iss", issuer), new Claim("sub", "provider-id"), new Claim("sid", "session")], "Test"));
+        var result = _reader.GetSignedInUser(principal);
+        Assert.Equal("provider-id", result.ExternalUserId);
+        Assert.Equal(issuer, result.Issuer);
+    }
+
+    [Theory]
+    [InlineData("sid")]
+    [InlineData("auth_time")]
+    public void StableSessionClaim_DeduplicatesRefreshedTokens(string claim)
+    {
+        var first = CreateUser(("oid", "object-id"), (claim, "stable-session"), ("iat", "1"));
+        var refreshed = CreateUser(("oid", "object-id"), (claim, "stable-session"), ("iat", "2"));
+        Assert.Equal(_reader.GetSignedInUser(first).SessionKey, _reader.GetSignedInUser(refreshed).SessionKey);
+        Assert.NotEqual(_reader.GetSignedInUser(first).SessionKey,
+            _reader.GetSignedInUser(CreateUser(("oid", "object-id"), (claim, "new-session"))).SessionKey);
+    }
+
+    [Fact]
+    public void ClientSessionKey_IsValidatedAndIdentityRemainsFromToken()
+    {
+        var user = CreateUser(("oid", "object-id"));
+        Assert.Throws<ValidationException>(() => _reader.GetSignedInUser(user, "invalid"));
+        var result = _reader.GetSignedInUser(user, Guid.NewGuid().ToString());
+        Assert.Equal("object-id", result.ExternalUserId);
+        Assert.Equal(64, result.SessionKey!.Length);
+    }
+
+    [Fact]
+    public void UnauthenticatedIdentity_IsRejected() =>
+        Assert.Throws<AuthenticationFailedException>(() => _reader.GetSignedInUser(new ClaimsPrincipal(new ClaimsIdentity([new Claim("oid", "attacker")]))));
 }

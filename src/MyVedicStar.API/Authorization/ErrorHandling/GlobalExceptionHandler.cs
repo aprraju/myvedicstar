@@ -52,6 +52,7 @@ internal sealed partial class GlobalExceptionHandler : IExceptionHandler
     {
         ValidationException e => (StatusCodes.Status400BadRequest, "Invalid request", e.PublicMessage),
         AuthenticationFailedException e => (StatusCodes.Status401Unauthorized, "Authentication failed", e.PublicMessage),
+        AccountInactiveException e => (StatusCodes.Status403Forbidden, "Account inactive", e.PublicMessage),
         ResourceNotFoundException e => (StatusCodes.Status404NotFound, "Not found", e.PublicMessage),
         IntegrationException or DataAccessException => (StatusCodes.Status503ServiceUnavailable, ProblemDetailsPolicy.DependencyTitle, null),
         _ => (StatusCodes.Status500InternalServerError, ProblemDetailsPolicy.UnexpectedTitle, null),

@@ -16,8 +16,14 @@ internal sealed class AuthorizeFacade : IAuthorizeFacade
     }
 
     public Task<UserInfo> SignInUserAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
+        => LoginAsync(user, clientIpAddress, null, cancellationToken);
+
+    public Task<UserInfo> LoginAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken)
     {
-        var signedInUser = _signedInUserReader.GetSignedInUser(user);
+        var signedInUser = _signedInUserReader.GetSignedInUser(user, sessionId);
         return _userSignInService.SignInAsync(signedInUser, clientIpAddress, cancellationToken);
     }
+
+    public Task LogoutAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken) =>
+        _userSignInService.SignOutAsync(_signedInUserReader.GetSignedInUser(user, sessionId), clientIpAddress, cancellationToken);
 }

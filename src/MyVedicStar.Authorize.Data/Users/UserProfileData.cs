@@ -8,8 +8,10 @@ namespace MyVedicStar.Authorize.Data.Users;
 public sealed record UserProfileData(
     string ExternalId,
     string? Email,
-    string? Name)
+    string? Name,
+    string Issuer = "")
 {
+    public const int MaxIssuerLength = 512;
     /// <summary>Longest storable identity provider object ID.</summary>
     public const int MaxExternalIdLength = 128;
 

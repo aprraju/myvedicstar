@@ -4,4 +4,6 @@ namespace MyVedicStar.Authorize.Business.Users;
 /// <param name="ExternalUserId">The user's object ID in the identity provider.</param>
 /// <param name="Name">Display name.</param>
 /// <param name="Email">Email address.</param>
-internal sealed record SignedInUser(string ExternalUserId, string? Name, string? Email);
+/// <param name="Issuer">Validated token issuer.</param>
+/// <param name="SessionKey">Hash of the session identifier; never a token.</param>
+internal sealed record SignedInUser(string ExternalUserId, string? Name, string? Email, string Issuer = "", string? SessionKey = null);

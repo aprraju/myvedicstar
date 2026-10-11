@@ -1,10 +1,13 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Authorize.Data;
 using MyVedicStar.Authorize.Data.Persistence;
 using MyVedicStar.Authorize.Data.Users;
 using MyVedicStar.Shared.Exceptions;
+using Npgsql;
 
 namespace MyVedicStar.Authorize.Tests.Integration.Postgres;
 
@@ -28,11 +31,11 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
             .SqlQueryRaw<string>("SELECT table_name AS \"Value\" FROM information_schema.tables WHERE table_schema = 'myvedicstar'")
             .ToListAsync();
         var externalIdIndex = await dbContext.Database
-            .SqlQueryRaw<string>("SELECT indexdef AS \"Value\" FROM pg_indexes WHERE schemaname = 'myvedicstar' AND indexname = 'UX_User_ExternalId'")
+            .SqlQueryRaw<string>("SELECT indexdef AS \"Value\" FROM pg_indexes WHERE schemaname = 'myvedicstar' AND indexname = 'UX_User_Issuer_ExternalId'")
             .ToListAsync();
 
         Assert.Contains("User", tables);
-        Assert.Contains("UserLogin", tables);
+        Assert.Contains("loginaudit", tables);
         Assert.Contains("__EFMigrationsHistory", tables);
         Assert.StartsWith("CREATE UNIQUE INDEX", Assert.Single(externalIdIndex));
     }
@@ -51,10 +54,11 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         Assert.Equal("john.smith@example.com", stored.Email);
         Assert.Equal("John Smith", stored.Name);
         Assert.Equal(DateTimeKind.Utc, stored.CreatedUtc.Kind);
+        Assert.True(stored.IsActive);
     }
 
     [SkippableFact]
-    public async Task Upsert_ExistingUser_UpdatesProfileAndKeepsIdAndCreatedTime()
+    public async Task Upsert_ExistingUser_PreservesProfileIdAndCreatedTime()
     {
         SkipIfUnavailable();
         var original = CreateProfile();
@@ -65,8 +69,8 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
 
         var stored = await FindUserAsync(original.ExternalId);
         Assert.Equal(firstId, secondId);
-        Assert.Equal("Jonathan", stored!.Name);
-        Assert.Equal("new@example.com", stored.Email);
+        Assert.Equal(original.Name, stored!.Name);
+        Assert.Equal(original.Email, stored.Email);
         Assert.Equal(created, stored.CreatedUtc);
         Assert.True(stored.UpdatedUtc >= stored.CreatedUtc);
     }
@@ -157,6 +161,110 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
                 return true;
             },
             CancellationToken.None));
+    }
+
+    [SkippableFact]
+    public async Task InactiveAccount_IsNotReactivatedOrAudited()
+    {
+        SkipIfUnavailable();
+        var profile = CreateProfile();
+        var id = await UpsertInNewScopeAsync(profile);
+        await using (var scope = _database.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthorizeDbContext>();
+            var user = await db.Users.SingleAsync(user => user.Id == id);
+            user.IsActive = false;
+            await db.SaveChangesAsync();
+        }
+        await Assert.ThrowsAsync<AccountInactiveException>(() => SignInInNewScopeAsync(profile, IPAddress.Loopback));
+        await using var verification = _database.Services.CreateAsyncScope();
+        var context = verification.ServiceProvider.GetRequiredService<AuthorizeDbContext>();
+        Assert.False((await context.Users.SingleAsync(user => user.Id == id)).IsActive);
+        Assert.False(await context.UserLogins.AnyAsync(entry => entry.UserId == id));
+    }
+
+    [SkippableFact]
+    public async Task SameExternalId_DifferentIssuers_CreateDistinctAccounts()
+    {
+        SkipIfUnavailable();
+        var profile = CreateProfile() with { Issuer = "https://accounts.google.com" };
+        var google = await UpsertInNewScopeAsync(profile);
+        var apple = await UpsertInNewScopeAsync(profile with { Issuer = "https://appleid.apple.com" });
+        Assert.NotEqual(google, apple);
+    }
+
+    [SkippableFact]
+    public async Task ConcurrentSessionEvents_AreIdempotentAndNewSessionsAppendHistory()
+    {
+        SkipIfUnavailable();
+        var profile = CreateProfile();
+        async Task<Guid> Event(string session, int type)
+        {
+            await using var scope = _database.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IAuthorizeUnitOfWork>().ExecuteInTransactionAsync(async token =>
+            {
+                var id = await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(profile, token);
+                await scope.ServiceProvider.GetRequiredService<IUserLoginRepository>().AddAsync(new UserLoginData(id, null, session, type), token);
+                return id;
+            }, default);
+        }
+        var ids = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => Event("session-1", 1)));
+        Assert.Single(ids.Distinct());
+        await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => Event("session-1", 99)));
+        await Event("session-2", 1);
+        await using var verification = _database.Services.CreateAsyncScope();
+        var events = await verification.ServiceProvider.GetRequiredService<AuthorizeDbContext>().UserLogins
+            .Where(entry => entry.UserId == ids[0]).OrderBy(entry => entry.Id).ToListAsync();
+        Assert.Equal([1, 99, 1], events.Select(entry => entry.Type));
+        Assert.All(events, entry => Assert.Equal(DateTimeKind.Utc, entry.LoginTimeUtc.Kind));
+    }
+
+    [SkippableFact]
+    public async Task Upgrade_PreservesLegacyAccountAndAuditHistory()
+    {
+        SkipIfUnavailable();
+        await using var scope = _database.Services.CreateAsyncScope();
+        var source = scope.ServiceProvider.GetRequiredService<AuthorizeDbContext>();
+        var databaseName = "myvedicstar_upgrade_" + Guid.NewGuid().ToString("N");
+        await using var admin = new NpgsqlConnection(source.Database.GetConnectionString());
+        await admin.OpenAsync();
+        await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin))
+            await create.ExecuteNonQueryAsync();
+        try
+        {
+            var connection = new NpgsqlConnectionStringBuilder(admin.ConnectionString) { Database = databaseName };
+            var options = new DbContextOptionsBuilder<AuthorizeDbContext>();
+            options.UseNpgsql(connection.ConnectionString, provider => provider.MigrationsHistoryTable(AuthorizeDbContext.MigrationsHistoryTable, AuthorizeDbContext.Schema));
+            await using var db = new AuthorizeDbContext(options.Options);
+            var migrator = db.GetService<IMigrator>();
+            await migrator.MigrateAsync("20261011000000_AddHybridCacheEntries");
+            var id = Guid.NewGuid();
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO myvedicstar."User" ("Id", "ExternalId", "Name", "Email")
+                VALUES ({id}, 'legacy-user', 'Original Name', 'original@example.com')
+                """);
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO myvedicstar."UserLogin" ("UserId") VALUES ({id})
+                """);
+            await migrator.MigrateAsync();
+            var user = await db.Users.SingleAsync();
+            Assert.Equal(id, user.Id);
+            Assert.Equal("Original Name", user.Name);
+            Assert.True(user.IsActive);
+            Assert.Equal("https://cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0", user.Issuer);
+            var audit = await db.UserLogins.SingleAsync();
+            Assert.Equal(id, audit.UserId);
+            Assert.Equal(1, audit.Type);
+            Assert.Null(audit.SessionKey);
+            var repository = new Data.Users.UserRepository(db);
+            Assert.Equal(id, await repository.UpsertAsync(new UserProfileData(user.ExternalId, "changed@example.com", "Changed", user.Issuer), default));
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{databaseName}\" WITH (FORCE)", admin);
+            await drop.ExecuteNonQueryAsync();
+        }
     }
 
     private void SkipIfUnavailable() =>

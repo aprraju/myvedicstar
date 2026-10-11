@@ -3,25 +3,12 @@ using MyVedicStar.Authorize.Data.Persistence;
 using MyVedicStar.Authorize.Data.Persistence.Configurations;
 using MyVedicStar.Authorize.Data.Persistence.Entities;
 using Npgsql;
+using MyVedicStar.Shared.Exceptions;
 
 namespace MyVedicStar.Authorize.Data.Users;
 
 internal sealed class UserRepository : IUserRepository
 {
-    // A single INSERT ... ON CONFLICT statement is atomic, so concurrent first sign-ins for the same user
-    // cannot create duplicates. Identifiers come from the entity model; all values are parameters.
-    private static readonly string UpsertSql = $"""
-        INSERT INTO "{AuthorizeDbContext.Schema}"."{UserEntityConfiguration.TableName}" (
-            "{nameof(UserEntity.Id)}", "{nameof(UserEntity.ExternalId)}", "{nameof(UserEntity.Email)}",
-            "{nameof(UserEntity.Name)}", "{nameof(UserEntity.CreatedUtc)}", "{nameof(UserEntity.UpdatedUtc)}")
-        VALUES (@id, @externalId, @email, @name, now(), now())
-        ON CONFLICT ("{nameof(UserEntity.ExternalId)}") DO UPDATE SET
-            "{nameof(UserEntity.Email)}" = EXCLUDED."{nameof(UserEntity.Email)}",
-            "{nameof(UserEntity.Name)}" = EXCLUDED."{nameof(UserEntity.Name)}",
-            "{nameof(UserEntity.UpdatedUtc)}" = now()
-        RETURNING "{nameof(UserEntity.Id)}" AS "Value"
-        """;
-
     private readonly AuthorizeDbContext _dbContext;
 
     public UserRepository(AuthorizeDbContext dbContext)
@@ -31,18 +18,36 @@ internal sealed class UserRepository : IUserRepository
 
     public async Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken)
     {
-        var userIds = await _dbContext.Database
-            .SqlQueryRaw<Guid>(
-                UpsertSql,
-                new NpgsqlParameter("id", Guid.CreateVersion7()),
-                new NpgsqlParameter("externalId", profile.ExternalId),
-                CreateNullableParameter("email", profile.Email),
-                CreateNullableParameter("name", profile.Name))
-            .ToListAsync(cancellationToken);
+        var existing = await FindAsync(profile, cancellationToken);
+        if (existing is not null) return ActiveId(existing);
 
-        return userIds.Single();
+        var created = new UserEntity
+        {
+            Id = Guid.CreateVersion7(), ExternalId = profile.ExternalId, Issuer = profile.Issuer,
+            Email = profile.Email, Name = profile.Name, IsActive = true,
+        };
+        _dbContext.Users.Add(created);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return created.Id;
+        }
+        catch (DbUpdateException error) when (error.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: UserEntityConfiguration.ExternalIdUniqueIndexName })
+        {
+            // SaveChanges rolls back to its transaction savepoint; retrieve the winning registration.
+            _dbContext.Entry(created).State = EntityState.Detached;
+            return ActiveId(await FindAsync(profile, cancellationToken)
+                ?? throw new DataAccessException("Your details could not be saved. Please try again later."));
+        }
     }
 
-    private static NpgsqlParameter CreateNullableParameter(string name, string? value) =>
-        new(name, NpgsqlTypes.NpgsqlDbType.Varchar) { Value = (object?)value ?? DBNull.Value };
+    public Task<Guid?> FindIdAsync(string issuer, string externalId, CancellationToken cancellationToken) =>
+        _dbContext.Users.Where(user => user.Issuer == issuer && user.ExternalId == externalId)
+            .Select(user => (Guid?)user.Id).SingleOrDefaultAsync(cancellationToken);
+
+    private Task<UserEntity?> FindAsync(UserProfileData profile, CancellationToken cancellationToken) =>
+        _dbContext.Users.AsNoTracking().SingleOrDefaultAsync(user => user.Issuer == profile.Issuer && user.ExternalId == profile.ExternalId, cancellationToken);
+
+    private static Guid ActiveId(UserEntity user) => user.IsActive ? user.Id : throw new AccountInactiveException();
 }

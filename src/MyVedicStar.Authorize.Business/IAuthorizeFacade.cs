@@ -9,13 +9,17 @@ namespace MyVedicStar.Authorize.Business;
 public interface IAuthorizeFacade
 {
     /// <summary>
-    /// Completes sign-in for an authenticated user: stores the profile carried by their access token,
-    /// records the login, and returns the ID, name and email from the token.
+    /// Registers an authenticated account if necessary, audits the session once,
+    /// and returns the existing ID, name and email response from the token.
     /// </summary>
     /// <param name="user">The user whose access token has already been validated by the API.</param>
     /// <param name="clientIpAddress">The client's IP address as resolved by the API, if known.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <exception cref="Shared.Exceptions.AuthenticationFailedException">The token does not identify a directory user.</exception>
+    /// <exception cref="Shared.Exceptions.AuthenticationFailedException">The token does not identify a user and issuer.</exception>
     /// <exception cref="Shared.Exceptions.DataAccessException">The profile or login could not be saved.</exception>
     Task<UserInfo> SignInUserAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, CancellationToken cancellationToken);
+    /// <summary>Completes login, optionally using a client session UUID for idempotency across token refreshes.</summary>
+    Task<UserInfo> LoginAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken);
+    /// <summary>Audits explicit logout once per session, without changing provider authentication.</summary>
+    Task LogoutAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken);
 }
