@@ -53,7 +53,7 @@ public sealed class GeoNamesLocationsController(ILocationSearchProvider provider
         catch (GeoNamesUnavailableException error)
         {
             if (error.RetryAfterSeconds is { } seconds) Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
-            return Problem(statusCode: error.StatusCode, title: "Location lookup is temporarily unavailable.");
+            return Problem(statusCode: error.StatusCode, title: "Location lookup is temporarily unavailable.", detail: error.Detail);
         }
     }
 }

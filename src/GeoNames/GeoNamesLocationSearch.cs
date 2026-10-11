@@ -33,10 +33,11 @@ public interface ILocationSearchProvider
     Task<LocationTimezoneResponse> TimezoneAsync(double latitude, double longitude, CancellationToken cancellationToken);
 }
 
-public sealed class GeoNamesUnavailableException(int statusCode = 503, int? retryAfterSeconds = null) : Exception("Location lookup is temporarily unavailable.")
+public sealed class GeoNamesUnavailableException(int statusCode = 503, int? retryAfterSeconds = null, string? detail = null) : Exception("Location lookup is temporarily unavailable.")
 {
     public int StatusCode { get; } = statusCode;
     public int? RetryAfterSeconds { get; } = retryAfterSeconds;
+    public string? Detail { get; } = detail;
 }
 
 /// <summary>HTTPS provider adapter. Stores normalized public geography in a bounded in-process cache, never logs input.</summary>
@@ -109,7 +110,8 @@ public sealed class GeoNamesLocationSearchClient(HttpClient http, IOptions<GeoNa
     private async Task<JsonElement> ReadAsync(string endpoint, Dictionary<string, string?> parameters, TimeSpan lifetime, CancellationToken cancellationToken)
     {
         var username = options.Value.Username.Trim();
-        if (!options.Value.Enabled || username.Length == 0 || username.Equals("demo", StringComparison.OrdinalIgnoreCase)) throw new GeoNamesUnavailableException();
+        if (!options.Value.Enabled || username.Length == 0 || username.Equals("demo", StringComparison.OrdinalIgnoreCase))
+            throw new GeoNamesUnavailableException(detail: "GeoNames location lookup is disabled or its account is not configured.");
         parameters["username"] = username;
         var path = QueryHelpers.AddQueryString(endpoint, parameters.OrderBy(pair => pair.Key).ToDictionary());
         if (cache.TryGetValue<JsonElement>(path, out var existing)) return existing;
@@ -126,6 +128,8 @@ public sealed class GeoNamesLocationSearchClient(HttpClient http, IOptions<GeoNa
                     ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)?.TotalSeconds ?? 3600;
                 throw Quota((int)Math.Clamp(Math.Ceiling(retry), 1, 604800));
             }
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                throw AccountUnavailable();
             if (!response.IsSuccessStatusCode) throw new GeoNamesUnavailableException();
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
             var root = document.RootElement;
@@ -134,6 +138,7 @@ public sealed class GeoNamesLocationSearchClient(HttpClient http, IOptions<GeoNa
             {
                 var code = status.ValueKind == JsonValueKind.Object && status.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var integer) ? integer : 0;
                 if (code is 18 or 19 or 20) throw Quota(code == 19 ? 3600 : code == 20 ? 604800 : 86400);
+                if (code == 10) throw AccountUnavailable();
                 throw new GeoNamesUnavailableException();
             }
             var result = root.Clone();
@@ -172,6 +177,8 @@ public sealed class GeoNamesLocationSearchClient(HttpClient http, IOptions<GeoNa
         double.TryParse(Text(place, key), NumberStyles.Float, CultureInfo.InvariantCulture, out value) && double.IsFinite(value) && value >= min && value <= max;
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
     private static string Number(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+    private static GeoNamesUnavailableException AccountUnavailable() => new(detail:
+        "GeoNames rejected the configured account. Configure a registered GeoNames username and enable web services on that account.");
     private GeoNamesUnavailableException Quota(int seconds)
     {
         Volatile.Write(ref nextAllowedRequest, DateTimeOffset.UtcNow.AddSeconds(seconds).ToUnixTimeMilliseconds());

@@ -17,9 +17,11 @@ dotnet test tests/MyVedicStar.Host.Tests.Integration --configuration Release
 
 The `shared` development profile uses port 5289. `MyVedicStar.slnx` contains the consolidated API and authorization tests; `MyVedicDay.sln` retains the standalone Day API and its tests. `MyVedicStar.Deployment.slnx` contains the release projects. Existing test project names are retained. Set `MYVEDICSTAR_TEST_POSTGRES` to a disposable PostgreSQL server connection string to run database tests. On Windows, set `Logging__EventLog__LogLevel__Default` to `None` if the account cannot write Event Log.
 
-Published defaults are namespaced under `apis/day` and `apis/star` to avoid file collisions. Day environment overrides retain the existing combined-host configuration precedence; environment variables and command-line options override the defaults. Development settings are excluded from publishing.
+Published defaults are namespaced under `apis/day` and `apis/star` to avoid file collisions. Star environment settings override Day environment settings in the combined host; environment variables and command-line options override the defaults. Development settings are excluded from publishing.
 
 GeoNames is configured in `src/MyVedicStar.API/appsettings.json`, with `Enabled: true` and username `aprraju`. These GeoNames defaults override Day's compatibility defaults in the combined API. Set `GeoNames__Enabled` and `GeoNames__Username` to override them at deployment; the account must have GeoNames web service access enabled.
+
+The live provider rejected `aprraju` with `user does not exist` on October 11, 2026. Replace it with your registered username after confirming the account email and enabling web services at https://www.geonames.org/manageaccount. For local execution, set `$env:GeoNames__Username = 'your-registered-username'` before `dotnet run`. Account rejection returns 503 with a configuration-specific `detail`; upstream messages and credentials are not exposed.
 
 GeoNames controller source lives in `MyVedicStar.API`. The GeoNames project links that source to keep standalone Day intact. When the combined API starts, it excludes the compatibility controller from discovery so each GeoNames route is registered once.
 

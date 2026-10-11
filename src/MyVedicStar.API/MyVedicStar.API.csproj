@@ -30,6 +30,7 @@
     <Content Include="../MyVedicDay.Api/appsettings*.json" Link="apis/day/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="../MyVedicDay.Api/appsettings.Development.json" CopyToPublishDirectory="Never" />
     <Content Update="appsettings.json" TargetPath="apis/star/appsettings.json" />
+    <Content Update="appsettings.Development.json" TargetPath="apis/star/appsettings.Development.json" />
     <Content Update="appsettings.Production.json" TargetPath="apis/star/appsettings.Production.json" />
   </ItemGroup>
   <Target Name="RemoveReferencedDaySettings" BeforeTargets="_HandleFileConflictsForPublish" AfterTargets="ComputeFilesToPublish">

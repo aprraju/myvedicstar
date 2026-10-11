@@ -26,6 +26,20 @@ namespace MyVedicStar.Host.Tests.Integration;
 public sealed class SharedHostTests
 {
     [Fact]
+    public async Task GeoNames_RejectedAccount_ReturnsActionableProblemDetails()
+    {
+        await using var factory = new CombinedFactory(rejectGeoNames: true);
+        using var client = factory.CreateClient();
+        var response = await client.GetAsync("/api/v1/locations/search?text=Austin");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Contains("enable web services", body.RootElement.GetProperty("detail").GetString());
+        Assert.True(body.RootElement.TryGetProperty("traceId", out _));
+        Assert.True(body.RootElement.TryGetProperty("correlationId", out _));
+        Assert.DoesNotContain("user does not exist", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task GeoNames_UsesStarConfigurationWithoutChangingDayDefaults()
     {
         await using var factory = new CombinedFactory();
@@ -75,6 +89,8 @@ public sealed class SharedHostTests
         Assert.Equal(expected.Order(), actual.Order());
         Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/v1/auth/userinfo" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone"), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
+        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is not ("api/v1/auth/userinfo" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone")), endpoint => Assert.Equal("MyVedicDay.Api",
+            endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly.GetName().Name));
         string[] anonymous = ["api/v1/panchang/today", "api/v1/locations/resolve", "api/v1/locations/search", "api/v1/locations/postal", "api/v1/locations/reverse", "api/v1/locations/timezone"];
         Assert.Equal(anonymous.Order(), endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
             .Select(endpoint => endpoint.RoutePattern.RawText).Order());
@@ -179,7 +195,7 @@ public sealed class SharedHostTests
         Assert.Contains(options.Registrations, check => check.Name == "authorize-database" && check.Tags.Contains("ready"));
     }
 
-    private sealed class CombinedFactory(bool failStar = false, int globalLimit = 1000, bool persistence = false) : WebApplicationFactory<HostProgram>
+    private sealed class CombinedFactory(bool failStar = false, int globalLimit = 1000, bool persistence = false, bool rejectGeoNames = false) : WebApplicationFactory<HostProgram>
     {
         private const string Issuer = "https://test.ciamlogin.com/test/v2.0";
         private const string Audience = "shared-api-audience";
@@ -203,6 +219,8 @@ public sealed class SharedHostTests
             }) builder.UseSetting(setting.Key, setting.Value!);
             builder.ConfigureServices(services =>
             {
+                if (rejectGeoNames)
+                    services.AddHttpClient("myvedicstar-geonames").ConfigurePrimaryHttpMessageHandler(() => new RejectedGeoNamesHandler());
                 services.PostConfigure<JwtBearerOptions>(ProviderSchemeNames.EntraExternalId, options =>
                 {
                     var config = new OpenIdConnectConfiguration { Issuer = Issuer };
@@ -232,5 +250,14 @@ public sealed class SharedHostTests
     {
         public Task<UserInfo> SignInUserAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>
             throw new MyVedicStar.Shared.Exceptions.DataAccessException("internal database details");
+    }
+
+    private sealed class RejectedGeoNamesHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent("{\"status\":{\"message\":\"user does not exist\",\"value\":10}}")
+            });
     }
 }

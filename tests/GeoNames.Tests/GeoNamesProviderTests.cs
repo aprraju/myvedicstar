@@ -9,6 +9,24 @@ namespace GeoNames.Tests;
 
 public sealed class GeoNamesProviderTests
 {
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.OK)]
+    public async Task RejectedAccount_ExplainsConfigurationFailureWithoutExposingProviderDetails(HttpStatusCode status)
+    {
+        using var handler = new FakeHandler((_, _) => Task.FromResult(new HttpResponseMessage(status)
+        {
+            Content = new StringContent("{\"status\":{\"message\":\"private provider details\",\"value\":10}}")
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://secure.geonames.org/") };
+        using var client = new GeoNamesLocationSearchClient(http, Options.Create(new GeoNamesOptions { Enabled = true, Username = "test-account" }));
+        var error = await Xunit.Assert.ThrowsAsync<GeoNamesUnavailableException>(() => client.SearchAsync("Austin", null, null, 8, default));
+        Xunit.Assert.Equal(503, error.StatusCode);
+        Xunit.Assert.Contains("enable web services", error.Detail);
+        Xunit.Assert.DoesNotContain("private provider details", error.Detail);
+    }
+
     [Fact]
     public async Task Provider_MapsResponsesCachesAndHandlesFailures()
     {

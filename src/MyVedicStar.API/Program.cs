@@ -11,12 +11,14 @@ foreach (var source in builder.Configuration.Sources.OfType<JsonConfigurationSou
 using var starDefaults = (ConfigurationRoot)new ConfigurationBuilder()
     .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("apis/star/appsettings.json", optional: false)
+    .AddJsonFile($"apis/star/appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
     .Build();
 var apiDefaults = new ConfigurationBuilder()
     .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("apis/star/appsettings.json", optional: false)
     .AddJsonFile("apis/day/appsettings.json", optional: false)
     .AddJsonFile($"apis/day/appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
+    .AddJsonFile($"apis/star/appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
     // Star owns GeoNames; its defaults override Day's compatibility defaults without changing Day.
     .AddInMemoryCollection(starDefaults.GetSection("GeoNames").AsEnumerable().Where(setting => setting.Value is not null))
     .Build();
