@@ -23,7 +23,7 @@ $global:fakeApp = [pscustomobject]@{
                     resources = @{ cpu = 0.5; memory = '1Gi' }
                     env = @(
                         @{ name = 'UNRELATED_SETTING'; value = 'preserve-me' }
-                        @{ name = 'Redis__ConnectionString'; secretRef = 'existing-secret' }
+                        @{ name = 'Database__ConnectionString'; secretRef = 'existing-secret' }
                         @{ name = 'Authentication__EntraExternalId__Audience'; value = 'retired' }
                     )
                 }
@@ -85,7 +85,7 @@ try {
     Assert-Deployment ($template.scale.rules[0].http.metadata.concurrentRequests -eq '50') 'Scale rule changed.'
     Assert-Deployment (@($template.containers | Where-Object name -eq 'sidecar')[0].image -eq 'sidecar-image') 'Unrelated container changed.'
     Assert-Deployment (@($api.env | Where-Object name -eq 'UNRELATED_SETTING')[0].value -eq 'preserve-me') 'Unrelated environment setting changed.'
-    Assert-Deployment (@($api.env | Where-Object name -eq 'Redis__ConnectionString')[0].secretRef -eq 'existing-secret') 'Existing secret reference changed.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'Database__ConnectionString')[0].secretRef -eq 'existing-secret') 'Existing secret reference changed.'
     Assert-Deployment (@($api.env | Where-Object name -eq 'Authentication__EntraExternalId__Audience').Count -eq 0) 'Retired setting was retained.'
     Assert-Deployment (@($api.probes | Where-Object type -eq 'Readiness')[0].httpGet.path -eq '/health/ready') 'Wrong readiness path.'
     Assert-Deployment (@($api.probes | Where-Object type -eq 'Liveness')[0].httpGet.path -eq '/health/live') 'Wrong liveness path.'

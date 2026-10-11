@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MyVedicDay.Ai;
-using MyVedicDay.Caching;
+using MyVedicStar.Caching;
 using MyVedicDay.Location;
 using MyVedicDay.Muhurta.Business;
 using MyVedicStar.ApiProtection.Configuration;
@@ -18,9 +18,9 @@ namespace MyVedicDay.Api.Tests.Integration.Configuration;
 public sealed class EnvironmentSettingsTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
 {
     [Theory]
-    [InlineData("Development", "myvedicday:dev:", 1000, new string[0])]
-    [InlineData("Production", "myvedicday:prod:", 60, new[] { "10.2.0.0/23" })]
-    public async Task EachEnvironment_Starts_WithItsOwnSettings(string environment, string cachePrefix, int publicReadLimit, string[] trustedProxies)
+    [InlineData("Development", 1000, new string[0])]
+    [InlineData("Production", 60, new[] { "10.2.0.0/23" })]
+    public async Task EachEnvironment_Starts_WithItsOwnSettings(string environment, int publicReadLimit, string[] trustedProxies)
     {
         using var host = factory.WithWebHostBuilder(builder => builder.UseEnvironment(environment));
         using var client = host.CreateClient();
@@ -29,7 +29,7 @@ public sealed class EnvironmentSettingsTests(WebApplicationFactory<Program> fact
 
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
         var services = host.Services;
-        Assert.Equal(cachePrefix, services.GetRequiredService<IOptions<RedisOptions>>().Value.InstanceName);
+        Assert.False(services.GetRequiredService<IOptions<ApplicationCacheOptions>>().Value.L2.Enabled);
         var protection = services.GetRequiredService<IOptions<ApiProtectionOptions>>().Value;
         Assert.Equal(publicReadLimit, protection.RateLimiting.PublicRead.PermitLimit);
         Assert.Equal(trustedProxies, protection.TrustedProxies);

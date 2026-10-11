@@ -5,9 +5,8 @@ namespace MyVedicStar.Shared.Caching;
 /// abstraction (for example <c>IPanchangCache</c>) that owns key building and expiration rules.
 /// </summary>
 /// <remarks>
-/// The current implementation is an in-memory cache held by each API instance, so entries are not shared between
-/// replicas and are lost on restart. The contract is asynchronous so a distributed implementation can replace it
-/// without changing callers. A key must always hold values of the same type.
+/// The registered implementation delegates to native HybridCache: bounded local memory and optional PostgreSQL.
+/// Values are serialized and deserialized for each caller to avoid sharing mutable result instances.
 /// </remarks>
 public interface ICacheStore
 {
@@ -31,9 +30,8 @@ public interface ICacheStore
     /// </summary>
     /// <remarks>
     /// Concurrent misses for the same key share one factory call (stampede protection within this instance).
-    /// The factory receives <see cref="CancellationToken.None"/>, because its result is shared by every waiting
-    /// caller; <paramref name="cancellationToken"/> only stops this caller from waiting. A factory exception is
-    /// passed to every waiting caller and nothing is cached.
+    /// The factory receives HybridCache's combined cancellation token; one cancelled waiter does not cancel other
+    /// waiters. A factory exception is passed to every waiting caller and nothing is cached.
     /// </remarks>
     Task<T> GetOrCreateAsync<T>(
         string key,

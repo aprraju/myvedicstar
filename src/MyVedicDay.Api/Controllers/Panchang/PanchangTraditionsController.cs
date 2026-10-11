@@ -1,3 +1,4 @@
+using MyVedicStar.Caching;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,7 +25,7 @@ namespace MyVedicDay.Api.Controllers.Panchang;
     Description = "Rate limit exceeded for this client. Retry after the current window.")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json",
     Description = "Unexpected error. Quote the traceId or correlationId when reporting it.")]
-public sealed class PanchangTraditionsController(IPanchangTraditionFacade traditions) : ControllerBase
+public sealed class PanchangTraditionsController(IPanchangTraditionFacade traditions, IApplicationCache? cache = null) : ControllerBase
 {
     /// <summary>Panchang timings per tradition.</summary>
     /// <remarks>
@@ -53,7 +54,8 @@ public sealed class PanchangTraditionsController(IPanchangTraditionFacade tradit
         [FromQuery, RegularExpression(LanguagePreferences.LanguageTagPattern)] string? language,
         CancellationToken cancellationToken)
     {
-        var result = await traditions.GetTraditionsAsync(LanguagePreferences.FromRequest(Request, language), cancellationToken);
+        var languages = LanguagePreferences.FromRequest(Request, language);
+        var result = await ReferenceCache.GetAsync(cache, "panchang-traditions", languages, null, token => traditions.GetTraditionsAsync(languages, token), cancellationToken);
         LanguagePreferences.SetResponseLanguage(Response, result.Language);
         return result.ToResponse();
     }

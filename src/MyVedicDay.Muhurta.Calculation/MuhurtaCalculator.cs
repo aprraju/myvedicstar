@@ -15,6 +15,9 @@ public interface IMuhurtaCalculator
     /// <exception cref="SunEventNotFoundException">The sun does not rise or set on the date at the location.</exception>
     /// <exception cref="MyVedicDay.Shared.Exceptions.CalculationException">A numerical search failed to converge.</exception>
     MuhurtaEvaluation Evaluate(MuhurtaCalculationRequest request);
+
+    /// <summary>Evaluates an already calculated day without changing the evaluation rules.</summary>
+    MuhurtaEvaluation Evaluate(MuhurtaCalculationRequest request, PanchangDay day) => Evaluate(request);
 }
 
 internal sealed class MuhurtaCalculator(IPanchangCalculator panchang, ILunisolarCalendar calendar) : IMuhurtaCalculator
@@ -26,6 +29,13 @@ internal sealed class MuhurtaCalculator(IPanchangCalculator panchang, ILunisolar
         // Periods are computed for every kind; the activity profile decides which ones count.
         var day = panchang.Calculate(new PanchangCalculationRequest(request.Date, request.Location, request.TimeZone, PanchangTraditions.Drik));
 
+        return Evaluate(request, day);
+    }
+
+    public MuhurtaEvaluation Evaluate(MuhurtaCalculationRequest request, PanchangDay day)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(day);
         var profile = request.Profile;
         var needsMonth = profile.ExcludeAdhikaMonth || profile.ExcludedLunarMonths.Count > 0;
         return MuhurtaDayEvaluator.Evaluate(day, profile, needsMonth ? calendar.GetLunarMonth(day.Sun.Sunrise) : null, request.BirthNakshatra);

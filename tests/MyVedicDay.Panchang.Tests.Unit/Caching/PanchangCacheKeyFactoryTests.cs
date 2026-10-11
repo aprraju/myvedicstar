@@ -19,7 +19,7 @@ public sealed class PanchangCacheKeyFactoryTests
 
         var key = _factory.Create(context, new LocalDate(2026, 9, 28));
 
-        Assert.Equal($"panchang:17.39:78.49:Asia/Kolkata:2026-09-28:drik:{PanchangCalculationVersion.Current}:d{PanchangCacheKeyFactory.DataSchemaVersion}", key);
+        Assert.Equal($"panchang:17.39:78.49:Asia/Kolkata:2026-09-28:drik:{PanchangCalculationVersion.Current}:{DateTimeZoneProviders.Tzdb.VersionId}:d{PanchangCacheKeyFactory.DataSchemaVersion}", key);
     }
 
     [Fact]

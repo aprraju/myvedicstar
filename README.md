@@ -32,7 +32,7 @@ dotnet test tests/MyVedicStar.Host.Tests.Integration --configuration Release
 ./tests/deployment/DeploymentContract.Tests.ps1
 ```
 
-For PostgreSQL tests, set `MYVEDICSTAR_TEST_POSTGRES` to an admin connection string for a disposable test server. The fixture creates and drops a unique test database. Those eight tests skip when no connection string is provided; Star CI supplies a PostgreSQL service so they execute there. Day CI supplies Redis. On Windows accounts without Event Log write permission, use `$env:Logging__EventLog__LogLevel__Default = 'None'` for test runs.
+For PostgreSQL tests, set `MYVEDICSTAR_TEST_POSTGRES` to an admin connection string for a disposable test server. The fixture creates and drops a unique test database. Those eight tests skip when no connection string is provided; Star CI supplies a PostgreSQL service so they execute there. Both CI pipelines supply PostgreSQL and run the shared HybridCache integration suite. On Windows accounts without Event Log write permission, use `$env:Logging__EventLog__LogLevel__Default = 'None'` for test runs.
 
 ## Shared deployment
 
@@ -51,3 +51,4 @@ Run `./tests/deployment/PublishedHost.Smoke.Tests.ps1 -PublishDirectory <publish
 Before retiring the old Day Container App, route its existing consumer domain to the VedicStar ingress and configure the corresponding certificate/custom domain. Consumers using the old app's generated hostname need a forwarding arrangement or a domain migration. Moving code alone cannot preserve an old hostname. No live Azure deployment or DNS change is performed by this source migration.
 
 The original Day domain documentation is retained under [docs/day](docs/day/README.md).
+Caching configuration and the database-first rollout are documented in [docs/hybrid-cache.md](docs/hybrid-cache.md).

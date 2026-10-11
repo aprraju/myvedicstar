@@ -23,6 +23,9 @@ internal static class AuthorizeDbContextOptionsConfigurator
         });
     }
 
-    private static void ConfigureNpgsql(Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder npgsql) =>
+    private static void ConfigureNpgsql(Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder npgsql)
+    {
         npgsql.MigrationsHistoryTable(AuthorizeDbContext.MigrationsHistoryTable, AuthorizeDbContext.Schema);
+        npgsql.ConfigureDataSource(builder => builder.Name = "myvedicstar-business");
+    }
 }

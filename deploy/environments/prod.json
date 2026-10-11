@@ -20,7 +20,8 @@
     "FeatureFlags__UserPersistence": "false",
     "TransportSecurity__RedirectHttpToHttps": "false",
     "ApiProtection__TrustedProxies__0": "10.2.0.0/23",
-    "Observability__ServiceName": "myvedicstar-api"
+    "Observability__ServiceName": "myvedicstar-api",
+    "Caching__L2__Enabled": "false"
   },
   "removedSettings": [
     "ApiDocumentation__Enabled",
@@ -35,9 +36,22 @@
   "probes": {
     "$comment": "Paths come from HealthChecks in src/MyVedicDay.Api/appsettings.json; port matches ASPNETCORE_HTTP_PORTS.",
     "port": 8080,
-    "startup": { "initialDelaySeconds": 2, "periodSeconds": 5, "timeoutSeconds": 3, "failureThreshold": 10 },
-    "liveness": { "periodSeconds": 15, "timeoutSeconds": 3, "failureThreshold": 3 },
-    "readiness": { "periodSeconds": 10, "timeoutSeconds": 5, "failureThreshold": 3 }
+    "startup": {
+      "initialDelaySeconds": 2,
+      "periodSeconds": 5,
+      "timeoutSeconds": 3,
+      "failureThreshold": 10
+    },
+    "liveness": {
+      "periodSeconds": 15,
+      "timeoutSeconds": 3,
+      "failureThreshold": 3
+    },
+    "readiness": {
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 3
+    }
   },
   "terminationGracePeriodSeconds": 30,
   "rollout": {

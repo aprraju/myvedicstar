@@ -27,6 +27,12 @@ public sealed class TestAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        var ticket = new AuthenticationTicket(CreatePrincipal(), SchemeName);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+
+    public static ClaimsPrincipal CreatePrincipal()
+    {
         var claims = new[]
         {
             new Claim(StandardClaimNames.UserId, "test-user-id"),
@@ -35,8 +41,6 @@ public sealed class TestAuthenticationHandler(
             new Claim("iss", "https://test.example"),
         };
         var identity = new ClaimsIdentity(claims, SchemeName);
-        var principal = new ClaimsPrincipal(identity);
-        var ticket = new AuthenticationTicket(principal, SchemeName);
-        return Task.FromResult(AuthenticateResult.Success(ticket));
+        return new ClaimsPrincipal(identity);
     }
 }

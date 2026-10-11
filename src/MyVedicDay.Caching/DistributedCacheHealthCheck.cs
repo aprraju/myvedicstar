@@ -1,36 +1,18 @@
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using MyVedicStar.Caching;
 
 namespace MyVedicDay.Caching;
 
-/// <summary>
-/// Readiness check that round-trips a probe value through the distributed cache.
-/// </summary>
-/// <remarks>
-/// Reports <see cref="HealthStatus.Degraded"/> rather than unhealthy: requests still succeed without the cache.
-/// </remarks>
-internal sealed class DistributedCacheHealthCheck(IDistributedCache cache) : IHealthCheck
+/// <summary>An optional cache failure degrades readiness without making otherwise healthy business services unavailable.</summary>
+internal sealed class DistributedCacheHealthCheck(IOptions<ApplicationCacheOptions> options, ApplicationCacheMetrics metrics, TimeProvider time) : IHealthCheck
 {
-    private const string ProbeKey = "health:probe";
-    private static readonly byte[] ProbeValue = [1];
-
-    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            await cache.SetAsync(
-                ProbeKey,
-                ProbeValue,
-                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) },
-                cancellationToken);
-
-            return await cache.GetAsync(ProbeKey, cancellationToken) is null
-                ? HealthCheckResult.Degraded("Distributed cache did not return the probe value.")
-                : HealthCheckResult.Healthy();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            return HealthCheckResult.Degraded("Distributed cache is unavailable.", exception);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var failureTicks = metrics.LastBackendFailureTicks;
+        var degraded = options.Value.Enabled && options.Value.L2.Enabled && failureTicks > 0
+            && time.GetUtcNow().Ticks - failureTicks < options.Value.L2.FailureBackoff.Ticks;
+        return Task.FromResult(degraded ? HealthCheckResult.Degraded("Optional PostgreSQL cache is backing off; calculations remain available.") : HealthCheckResult.Healthy());
     }
 }

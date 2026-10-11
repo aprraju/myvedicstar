@@ -15,6 +15,7 @@
     <Project Path="src/MyVedicDay.Muhurta.Calculation/MyVedicDay.Muhurta.Calculation.csproj" />
     <Project Path="src/MyVedicDay.Muhurta.Data/MyVedicDay.Muhurta.Data.csproj" />
     <Project Path="src/MyVedicDay.Panchang.Business/MyVedicDay.Panchang.Business.csproj" />
+    <Project Path="src/MyVedicDay.Panchang.Caching/MyVedicDay.Panchang.Caching.csproj" />
     <Project Path="src/MyVedicDay.Panchang.Calculation/MyVedicDay.Panchang.Calculation.csproj" />
     <Project Path="src/MyVedicDay.Panchang.Data/MyVedicDay.Panchang.Data.csproj" />
     <Project Path="src/MyVedicDay.Shared/MyVedicDay.Shared.csproj" />
@@ -22,10 +23,12 @@
     <Project Path="src/MyVedicStar.Authorize.Api/MyVedicStar.Authorize.Api.csproj" />
     <Project Path="src/MyVedicStar.Authorize.Business/MyVedicStar.Authorize.Business.csproj" />
     <Project Path="src/MyVedicStar.Authorize.Data/MyVedicStar.Authorize.Data.csproj" />
+    <Project Path="src/MyVedicStar.Caching/MyVedicStar.Caching.csproj" />
     <Project Path="src/MyVedicStar.Host/MyVedicStar.Host.csproj" />
     <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MyVedicStar.Caching.Tests/MyVedicStar.Caching.Tests.csproj" />
     <Project Path="tests/MyVedicStar.Host.Tests.Integration/MyVedicStar.Host.Tests.Integration.csproj" />
   </Folder>
 </Solution>

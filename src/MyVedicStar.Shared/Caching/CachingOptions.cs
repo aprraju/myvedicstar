@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MyVedicStar.Shared.Caching;
 
-/// <summary>Settings for the in-memory application cache. Validated at startup.</summary>
+/// <summary>Legacy configuration retained for source compatibility. Active cache limits are set by MyVedicStar.Caching.ApplicationCacheOptions.</summary>
 public sealed class CachingOptions
 {
     public const string SectionName = "Caching";

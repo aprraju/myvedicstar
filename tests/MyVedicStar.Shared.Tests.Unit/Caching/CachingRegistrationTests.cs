@@ -8,11 +8,11 @@ namespace MyVedicStar.Shared.Tests.Unit.Caching;
 public sealed class CachingRegistrationTests
 {
     [Fact]
-    public void AddMyVedicStarCaching_RegistersOneSingletonInMemoryStore()
+    public void AddMyVedicStarCaching_RegistersOneSingletonHybridStore()
     {
         using var services = BuildServices([]);
 
-        Assert.IsType<MemoryCacheStore>(services.GetRequiredService<ICacheStore>());
+        Assert.IsType<HybridCacheStore>(services.GetRequiredService<ICacheStore>());
         Assert.Same(services.GetRequiredService<ICacheStore>(), services.GetRequiredService<ICacheStore>());
     }
 

@@ -1,3 +1,4 @@
+using MyVedicStar.Caching;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -37,7 +38,7 @@ public sealed class MuhurtaController(
     IMuhurtaFacade muhurta,
     IConcurrencyProtectionService concurrency,
     IClientIdentityResolver identityResolver,
-    ICalculationTimeoutService timeouts) : ControllerBase
+    ICalculationTimeoutService timeouts, IApplicationCache? cache = null) : ControllerBase
 {
     private const string Json = "application/json";
 
@@ -54,7 +55,8 @@ public sealed class MuhurtaController(
         [FromQuery, RegularExpression(LanguagePreferences.LanguageTagPattern)] string? language,
         CancellationToken cancellationToken)
     {
-        var result = await muhurta.GetNakshatrasAsync(tradition, LanguagePreferences.FromRequest(Request, language), cancellationToken);
+        var languages = LanguagePreferences.FromRequest(Request, language);
+        var result = await ReferenceCache.GetAsync(cache, "birth-stars", languages, tradition, token => muhurta.GetNakshatrasAsync(tradition, languages, token), cancellationToken);
         LanguagePreferences.SetResponseLanguage(Response, result.Language);
         return new(result.Language, result.Nakshatras.Select(star => new MuhurtaNakshatraResponse(star.Key, star.Name, star.Order)).ToArray());
     }
@@ -85,8 +87,8 @@ public sealed class MuhurtaController(
     /// (every Muhurta period boundary and every Tithi, Nakshatra, Yoga and Karana change), and each segment gets a
     /// resolved `status` with `reasons` and `conflicts`.
     ///
-    /// * Overlaps are resolved by the rules engine: Abhijit Muhurta 16:00–16:48 with Dur Muhurtam 16:06–16:27 gives
-    ///   16:00–16:06 Favorable, 16:06–16:27 Caution (conflict `DUR_MUHURTAM`), 16:27–16:48 Favorable; Amrit Kalam
+    /// * Overlaps are resolved by the rules engine: Abhijit Muhurta 16:00â€“16:48 with Dur Muhurtam 16:06â€“16:27 gives
+    ///   16:00â€“16:06 Favorable, 16:06â€“16:27 Caution (conflict `DUR_MUHURTAM`), 16:27â€“16:48 Favorable; Amrit Kalam
     ///   overlapping Rahu Kalam is Mixed with conflict `RAHU_KALAM`.
     /// * Only segments with `isGoodTime: true` may be shown as a Good Time: Highly Favorable or Favorable, no conflict,
     ///   and at least one muhurta (24 min) long. `goodTimes` lists them best first.

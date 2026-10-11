@@ -41,6 +41,7 @@ internal sealed class PanchangCacheKeyFactory(IOptions<LocationOptions> options)
             LocalDatePattern.Iso.Format(date),
             context.CalculationMethod,
             PanchangCalculationVersion.Current,
+            DateTimeZoneProviders.Tzdb.VersionId,
             "d" + DataSchemaVersion);
     }
 }

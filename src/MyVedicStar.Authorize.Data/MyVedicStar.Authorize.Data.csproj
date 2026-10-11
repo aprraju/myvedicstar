@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\MyVedicStar.Shared\MyVedicStar.Shared.csproj" />
@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MyVedicStar.Authorize.Tests.Unit" />
+    <InternalsVisibleTo Include="MyVedicStar.Caching.Tests" />
     <InternalsVisibleTo Include="MyVedicStar.Authorize.Tests.Integration" />
   </ItemGroup>
 

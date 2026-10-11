@@ -5,9 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Http;
-using System.Security.Claims;
 using MyVedicStar.ApiProtection.Abstractions;
-using MyVedicStar.ApiProtection.Auth.Claims;
 using MyVedicDay.Api.Tests.Integration.Infrastructure;
 
 namespace MyVedicDay.Api.Tests.Integration.Api;
@@ -113,15 +111,20 @@ public sealed class ApiProtectionTests(ApiTestFactory factory) : IClassFixture<A
         Assert.ThrowsAny<OptionsValidationException>(() => host.CreateClient());
     }
 
-    [Fact]
-    public async Task ExpensiveConcurrency_RejectsAtCapacity_AndRecoversAfterRelease()
+    [Theory]
+    [InlineData("mvs_user_id")]
+    [InlineData("oid")]
+    public async Task ExpensiveConcurrency_RejectsAtCapacity_AndRecoversAfterRelease(string userIdClaim)
     {
-        using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("ApiProtection:Concurrency:PerUserExpensiveLimit", "1"));
+        using var host = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ApiProtection:Concurrency:PerUserExpensiveLimit", "1");
+            builder.UseSetting("ApiProtection:UserIdClaim", userIdClaim);
+        });
         using var client = host.CreateClient();
         var context = new DefaultHttpContext
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(StandardClaimNames.UserId, "test-user-id"), new Claim("iss", "https://test.example")], "Test")),
+            User = TestAuthenticationHandler.CreatePrincipal(),
         };
         var key = host.Services.GetRequiredService<IClientIdentityResolver>().Resolve(context);
         var concurrency = host.Services.GetRequiredService<IConcurrencyProtectionService>();

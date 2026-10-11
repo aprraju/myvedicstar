@@ -1,3 +1,6 @@
+using MyVedicDay.Panchang.Caching;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
@@ -54,11 +57,11 @@ internal sealed record MuhurtaRequestContext(ResolvedLocation Location, string T
 internal sealed partial class MuhurtaDayService(
     IMuhurtaCalculator calculator,
     IDistributedObjectCache cache,
-    InFlightRequestCoalescer<MuhurtaDayData> coalescer,
     IClock clock,
     IOptions<LocationOptions> locationOptions,
     IOptions<MuhurtaOptions> options,
-    ILogger<MuhurtaDayService> logger)
+    ILogger<MuhurtaDayService> logger,
+    IPanchangCalculationCache? calculations = null)
 {
     /// <summary>Version of the cached <see cref="MuhurtaDayData"/> shape. Bump when it changes.</summary>
     public const string DataSchemaVersion = "1";
@@ -72,14 +75,8 @@ internal sealed partial class MuhurtaDayService(
         ArgumentNullException.ThrowIfNull(context);
 
         var key = CreateKey(context, date);
-        if (await cache.GetAsync<MuhurtaDayData>(key, cancellationToken) is { } hit && hit.Date == date.ToDateOnly())
-        {
-            LogDayResolved(context.Profile.Activity, true);
-            return hit;
-        }
-
-        LogDayResolved(context.Profile.Activity, false);
-        return await coalescer.GetOrStartAsync(key, () => CalculateAndCacheAsync(context, date, key)).WaitAsync(cancellationToken);
+        var expiration = LocalDayCacheExpiration.Calculate(date, context.Location.TimeZone, clock.GetCurrentInstant(), options.Value.PastDateCacheLifetime, options.Value.MaxCacheLifetime);
+        return await cache.GetOrCreateAsync(key, token => CalculateAsync(context, date, token), expiration, cancellationToken);
     }
 
     /// <summary>
@@ -99,20 +96,23 @@ internal sealed partial class MuhurtaDayService(
             context.RulesVersion,
             MuhurtaCalculationVersion.Current,
             PanchangCalculationVersion.Current,
-            "d" + DataSchemaVersion);
-        // Keep standard keys unchanged. Version the personal policy separately from the unchanged base engine.
+            DateTimeZoneProviders.Tzdb.VersionId,
+            "d" + DataSchemaVersion,
+            Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(context.Profile))));
+        // Personal evaluations identify the optional birth star separately from the resolved activity rules.
         return context.BirthNakshatra is { } birth ? $"{key}:birth-nakshatra:{birth}:tara-v1" : key;
     }
 
-    private async Task<MuhurtaDayData> CalculateAndCacheAsync(MuhurtaRequestContext context, LocalDate date, string key)
+    private async Task<MuhurtaDayData> CalculateAsync(MuhurtaRequestContext context, LocalDate date, CancellationToken token)
     {
         var location = context.Location;
         var started = Stopwatch.GetTimestamp();
         MuhurtaEvaluation evaluation;
         try
         {
-            evaluation = calculator.Evaluate(new MuhurtaCalculationRequest(
-                date, new GeoCoordinate(location.Latitude, location.Longitude), location.TimeZone, context.Profile, context.BirthNakshatra));
+            var request = new MuhurtaCalculationRequest(date, new GeoCoordinate(location.Latitude, location.Longitude), location.TimeZone, context.Profile, context.BirthNakshatra);
+            evaluation = calculations is null ? calculator.Evaluate(request) : calculator.Evaluate(request,
+                await calculations.CalculateAsync(new PanchangCalculationRequest(date, request.Location, location.TimeZone, PanchangTraditions.Drik), token));
         }
         catch (SunEventNotFoundException exception)
         {
@@ -123,11 +123,6 @@ internal sealed partial class MuhurtaDayService(
         LogDayCalculated(context.Profile.Activity, Stopwatch.GetElapsedTime(started).TotalMilliseconds, location.TimeZone.Id);
 
         var data = ToData(evaluation, location.TimeZone);
-        var expiration = LocalDayCacheExpiration.Calculate(
-            date, location.TimeZone, clock.GetCurrentInstant(), options.Value.PastDateCacheLifetime, options.Value.MaxCacheLifetime);
-
-        // Shared work: not tied to any single caller's cancellation token.
-        await cache.SetAsync(key, data, expiration, CancellationToken.None);
         return data;
     }
 

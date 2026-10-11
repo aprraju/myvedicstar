@@ -4,11 +4,13 @@
     <Project Path="src/MyVedicStar.Authorize.Business/MyVedicStar.Authorize.Business.csproj" />
     <Project Path="src/MyVedicStar.Authorize.Data/MyVedicStar.Authorize.Data.csproj" />
     <Project Path="src/MyVedicStar.Authorize.Integration/MyVedicStar.Authorize.Integration.csproj" />
+    <Project Path="src/MyVedicStar.Caching/MyVedicStar.Caching.csproj" />
     <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MyVedicStar.Authorize.Tests.Integration/MyVedicStar.Authorize.Tests.Integration.csproj" />
     <Project Path="tests/MyVedicStar.Authorize.Tests.Unit/MyVedicStar.Authorize.Tests.Unit.csproj" />
+    <Project Path="tests/MyVedicStar.Caching.Tests/MyVedicStar.Caching.Tests.csproj" />
     <Project Path="tests/MyVedicStar.Shared.Tests.Unit/MyVedicStar.Shared.Tests.Unit.csproj" />
   </Folder>
 </Solution>

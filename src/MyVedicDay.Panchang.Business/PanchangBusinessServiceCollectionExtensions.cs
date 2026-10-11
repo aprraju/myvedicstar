@@ -1,3 +1,4 @@
+using MyVedicDay.Panchang.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -53,7 +54,6 @@ public static class PanchangBusinessServiceCollectionExtensions
         services.TryAddSingleton<CalendarRangeBuilder>();
         services.TryAddSingleton<PanchangCacheKeyFactory>();
         services.TryAddSingleton<PanchangCacheExpirationPolicy>();
-        services.TryAddSingleton<InFlightRequestCoalescer<DailyPanchangData>>();
         services.TryAddSingleton<DailyPanchangService>();
         services.TryAddSingleton<PanchangLocalizer>();
         services.TryAddSingleton<GuidanceRulesProvider>();
@@ -73,6 +73,7 @@ public static class PanchangBusinessServiceCollectionExtensions
         services.AddLocalizationBusiness(configuration);
         services.AddTraditionsBusiness(configuration);
         services.AddDistributedObjectCache(configuration);
+        services.AddPanchangCalculationCache();
 
         return services;
     }

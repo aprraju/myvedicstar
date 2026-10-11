@@ -16,4 +16,14 @@ public interface IDistributedObjectCache
     /// <summary>Stores a value until <paramref name="absoluteExpiration"/>.</summary>
     Task SetAsync<T>(string key, T value, DateTimeOffset absoluteExpiration, CancellationToken cancellationToken)
         where T : class;
+    /// <summary>Applies a configured policy while keeping the same deterministic data key.</summary>
+    Task<T> GetOrCreateWithPolicyAsync<T>(string key, string policy, Func<CancellationToken, Task<T>> factory, DateTimeOffset expiry, CancellationToken token) where T : class => GetOrCreateAsync(key, factory, expiry, token);
+    /// <summary>Factory-based caching; production uses HybridCache's native stampede protection.</summary>
+    async Task<T> GetOrCreateAsync<T>(string key, Func<CancellationToken, Task<T>> factory, DateTimeOffset expiry, CancellationToken token) where T : class
+    {
+        if (await GetAsync<T>(key, token) is { } hit) return hit;
+        var value = await factory(token);
+        await SetAsync(key, value, expiry, token);
+        return value;
+    }
 }

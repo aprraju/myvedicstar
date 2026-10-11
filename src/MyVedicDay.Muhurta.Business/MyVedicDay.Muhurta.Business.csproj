@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Panchang.Caching\MyVedicDay.Panchang.Caching.csproj" />
     <ProjectReference Include="..\MyVedicDay.Ai.Integration\MyVedicDay.Ai.Integration.csproj" />
     <ProjectReference Include="..\MyVedicDay.Astronomy.Calculation\MyVedicDay.Astronomy.Calculation.csproj" />
     <ProjectReference Include="..\MyVedicDay.Caching\MyVedicDay.Caching.csproj" />

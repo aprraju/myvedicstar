@@ -41,3 +41,6 @@ dotnet_diagnostic.IDE0005.severity = none
 
 [src/SharedApi/**.cs]
 dotnet_diagnostic.IDE0005.severity = none
+
+[src/MyVedicStar.Caching/**.cs]
+dotnet_diagnostic.IDE0005.severity = none

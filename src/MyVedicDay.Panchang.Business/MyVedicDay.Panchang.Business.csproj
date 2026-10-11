@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Panchang.Caching\MyVedicDay.Panchang.Caching.csproj" />
     <ProjectReference Include="..\MyVedicDay.Caching\MyVedicDay.Caching.csproj" />
     <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />

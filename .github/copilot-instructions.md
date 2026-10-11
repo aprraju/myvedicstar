@@ -539,26 +539,13 @@ Use an in-memory cache (`IMemoryCache`) per API instance.
 
 Caching must be behind an abstraction.
 
-The shared cache contract is `ICacheStore` (`MyVedicStar.Shared.Caching`), registered with
-`services.AddMyVedicStarCaching(configuration)`. Its current implementation, `MemoryCacheStore`, uses a
-private, size-limited `MemoryCache`; do not use the shared `IMemoryCache` service directly.
-
-Each domain wraps `ICacheStore` in its own abstraction that owns key building and expiration rules.
-
-Example:
-
-`IPanchangCache`
-
-The Business Layer must not depend on the cache implementation (`MemoryCache`, or any future provider).
-
-Consequences of an in-memory cache, which callers must accept:
-
-- each API instance has its own cache; entries are not shared between replicas
-- entries are lost on restart and deployment
-- cached data must therefore be derivable (recalculable), never authoritative state
-
-`ICacheStore` is asynchronous so a distributed cache (for example Redis) can replace the implementation
-later without changing callers, if replica count or calculation cost makes per-instance caching insufficient.
+The shared cache module is `MyVedicStar.Caching`, registered with `services.AddApplicationCaching(configuration)`.
+Day's `IDistributedObjectCache` and Star's `ICacheStore` are compatibility adapters to native Microsoft HybridCache.
+Use its dedicated bounded L1 and optional PostgreSQL L2; do not reintroduce a bespoke memory store or Redis.
+Domain code owns normalized, versioned keys and validity; calculation engines remain pure and free of cache I/O.
+L1 is lost at restart; PostgreSQL retains valid results. Native single-flight is per process, not distributed.
+Cache only derivable safe data. Never cache tokens, login responses, profiles or authorization decisions.
+See `docs/hybrid-cache.md` for policies, bounded tag metadata, failure behavior, tests and database-first rollout.
 
 Cache Panchang primarily at:
 

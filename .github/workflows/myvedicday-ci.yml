@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'src/SharedApi/**'
+      - 'src/MyVedicStar.Caching/**'
+      - 'src/MyVedicStar.Authorize.Data/**'
+      - 'src/MyVedicStar.Shared/**'
+      - 'tests/MyVedicStar.Caching.Tests/**'
       - 'src/MyVedicDay.*/**'
       - 'tests/MyVedicDay.*/**'
       - 'MyVedicDay.sln'
@@ -15,6 +19,10 @@ on:
     branches-ignore: [main]
     paths:
       - 'src/SharedApi/**'
+      - 'src/MyVedicStar.Caching/**'
+      - 'src/MyVedicStar.Authorize.Data/**'
+      - 'src/MyVedicStar.Shared/**'
+      - 'tests/MyVedicStar.Caching.Tests/**'
       - 'src/MyVedicDay.*/**'
       - 'tests/MyVedicDay.*/**'
       - 'MyVedicDay.sln'
@@ -78,10 +86,17 @@ jobs:
       contents: read
       packages: read    # restore MyVedicStar.* packages from GitHub Packages
     services:
-      redis:
-        image: redis:7-alpine
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cache_test
+          POSTGRES_PASSWORD: ci_only
+          POSTGRES_DB: postgres
         ports:
-          - 6379:6379
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cache_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -98,13 +113,12 @@ jobs:
 
       - name: Run tests
         env:
-          # Make the Redis service available to integration tests.
-          Redis__ConnectionString: localhost:6379
+          MYVEDICSTAR_TEST_POSTGRES: Host=localhost;Port=5432;Database=postgres;Username=cache_test;Password=ci_only
         run: |
           dotnet test MyVedicDay.sln \
             --configuration Release \
             --no-restore \
-            --logger "trx;LogFileName=results.trx" \
+            --logger trx \
             --results-directory ./test-results
 
       - name: Upload test results

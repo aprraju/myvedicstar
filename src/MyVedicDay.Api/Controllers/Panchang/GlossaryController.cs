@@ -1,3 +1,4 @@
+using MyVedicStar.Caching;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,7 +25,7 @@ namespace MyVedicDay.Api.Controllers.Panchang;
     Description = "Rate limit exceeded for this client. Retry after the current window.")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json",
     Description = "Unexpected error. Quote the traceId or correlationId when reporting it.")]
-public sealed class GlossaryController(IGlossaryFacade glossary) : ControllerBase
+public sealed class GlossaryController(IGlossaryFacade glossary, IApplicationCache? cache = null) : ControllerBase
 {
     /// <summary>Glossary of Panchang items.</summary>
     /// <remarks>
@@ -51,7 +52,8 @@ public sealed class GlossaryController(IGlossaryFacade glossary) : ControllerBas
         [FromQuery, RegularExpression("^[A-Za-z][A-Za-z0-9-]{0,31}$")] string? tradition,
         CancellationToken cancellationToken)
     {
-        var result = await glossary.GetGlossaryAsync(LanguagePreferences.FromRequest(Request, language), tradition, cancellationToken);
+        var languages = LanguagePreferences.FromRequest(Request, language);
+        var result = await ReferenceCache.GetAsync(cache, "glossary", languages, tradition, token => glossary.GetGlossaryAsync(languages, tradition, token), cancellationToken);
         LanguagePreferences.SetResponseLanguage(Response, result.Language);
         return result.ToResponse();
     }

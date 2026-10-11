@@ -20,7 +20,7 @@ deploy/
   scripts/set-secrets.ps1      Store secrets in Key Vault (interactive; never runs in CI)
 .github/workflows/
   authorize-api.yml            Independent Star code scan, build and tests (including PostgreSQL)
-  myvedicday-ci.yml            Independent Day code scan, build and tests (including Redis)
+  myvedicday-ci.yml            Independent Day code scan, build and tests (including PostgreSQL cache validation)
   shared-deploy.yml            Validate both APIs and the combined host; build one combined image and deploy
                                it to the existing VedicStar Container App on main
 .github/scripts/
@@ -184,10 +184,11 @@ Vulnerable packages no longer fail the build. Watch the code-scan summary, and a
   and the vault still holds the secret. Neither is used any more; remove them when convenient
   (`az containerapp secret remove ... --secret-names graph-client-secret`).
 - **Terraform variables the app does not read yet**: `Authentication__Authority`/`Authentication__Audience`
-  (the app reads `Authentication__EntraExternalId__*`, set by `prod.json`), `Database__*` (passwordless PostgreSQL
-  via managed identity), `KeyVault__Uri`, `Storage__BlobEndpoint` and `Security__OriginVerify*`.
+  (the app reads `Authentication__EntraExternalId__*`, set by `prod.json`), `KeyVault__Uri`, `Storage__BlobEndpoint` and `Security__OriginVerify*`.
   User persistence stays off (`FeatureFlags__UserPersistence=false`) until the app supports managed-identity
   database authentication; the Terraform migration job `caj-myvedicstar-migrate-prod` is then the place to run
   migrations.
 - **Capacity**: Terraform sets 0.25 vCPU / 0.5 GiB, `maxReplicas: 1` and scale-to-zero. Raise `minReplicas` to at
   least 1 (2 for zone resilience) to avoid cold starts and single-instance outages.
+
+HybridCache PostgreSQL L2 remains disabled in prod.json until the reviewed [cache migration](sql/hybrid-cache-migration.sql) is applied to the existing database. Configure the existing Database__ConnectionString secret and follow the [database-first rollout](../docs/hybrid-cache.md#database-first-rollout). No Redis service or additional Azure database is required.

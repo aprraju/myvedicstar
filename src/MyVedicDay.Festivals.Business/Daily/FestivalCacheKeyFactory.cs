@@ -36,6 +36,7 @@ internal sealed class FestivalCacheKeyFactory(IOptions<LocationOptions> options)
             rulesVersion,
             FestivalCalculationVersion.Current,
             PanchangCalculationVersion.Current,
+            DateTimeZoneProviders.Tzdb.VersionId,
             "d" + DataSchemaVersion);
     }
 }

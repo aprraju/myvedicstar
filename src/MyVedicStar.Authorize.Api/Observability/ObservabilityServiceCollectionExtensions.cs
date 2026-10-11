@@ -33,7 +33,7 @@ internal static class ObservabilityServiceCollectionExtensions
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName ?? string.Empty, serviceVersion: GetServiceVersion()))
-            .WithMetrics(metrics => metrics.AddMeter(CacheMetrics.MeterName))
+            .WithMetrics(metrics => metrics.AddMeter(CacheMetrics.MeterName, MyVedicStar.Caching.ApplicationCacheMetrics.MeterName, "Npgsql"))
             .UseAzureMonitor();
 
         // Container probes hit the health endpoints every few seconds; they are not useful request telemetry.

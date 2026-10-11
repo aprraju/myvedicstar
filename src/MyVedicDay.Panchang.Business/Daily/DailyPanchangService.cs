@@ -1,3 +1,4 @@
+using MyVedicDay.Panchang.Caching;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MyVedicDay.Astronomy;
@@ -20,9 +21,10 @@ internal sealed partial class DailyPanchangService(
     IDistributedObjectCache cache,
     PanchangCacheKeyFactory cacheKeys,
     PanchangCacheExpirationPolicy cacheExpiration,
-    InFlightRequestCoalescer<DailyPanchangData> coalescer,
     PanchangMetrics metrics,
-    ILogger<DailyPanchangService> logger)
+    ILogger<DailyPanchangService> logger,
+    IPanchangCalculationCache? calculations = null,
+    IClock? clock = null)
 {
     public async Task<IReadOnlyList<DailyPanchangData>> GetDaysAsync(
         PanchangRequestContext context, IReadOnlyList<LocalDate> dates, CancellationToken cancellationToken)
@@ -30,46 +32,16 @@ internal sealed partial class DailyPanchangService(
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(dates);
 
-        var keys = dates.Select(date => cacheKeys.Create(context, date)).ToArray();
-        var cached = await Task.WhenAll(keys.Select(key => cache.GetAsync<DailyPanchangData>(key, cancellationToken)));
-
-        var results = new DailyPanchangData[dates.Count];
-        var misses = new List<(int Index, Task<DailyPanchangData> Calculation)>();
-        for (var i = 0; i < dates.Count; i++)
-        {
-            // Guard against a mismatched entry ever being served for another date.
-            if (cached[i] is { } hit && hit.Date == dates[i].ToDateOnly())
-            {
-                results[i] = hit;
-                continue;
-            }
-
-            var date = dates[i];
-            var key = keys[i];
-            misses.Add((i, coalescer.GetOrStartAsync(key, () => CalculateAndCacheAsync(context, date, key))));
-        }
-
-        metrics.RecordCacheLookups(dates.Count - misses.Count, misses.Count);
-
-        foreach (var (index, calculation) in misses)
-        {
-            results[index] = await calculation.WaitAsync(cancellationToken);
-        }
-
-        LogDaysResolved(dates.Count, dates.Count - misses.Count, misses.Count, context.Location.TimeZone.Id, context.CalculationMethod);
+        var results = await Task.WhenAll(dates.Select(date => cache.GetOrCreateWithPolicyAsync(
+            cacheKeys.Create(context, date),
+            dates.Count > 1 ? "calendar" : date < (clock ?? SystemClock.Instance).GetCurrentInstant().InZone(context.Location.TimeZone).Date ? "historical" : "panchang",
+            token => CalculateAsync(context, date, token),
+            cacheExpiration.GetAbsoluteExpiration(date, context.Location.TimeZone),
+            cancellationToken)));
         return results;
     }
 
-    private async Task<DailyPanchangData> CalculateAndCacheAsync(PanchangRequestContext context, LocalDate date, string key)
-    {
-        var day = Calculate(context, date);
-
-        // Shared work: not tied to any single caller's cancellation token.
-        await cache.SetAsync(key, day, cacheExpiration.GetAbsoluteExpiration(date, context.Location.TimeZone), CancellationToken.None);
-        return day;
-    }
-
-    private DailyPanchangData Calculate(PanchangRequestContext context, LocalDate date)
+    private async Task<DailyPanchangData> CalculateAsync(PanchangRequestContext context, LocalDate date, CancellationToken token)
     {
         var location = context.Location;
         var request = new PanchangCalculationRequest(
@@ -79,7 +51,7 @@ internal sealed partial class DailyPanchangService(
         PanchangDay day;
         try
         {
-            day = calculator.Calculate(request);
+            day = calculations is null ? calculator.Calculate(request) : await calculations.CalculateAsync(request, token);
         }
         catch (SunEventNotFoundException exception)
         {

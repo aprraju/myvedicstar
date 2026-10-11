@@ -85,7 +85,7 @@ internal static class ApiServiceCollectionExtensions
                 observability.ServiceName,
                 serviceVersion: typeof(ApiServiceCollectionExtensions).Assembly.GetName().Version?.ToString()))
             .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation())
-            .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddMeter(PanchangTelemetry.MeterName, ProtectionMetrics.MeterName));
+            .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddMeter(PanchangTelemetry.MeterName, ProtectionMetrics.MeterName, MyVedicStar.Caching.ApplicationCacheMetrics.MeterName, "Npgsql"));
 
         if (observability.OtlpEndpoint is not null)
         {

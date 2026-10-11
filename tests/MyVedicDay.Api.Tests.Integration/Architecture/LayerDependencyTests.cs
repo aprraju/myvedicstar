@@ -37,6 +37,7 @@ public sealed class LayerDependencyTests
         { "MyVedicDay.Traditions.Business", ["MyVedicDay.Localization.Business", "MyVedicDay.Localization.Data", Shared] },
 
         // Panchang domain.
+        { "MyVedicDay.Panchang.Caching", ["MyVedicDay.Caching", "MyVedicDay.Panchang.Calculation", "MyVedicDay.Astronomy.Calculation"] },
         { "MyVedicDay.Panchang.Calculation", ["MyVedicDay.Astronomy.Calculation", Shared] },
         { "MyVedicDay.Panchang.Data", ["MyVedicDay.Localization.Data", Shared] },
         {
@@ -44,7 +45,7 @@ public sealed class LayerDependencyTests
             [
                 "MyVedicDay.Panchang.Calculation", "MyVedicDay.Panchang.Data", "MyVedicDay.Astronomy.Calculation",
                 "MyVedicDay.Location.Business", "MyVedicDay.Localization.Business", "MyVedicDay.Traditions.Business",
-                "MyVedicDay.Caching", Shared,
+                "MyVedicDay.Caching", "MyVedicDay.Panchang.Caching", Shared,
             ]
         },
 
@@ -68,7 +69,7 @@ public sealed class LayerDependencyTests
             [
                 "MyVedicDay.Muhurta.Calculation", "MyVedicDay.Muhurta.Data", "MyVedicDay.Panchang.Calculation",
                 "MyVedicDay.Astronomy.Calculation", "MyVedicDay.Location.Business", "MyVedicDay.Localization.Business",
-                "MyVedicDay.Traditions.Business", "MyVedicDay.Caching", "MyVedicDay.Ai.Integration", Shared,
+                "MyVedicDay.Traditions.Business", "MyVedicDay.Caching", "MyVedicDay.Panchang.Caching", "MyVedicDay.Ai.Integration", Shared,
             ]
         },
     };

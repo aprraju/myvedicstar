@@ -1,3 +1,4 @@
+using MyVedicDay.Panchang.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -44,7 +45,6 @@ public static class MuhurtaBusinessServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivityInterpreter, KeywordActivityInterpreter>());
         services.TryAddSingleton<GoodTimeExplainer>();
         services.TryAddSingleton<ActivityResolver>();
-        services.TryAddSingleton<InFlightRequestCoalescer<MuhurtaDayData>>();
         services.TryAddSingleton<MuhurtaDayService>();
         services.TryAddScoped<IMuhurtaFacade, MuhurtaFacade>();
 
@@ -57,6 +57,7 @@ public static class MuhurtaBusinessServiceCollectionExtensions
         services.AddLocalizationBusiness(configuration);
         services.AddTraditionsBusiness(configuration);
         services.AddDistributedObjectCache(configuration);
+        services.AddPanchangCalculationCache();
         services.AddAiIntegration(configuration);
 
         return services;

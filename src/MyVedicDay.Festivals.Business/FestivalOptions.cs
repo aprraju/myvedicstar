@@ -18,7 +18,7 @@ public sealed class FestivalOptions
     public int MaxRangeDays { get; set; } = 366;
 
     /// <summary>Cache lifetime for dates that have already ended at the location.</summary>
-    [Range(typeof(TimeSpan), "00:01:00", "1.00:00:00")]
+    [Range(typeof(TimeSpan), "00:01:00", "30.00:00:00")]
     public TimeSpan PastDateCacheLifetime { get; set; } = TimeSpan.FromHours(1);
 
     /// <summary>Upper bound on any cache entry's lifetime.</summary>
