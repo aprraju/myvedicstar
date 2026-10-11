@@ -23,8 +23,9 @@
     <InternalsVisibleTo Include="MyVedicDay.Api.Tests.Integration" />
   </ItemGroup>
 
-  <!-- The host depends only on Business modules (facades) and Shared; never on Calculation, Data or Integration. -->
+  <!-- The host depends on Business modules, Shared, and the GeoNames API adapter. -->
   <ItemGroup>
+    <ProjectReference Include="..\GeoNames\GeoNames.csproj" />
     <ProjectReference Include="..\MyVedicDay.Festivals.Business\MyVedicDay.Festivals.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />

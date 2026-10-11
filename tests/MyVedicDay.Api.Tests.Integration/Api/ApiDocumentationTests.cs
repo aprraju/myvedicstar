@@ -23,7 +23,7 @@ public sealed class ApiDocumentationTests(WebApplicationFactory<Program> factory
             .SelectMany(path => path.Value.EnumerateObject().Select(operation => operation.Value))
             .ToArray();
 
-        Assert.Equal(18, operations.Length);
+        Assert.Equal(22, operations.Length);
         foreach (var operation in operations)
         {
             Assert.False(string.IsNullOrWhiteSpace(operation.GetProperty("operationId").GetString()));

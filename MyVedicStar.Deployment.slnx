@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/GeoNames/GeoNames.csproj" />
     <Project Path="src/MyVedicDay.Ai.Integration/MyVedicDay.Ai.Integration.csproj" />
     <Project Path="src/MyVedicDay.Api/MyVedicDay.Api.csproj" />
     <Project Path="src/MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
@@ -28,6 +29,7 @@
     <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/GeoNames.Tests/GeoNames.Tests.csproj" />
     <Project Path="tests/MyVedicStar.Caching.Tests/MyVedicStar.Caching.Tests.csproj" />
     <Project Path="tests/MyVedicStar.Host.Tests.Integration/MyVedicStar.Host.Tests.Integration.csproj" />
   </Folder>

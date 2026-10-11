@@ -1,3 +1,4 @@
+using GeoNames;
 using MyVedicDay.Api.Infrastructure;
 using MyVedicDay.Festivals.Business;
 using MyVedicDay.Muhurta.Business;
@@ -12,6 +13,7 @@ public static class MyVedicDayApiModule
     public static IServiceCollection AddMyVedicDayApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddApiInfrastructure(configuration);
+        services.AddGeoNamesLocationSearch(configuration);
         services.AddPanchangBusiness(configuration);
         services.AddFestivalBusiness(configuration);
         services.AddMuhurtaBusiness(configuration);

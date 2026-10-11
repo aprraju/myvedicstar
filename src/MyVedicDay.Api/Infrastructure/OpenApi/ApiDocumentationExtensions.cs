@@ -18,6 +18,7 @@ internal static class ApiDocumentationExtensions
             options.AddOperationTransformer<ParameterDocumentationTransformer>();
             options.AddOperationTransformer<ResponseExampleTransformer>();
             options.AddOperationTransformer<SecurityOperationTransformer>();
+            options.AddOperationTransformer<GeoNamesOperationTransformer>();
         });
 
         return services;
