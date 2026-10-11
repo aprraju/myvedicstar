@@ -223,18 +223,16 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     public async Task Upgrade_PreservesLegacyAccountAndAuditHistory()
     {
         SkipIfUnavailable();
-        await using var scope = _database.Services.CreateAsyncScope();
-        var source = scope.ServiceProvider.GetRequiredService<AuthorizeDbContext>();
         var databaseName = "myvedicstar_upgrade_" + Guid.NewGuid().ToString("N");
-        await using var admin = new NpgsqlConnection(source.Database.GetConnectionString());
+        await using var admin = _database.CreateConnection();
         await admin.OpenAsync();
         await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin))
             await create.ExecuteNonQueryAsync();
         try
         {
-            var connection = new NpgsqlConnectionStringBuilder(admin.ConnectionString) { Database = databaseName };
+            await using var connection = _database.CreateConnection(databaseName);
             var options = new DbContextOptionsBuilder<AuthorizeDbContext>();
-            options.UseNpgsql(connection.ConnectionString, provider => provider.MigrationsHistoryTable(AuthorizeDbContext.MigrationsHistoryTable, AuthorizeDbContext.Schema));
+            options.UseNpgsql(connection, provider => provider.MigrationsHistoryTable(AuthorizeDbContext.MigrationsHistoryTable, AuthorizeDbContext.Schema));
             await using var db = new AuthorizeDbContext(options.Options);
             var migrator = db.GetService<IMigrator>();
             await migrator.MigrateAsync("20261011000000_AddHybridCacheEntries");

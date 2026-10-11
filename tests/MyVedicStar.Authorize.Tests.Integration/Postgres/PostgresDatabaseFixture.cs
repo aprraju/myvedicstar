@@ -23,6 +23,14 @@ public sealed class PostgresDatabaseFixture : IAsyncLifetime
 
     public IServiceProvider Services => _services ?? throw new InvalidOperationException("PostgreSQL is not configured.");
 
+    /// <summary>Builds a fresh connection from the original credentials, never from an opened connection's sanitized string.</summary>
+    public NpgsqlConnection CreateConnection(string? databaseName = null)
+    {
+        var settings = new NpgsqlConnectionStringBuilder(_adminConnectionString);
+        if (databaseName is not null) settings.Database = databaseName;
+        return new NpgsqlConnection(settings.ConnectionString);
+    }
+
     public async Task InitializeAsync()
     {
         if (!IsAvailable)
@@ -71,7 +79,7 @@ public sealed class PostgresDatabaseFixture : IAsyncLifetime
 
     private async Task ExecuteAdminCommandAsync(string sql)
     {
-        await using var connection = new NpgsqlConnection(_adminConnectionString);
+        await using var connection = CreateConnection();
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
