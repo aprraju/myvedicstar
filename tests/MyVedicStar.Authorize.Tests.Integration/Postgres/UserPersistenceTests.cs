@@ -58,7 +58,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     }
 
     [SkippableFact]
-    public async Task Upsert_ExistingUser_PreservesProfileIdAndCreatedTime()
+    public async Task Upsert_ExistingUser_UpdatesProfileAndPreservesIdAndCreatedTime()
     {
         SkipIfUnavailable();
         var original = CreateProfile();
@@ -69,10 +69,24 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
 
         var stored = await FindUserAsync(original.ExternalId);
         Assert.Equal(firstId, secondId);
-        Assert.Equal(original.Name, stored!.Name);
-        Assert.Equal(original.Email, stored.Email);
+        Assert.Equal("Jonathan", stored!.Name);
+        Assert.Equal("new@example.com", stored.Email);
         Assert.Equal(created, stored.CreatedUtc);
         Assert.True(stored.UpdatedUtc >= stored.CreatedUtc);
+        Assert.True(stored.IsActive);
+    }
+
+    [SkippableFact]
+    public async Task Upsert_ResolvedNullNameAndEmailFallback_ReplaceStaleProfile()
+    {
+        SkipIfUnavailable();
+        var original = CreateProfile() with { Name = "unknown", Email = null };
+        var id = await UpsertInNewScopeAsync(original);
+        Assert.Equal(id, await UpsertInNewScopeAsync(original with { Name = null, Email = "aprraju@gmail.com" }));
+        var stored = await FindUserAsync(original.ExternalId);
+        Assert.Null(stored!.Name);
+        Assert.Equal("aprraju@gmail.com", stored.Email);
+        Assert.True(stored.IsActive);
     }
 
     [SkippableFact]

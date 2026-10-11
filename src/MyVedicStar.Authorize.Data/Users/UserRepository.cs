@@ -19,7 +19,7 @@ internal sealed class UserRepository : IUserRepository
     public async Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken)
     {
         var existing = await FindAsync(profile, cancellationToken);
-        if (existing is not null) return ActiveId(existing);
+        if (existing is not null) return await UpdateProfileAsync(existing, profile, cancellationToken);
 
         var created = new UserEntity
         {
@@ -37,8 +37,9 @@ internal sealed class UserRepository : IUserRepository
         {
             // SaveChanges rolls back to its transaction savepoint; retrieve the winning registration.
             _dbContext.Entry(created).State = EntityState.Detached;
-            return ActiveId(await FindAsync(profile, cancellationToken)
-                ?? throw new DataAccessException("Your details could not be saved. Please try again later."));
+            var winner = await FindAsync(profile, cancellationToken)
+                ?? throw new DataAccessException("Your details could not be saved. Please try again later.");
+            return await UpdateProfileAsync(winner, profile, cancellationToken);
         }
     }
 
@@ -47,7 +48,20 @@ internal sealed class UserRepository : IUserRepository
             .Select(user => (Guid?)user.Id).SingleOrDefaultAsync(cancellationToken);
 
     private Task<UserEntity?> FindAsync(UserProfileData profile, CancellationToken cancellationToken) =>
-        _dbContext.Users.AsNoTracking().SingleOrDefaultAsync(user => user.Issuer == profile.Issuer && user.ExternalId == profile.ExternalId, cancellationToken);
+        _dbContext.Users.SingleOrDefaultAsync(user => user.Issuer == profile.Issuer && user.ExternalId == profile.ExternalId, cancellationToken);
+
+    private async Task<Guid> UpdateProfileAsync(UserEntity user, UserProfileData profile, CancellationToken cancellationToken)
+    {
+        var id = ActiveId(user);
+        if (user.Name != profile.Name || user.Email != profile.Email)
+        {
+            user.Name = profile.Name;
+            user.Email = profile.Email;
+            user.UpdatedUtc = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        return id;
+    }
 
     private static Guid ActiveId(UserEntity user) => user.IsActive ? user.Id : throw new AccountInactiveException();
 }

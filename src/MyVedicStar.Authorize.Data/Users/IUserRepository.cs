@@ -4,7 +4,8 @@ namespace MyVedicStar.Authorize.Data.Users;
 public interface IUserRepository
 {
     /// <summary>
-    /// Creates an account identified by issuer and external ID, preserving existing profiles and active status.
+    /// Creates an account identified by issuer and external ID, or synchronizes its name and email.
+    /// Preserves account ID, creation time and active status; rejects inactive accounts.
     /// </summary>
     /// <returns>The internal MyVedicStar user ID.</returns>
     Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken);

@@ -80,7 +80,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     [Fact]
-    public async Task UserInfo_CalledTwiceInSameSession_PreservesProfileAndRecordsOneLogin()
+    public async Task UserInfo_CalledTwiceInSameSession_UpdatesProfileAndRecordsOneLogin()
     {
         var token = _factory.CreateToken([("oid", ObjectId), ("name", Name), ("email", Email), ("sid", "session-1")]);
         await PostUserInfoAsync(token);
@@ -88,7 +88,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "John Smith-Jones"), ("email", Email), ("sid", "session-1")]));
 
         Assert.Equal(firstUserId, _factory.UserStore.FindUserId(ObjectId));
-        Assert.Equal(Name, _factory.UserStore.FindUser(ObjectId)?.Name);
+        Assert.Equal("John Smith-Jones", _factory.UserStore.FindUser(ObjectId)?.Name);
         Assert.Single(_factory.UserStore.Logins);
     }
 
@@ -99,6 +99,23 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(IPAddress.Parse("203.0.113.7"), Assert.Single(_factory.UserStore.Logins).IpAddress);
+    }
+
+    [Fact]
+    public async Task UserInfo_ExistingUser_SynchronizesFallbackEmailAndNullNameWithoutAnotherSessionAudit()
+    {
+        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", Name), ("email", Email), ("sid", "profile-session")]));
+        var id = _factory.UserStore.FindUserId(ObjectId);
+        var response = await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "unknown"), ("preferred_username", "aprraju@gmail.com"), ("sid", "profile-session")]));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var stored = _factory.UserStore.FindUser(ObjectId);
+        Assert.Equal(body.GetProperty("name").GetString(), stored!.Name);
+        Assert.Equal(body.GetProperty("email").GetString(), stored.Email);
+        Assert.Null(stored.Name);
+        Assert.Equal("aprraju@gmail.com", stored.Email);
+        Assert.Equal(id, _factory.UserStore.FindUserId(ObjectId));
+        Assert.Single(_factory.UserStore.Logins);
     }
 
     [Fact]

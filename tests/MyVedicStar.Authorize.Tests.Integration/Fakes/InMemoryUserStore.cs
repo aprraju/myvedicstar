@@ -36,8 +36,11 @@ public sealed class InMemoryUserStore : IUserRepository, IUserLoginRepository, I
 
     public Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken)
     {
-        var user = _users.GetOrAdd(profile.Issuer + "|" + profile.ExternalId, _ => (Guid.CreateVersion7(), profile));
-        if (_inactive.ContainsKey(user.Id)) throw new Shared.Exceptions.AccountInactiveException();
+        var user = _users.AddOrUpdate(profile.Issuer + "|" + profile.ExternalId,
+            _ => (Guid.CreateVersion7(), profile),
+            (_, existing) => _inactive.ContainsKey(existing.Id)
+                ? throw new Shared.Exceptions.AccountInactiveException()
+                : (existing.Id, profile));
 
         return Task.FromResult(user.Id);
     }
