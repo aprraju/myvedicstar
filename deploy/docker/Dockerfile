@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Runtime image for the MyVedicStar Authorize API. The build context is the `dotnet publish` output, not the
+# Runtime image for the combined MyVedicDay and MyVedicStar APIs. The build context is the `dotnet publish` output, not the
 # repository: deploy/scripts/build-image.ps1 publishes on the build machine (restoring MyVedicStar.* packages from
 # GitHub Packages with GITHUB_TOKEN) and then builds this image in ACR. No source, SDK or package credential ever
 # enters the image.
@@ -21,4 +21,4 @@ EXPOSE 8080
 
 COPY . .
 USER $APP_UID
-ENTRYPOINT ["dotnet", "MyVedicStar.Authorize.Api.dll"]
+ENTRYPOINT ["dotnet", "MyVedicStar.Host.dll"]

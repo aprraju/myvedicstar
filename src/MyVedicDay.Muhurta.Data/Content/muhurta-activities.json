@@ -1,0 +1,250 @@
+{
+  "$comment": "MyVedicDay Muhurta rules (ADR-0011). Profile = defaults, then the activity's rules, then the tradition's '*' rules, then the tradition's rules for the activity. Within one layer of 'factors', '*' applies first, then group names (see 'groups'), then value keys. Effects: Supportive, Neutral, Adverse, Excluded (rules the activity out). Unfavorable periods: the best status a segment may have while the period is active, alone or when it overlaps a favorable period (the conflict matrix). Defaults exclude, while in force, the values the daily guidance rates Avoid (Amavasya, Krishna Chaturdashi, Tikshna Nakshatras, Vyatipata, Vaidhriti, Vishti), so the General day status never contradicts the day factors. Provisional: review with the reference astrologer and bump 'version' on every change.",
+  "version": "2026.2-provisional",
+  "groups": {
+    "tithi": {
+      "nanda": [ "ShuklaPratipada", "ShuklaShashthi", "ShuklaEkadashi", "KrishnaPratipada", "KrishnaShashthi", "KrishnaEkadashi" ],
+      "bhadra": [ "ShuklaDwitiya", "ShuklaSaptami", "ShuklaDwadashi", "KrishnaDwitiya", "KrishnaSaptami", "KrishnaDwadashi" ],
+      "jaya": [ "ShuklaTritiya", "ShuklaAshtami", "ShuklaTrayodashi", "KrishnaTritiya", "KrishnaAshtami", "KrishnaTrayodashi" ],
+      "rikta": [ "ShuklaChaturthi", "ShuklaNavami", "ShuklaChaturdashi", "KrishnaChaturthi", "KrishnaNavami", "KrishnaChaturdashi" ],
+      "purna": [ "ShuklaPanchami", "ShuklaDashami", "Purnima", "KrishnaPanchami", "KrishnaDashami" ],
+      "ashtami": [ "ShuklaAshtami", "KrishnaAshtami" ],
+      "ekadashi": [ "ShuklaEkadashi", "KrishnaEkadashi" ]
+    },
+    "nakshatra": {
+      "dhruva": [ "Rohini", "UttaraPhalguni", "UttaraAshadha", "UttaraBhadrapada" ],
+      "chara": [ "Punarvasu", "Swati", "Shravana", "Dhanishta", "Shatabhisha" ],
+      "ugra": [ "Bharani", "Magha", "PurvaPhalguni", "PurvaAshadha", "PurvaBhadrapada" ],
+      "mishra": [ "Krittika", "Vishakha" ],
+      "kshipra": [ "Ashwini", "Pushya", "Hasta" ],
+      "mridu": [ "Mrigashira", "Chitra", "Anuradha", "Revati" ],
+      "tikshna": [ "Ardra", "Ashlesha", "Jyeshtha", "Mula" ]
+    },
+    "yoga": {
+      "uttama": [ "Siddhi", "Siddha", "Shubha", "Brahma" ],
+      "ashubha": [ "Vishkambha", "Atiganda", "Shula", "Ganda", "Vyaghata", "Vajra", "Parigha" ],
+      "mahaDosha": [ "Vyatipata", "Vaidhriti" ]
+    },
+    "karana": {
+      "chara": [ "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija" ],
+      "sthira": [ "Shakuni", "Chatushpada", "Naga" ],
+      "vishti": [ "Vishti" ]
+    },
+    "vara": {
+      "saumya": [ "Monday", "Wednesday", "Thursday", "Friday" ],
+      "krura": [ "Tuesday", "Saturday" ]
+    }
+  },
+  "defaults": {
+    "window": "Daytime",
+    "minimumMinutes": 24,
+    "weights": { "nakshatra": 30, "tithi": 25, "yoga": 15, "karana": 15, "vara": 15 },
+    "effectScores": { "Supportive": 100, "Neutral": 65, "Adverse": 30, "Excluded": 0 },
+    "thresholds": [
+      { "status": "HighlyFavorable", "minScore": 85 },
+      { "status": "Favorable", "minScore": 65 },
+      { "status": "Mixed", "minScore": 45 },
+      { "status": "Caution", "minScore": 30 },
+      { "status": "Avoid", "minScore": 0 }
+    ],
+    "factors": {
+      "tithi": { "purna": "Supportive", "bhadra": "Supportive", "jaya": "Supportive", "rikta": "Adverse", "ashtami": "Adverse", "KrishnaChaturdashi": "Excluded", "Amavasya": "Excluded" },
+      "nakshatra": { "dhruva": "Supportive", "mridu": "Supportive", "kshipra": "Supportive", "chara": "Supportive", "ugra": "Adverse", "tikshna": "Excluded" },
+      "yoga": { "uttama": "Supportive", "ashubha": "Adverse", "mahaDosha": "Excluded" },
+      "karana": { "Kimstughna": "Supportive", "sthira": "Adverse", "vishti": "Excluded" },
+      "vara": { "saumya": "Supportive", "krura": "Adverse" }
+    },
+    "favorablePeriods": {
+      "AbhijitMuhurta": { "bonus": 15, "excludedWeekdays": [ "Wednesday" ] },
+      "AmritKalam": { "bonus": 20 },
+      "BrahmaMuhurta": { "bonus": 10 }
+    },
+    "unfavorablePeriods": {
+      "RahuKalam": { "alone": "Avoid", "withFavorable": "Mixed" },
+      "Yamagandam": { "alone": "Avoid", "withFavorable": "Mixed" },
+      "DurMuhurtam": { "alone": "Avoid", "withFavorable": "Caution" },
+      "Varjyam": { "alone": "Avoid", "withFavorable": "Mixed" },
+      "GulikaKalam": { "alone": "Caution", "withFavorable": "Mixed" }
+    },
+    "excludedLunarMonths": [],
+    "excludeAdhikaMonth": false
+  },
+  "activities": [
+    {
+      "key": "business", "icon": "briefcase", "completeness": "full",
+      "keywords": [ "business", "shop", "store", "launch", "office", "startup", "trade", "sale", "opening", "company" ],
+      "rules": {
+        "factors": {
+          "yoga": { "mahaDosha": "Excluded" },
+          "karana": { "vishti": "Excluded" }
+        }
+      }
+    },
+    {
+      "key": "travel", "icon": "plane", "completeness": "full",
+      "keywords": [ "travel", "trip", "journey", "flight", "tour", "drive", "visit", "pilgrimage", "yatra" ],
+      "rules": {
+        "window": "Any",
+        "factors": {
+          "nakshatra": { "dhruva": "Adverse", "ugra": "Excluded", "tikshna": "Excluded" },
+          "karana": { "vishti": "Excluded" }
+        }
+      }
+    },
+    {
+      "key": "property", "icon": "home-key", "completeness": "full",
+      "keywords": [ "property", "land", "plot", "apartment", "flat", "real estate", "house purchase", "registration" ],
+      "rules": {
+        "factors": {
+          "tithi": { "rikta": "Excluded", "Amavasya": "Excluded" },
+          "nakshatra": { "chara": "Adverse", "ugra": "Excluded", "tikshna": "Excluded" },
+          "karana": { "vishti": "Excluded" }
+        }
+      }
+    },
+    {
+      "key": "vehicle", "icon": "car", "completeness": "full",
+      "keywords": [ "vehicle", "car", "bike", "scooter", "motorcycle", "truck", "tractor" ],
+      "rules": {
+        "factors": {
+          "nakshatra": { "dhruva": "Neutral", "ugra": "Excluded", "tikshna": "Excluded" },
+          "karana": { "vishti": "Excluded" }
+        }
+      }
+    },
+    {
+      "key": "agreement", "icon": "document-signature", "completeness": "full",
+      "keywords": [ "agreement", "contract", "sign", "signing", "deal", "loan", "lease", "partnership", "document" ],
+      "rules": {
+        "factors": {
+          "tithi": { "rikta": "Excluded" },
+          "nakshatra": { "chara": "Neutral" },
+          "yoga": { "mahaDosha": "Excluded" },
+          "karana": { "vishti": "Excluded" }
+        }
+      }
+    },
+    {
+      "key": "education", "icon": "book", "completeness": "full",
+      "keywords": [ "education", "school", "study", "exam", "course", "admission", "class", "learning", "vidyarambham", "akshara" ],
+      "rules": {
+        "factors": {
+          "tithi": { "Amavasya": "Excluded" },
+          "karana": { "vishti": "Excluded" },
+          "vara": { "Wednesday": "Supportive", "Thursday": "Supportive" }
+        }
+      }
+    },
+    {
+      "key": "puja", "icon": "lamp", "completeness": "full",
+      "keywords": [ "puja", "pooja", "prayer", "temple", "homam", "havan", "ritual", "meditation", "vratam", "spiritual" ],
+      "rules": {
+        "window": "Any",
+        "factors": {
+          "tithi": { "rikta": "Neutral", "ashtami": "Neutral", "KrishnaChaturdashi": "Neutral", "Amavasya": "Neutral", "ekadashi": "Supportive" },
+          "nakshatra": { "ugra": "Neutral", "tikshna": "Neutral" },
+          "yoga": { "mahaDosha": "Adverse" },
+          "karana": { "vishti": "Neutral" },
+          "vara": { "*": "Neutral" }
+        },
+        "favorablePeriods": { "BrahmaMuhurta": { "bonus": 25 } },
+        "unfavorablePeriods": {
+          "RahuKalam": { "alone": "Caution", "withFavorable": "Mixed" },
+          "Yamagandam": { "alone": "Caution", "withFavorable": "Mixed" },
+          "DurMuhurtam": { "alone": "Caution", "withFavorable": "Mixed" },
+          "Varjyam": { "alone": "Caution", "withFavorable": "Mixed" },
+          "GulikaKalam": { "alone": "Mixed", "withFavorable": "Mixed" }
+        }
+      }
+    },
+    {
+      "key": "wedding", "icon": "rings", "completeness": "partial",
+      "keywords": [ "wedding", "marriage", "vivah", "kalyanam", "engagement", "nischitartham" ],
+      "rules": {
+        "window": "Any",
+        "maximumStatus": "Favorable",
+        "factors": {
+          "tithi": { "rikta": "Excluded", "ashtami": "Excluded", "Amavasya": "Excluded" },
+          "nakshatra": {
+            "*": "Excluded",
+            "Rohini": "Supportive", "Mrigashira": "Supportive", "Magha": "Supportive", "UttaraPhalguni": "Supportive",
+            "Hasta": "Supportive", "Swati": "Supportive", "Anuradha": "Supportive", "Mula": "Supportive",
+            "UttaraAshadha": "Supportive", "UttaraBhadrapada": "Supportive", "Revati": "Supportive"
+          },
+          "yoga": { "mahaDosha": "Excluded" },
+          "karana": { "vishti": "Excluded" },
+          "vara": { "Tuesday": "Excluded" }
+        },
+        "unfavorablePeriods": {
+          "RahuKalam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "Yamagandam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "DurMuhurtam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "Varjyam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "GulikaKalam": { "alone": "Caution", "withFavorable": "Caution" }
+        },
+        "excludedLunarMonths": [ "Ashadha", "Shravana", "Bhadrapada", "Ashwin", "Pausha" ],
+        "excludeAdhikaMonth": true
+      }
+    },
+    {
+      "key": "housewarming", "icon": "house", "completeness": "partial",
+      "keywords": [ "housewarming", "griha pravesh", "gruhapravesam", "grihapravesam", "new home", "house warming", "moving in" ],
+      "rules": {
+        "maximumStatus": "Favorable",
+        "factors": {
+          "tithi": { "rikta": "Excluded", "Amavasya": "Excluded" },
+          "nakshatra": { "chara": "Adverse", "mishra": "Adverse", "ugra": "Excluded", "tikshna": "Excluded" },
+          "yoga": { "mahaDosha": "Excluded" },
+          "karana": { "vishti": "Excluded" },
+          "vara": { "Tuesday": "Excluded", "Sunday": "Adverse" }
+        },
+        "unfavorablePeriods": {
+          "RahuKalam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "Yamagandam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "DurMuhurtam": { "alone": "Avoid", "withFavorable": "Avoid" },
+          "Varjyam": { "alone": "Avoid", "withFavorable": "Avoid" }
+        },
+        "excludedLunarMonths": [ "Ashadha", "Shravana", "Bhadrapada", "Ashwin", "Pausha" ],
+        "excludeAdhikaMonth": true
+      }
+    },
+    { "key": "general", "icon": "sun", "completeness": "full", "keywords": [], "rules": {} },
+    { "key": "other", "icon": "more", "completeness": "full", "requiresInput": true }
+  ],
+  "traditions": {
+    "telugu": {
+      "*": {
+        "favorablePeriods": { "AmritKalam": { "bonus": 25 } },
+        "unfavorablePeriods": { "Varjyam": { "alone": "Avoid", "withFavorable": "Caution" } }
+      }
+    },
+    "tamil": {
+      "*": { "unfavorablePeriods": { "Yamagandam": { "alone": "Avoid", "withFavorable": "Caution" } } }
+    },
+    "gujarati": {
+      "*": {
+        "favorablePeriods": { "ChoghadiyaAmrit": { "bonus": 15 }, "ChoghadiyaShubh": { "bonus": 10 }, "ChoghadiyaLabh": { "bonus": 15 } },
+        "unfavorablePeriods": {
+          "ChoghadiyaRog": { "alone": "Caution", "withFavorable": "Caution" },
+          "ChoghadiyaKaal": { "alone": "Caution", "withFavorable": "Caution" },
+          "ChoghadiyaUdveg": { "alone": "Caution", "withFavorable": "Caution" }
+        }
+      }
+    },
+    "north-indian": {
+      "business": {
+        "favorablePeriods": { "ChoghadiyaAmrit": { "bonus": 15 }, "ChoghadiyaShubh": { "bonus": 10 }, "ChoghadiyaLabh": { "bonus": 15 } },
+        "unfavorablePeriods": { "ChoghadiyaRog": { "alone": "Caution", "withFavorable": "Caution" }, "ChoghadiyaKaal": { "alone": "Caution", "withFavorable": "Caution" } }
+      },
+      "travel": {
+        "favorablePeriods": { "ChoghadiyaAmrit": { "bonus": 15 }, "ChoghadiyaShubh": { "bonus": 10 }, "ChoghadiyaLabh": { "bonus": 15 }, "ChoghadiyaChal": { "bonus": 5 } },
+        "unfavorablePeriods": { "ChoghadiyaRog": { "alone": "Caution", "withFavorable": "Caution" }, "ChoghadiyaKaal": { "alone": "Caution", "withFavorable": "Caution" } }
+      }
+    },
+    "marathi": {
+      "business": {
+        "favorablePeriods": { "ChoghadiyaAmrit": { "bonus": 15 }, "ChoghadiyaShubh": { "bonus": 10 }, "ChoghadiyaLabh": { "bonus": 15 } }
+      }
+    }
+  }
+}

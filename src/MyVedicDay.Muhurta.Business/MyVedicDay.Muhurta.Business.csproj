@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Ai.Integration\MyVedicDay.Ai.Integration.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Astronomy.Calculation\MyVedicDay.Astronomy.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Caching\MyVedicDay.Caching.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Muhurta.Calculation\MyVedicDay.Muhurta.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Muhurta.Data\MyVedicDay.Muhurta.Data.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Panchang.Calculation\MyVedicDay.Panchang.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Traditions.Business\MyVedicDay.Traditions.Business.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <PackageReference Include="NodaTime" Version="3.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicDay.Muhurta.Tests.Unit" />
+  </ItemGroup>
+
+</Project>

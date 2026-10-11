@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GeoTimeZone" Version="6.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- GeoNames extract (CC BY 4.0), regenerate with: dotnet run tools/build-geonames-places.cs -->
+    <EmbeddedResource Include="GeoNames\Data\geonames-places.tsv.gz" LogicalName="MyVedicDay.GeoNames.Places" />
+  </ItemGroup>
+
+</Project>

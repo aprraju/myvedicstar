@@ -11,7 +11,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 $env:AZURE_EXTENSION_USE_DYNAMIC_INSTALL = 'yes_without_prompt'
 $env:AZURE_CORE_NO_COLOR = 'true'
 
-$script:ImageRepository = 'myvedicstar-authorize-api'
+$script:ImageRepository = 'myvedicstar-api'
 $script:RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $script:ContainerAppsApiVersion = '2024-03-01'
 $script:KeyVaultApiVersion = '2023-07-01'

@@ -1,0 +1,118 @@
+name: MyVedicDay API CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/SharedApi/**'
+      - 'src/MyVedicDay.*/**'
+      - 'tests/MyVedicDay.*/**'
+      - 'MyVedicDay.sln'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.github/workflows/myvedicday-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'src/SharedApi/**'
+      - 'src/MyVedicDay.*/**'
+      - 'tests/MyVedicDay.*/**'
+      - 'MyVedicDay.sln'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.editorconfig'
+      - '.github/workflows/myvedicday-ci.yml' 
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Code Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true        # findings are warnings, not failures
+    permissions:
+      contents: read
+      packages: read               # restore MyVedicStar.* packages during the build step
+      security-events: write       # upload SARIF to the Security tab
+      actions: read                # required by CodeQL to read workflow metadata
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          # security-extended adds more queries on top of the default security suite.
+          queries: security-extended
+
+      - name: Restore NuGet packages
+        # GITHUB_TOKEN supplies read:packages for the private github-myvedistar feed (nuget.config).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet restore MyVedicDay.sln
+
+      - name: Build for CodeQL analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet build MyVedicDay.sln --configuration Release --no-restore
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:csharp
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read    # restore MyVedicStar.* packages from GitHub Packages
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore NuGet packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet restore MyVedicDay.sln
+
+      - name: Run tests
+        env:
+          # Make the Redis service available to integration tests.
+          Redis__ConnectionString: localhost:6379
+        run: |
+          dotnet test MyVedicDay.sln \
+            --configuration Release \
+            --no-restore \
+            --logger "trx;LogFileName=results.trx" \
+            --results-directory ./test-results
+
+      - name: Upload test results
+        # Always upload so failures are visible even when the step above exits non-zero.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: day-test-results
+          path: ./test-results/*.trx
+          retention-days: 7
+

@@ -43,14 +43,12 @@ if (Test-ImageExists $RegistryName $ImageTag) {
 else {
     Assert-Required $env:GITHUB_TOKEN 'GITHUB_TOKEN (restores MyVedicStar.* packages from GitHub Packages; see nuget.config)'
 
-    $publishDir = Join-Path ([System.IO.Path]::GetTempPath()) "myvedicstar-authorize-api-$ImageTag"
-    if (Test-Path -LiteralPath $publishDir) {
-        Remove-Item -LiteralPath $publishDir -Recurse -Force
-    }
+    $publishDir = Join-Path ([System.IO.Path]::GetTempPath()) ("myvedicstar-combined-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $publishDir | Out-Null
 
     try {
-        Write-Host "Publishing the API ($ImageTag)..."
-        & dotnet publish (Join-Path $RepositoryRoot 'src/MyVedicStar.Authorize.Api/MyVedicStar.Authorize.Api.csproj') `
+        Write-Host "Publishing both APIs ($ImageTag)..."
+        & dotnet publish (Join-Path $RepositoryRoot 'src/MyVedicStar.Host/MyVedicStar.Host.csproj') `
             --configuration Release `
             --output $publishDir `
             -p:UseAppHost=false `
@@ -78,7 +76,12 @@ else {
         }
     }
     finally {
-        Remove-Item -LiteralPath $publishDir -Recurse -Force -ErrorAction SilentlyContinue
+        $resolvedPublishDir = [System.IO.Path]::GetFullPath($publishDir)
+        $resolvedTempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $resolvedPublishDir.StartsWith($resolvedTempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Publish cleanup path must be within the temporary directory.'
+        }
+        Remove-Item -LiteralPath $resolvedPublishDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     Write-Host "Image ready: $image"

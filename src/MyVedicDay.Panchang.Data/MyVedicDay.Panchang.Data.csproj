@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Localization.Data\MyVedicDay.Localization.Data.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Panchang display content (joins the shared content repository) and tradition profiles.
+         WithCulture=false stops MSBuild treating ".en." as a satellite-assembly culture. -->
+    <EmbeddedResource Include="Content\panchang-content.*.json" LogicalName="MyVedicDay.Content.%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="Content\panchang-traditions.json" LogicalName="MyVedicDay.Panchang.TraditionProfiles.json" WithCulture="false" />
+    <EmbeddedResource Include="Content\panchang-guidance-rules.json" LogicalName="MyVedicDay.Panchang.GuidanceRules.json" WithCulture="false" />
+  </ItemGroup>
+
+</Project>

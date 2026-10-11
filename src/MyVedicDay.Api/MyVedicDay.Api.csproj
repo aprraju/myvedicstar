@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- XML comments feed the OpenAPI document; not every public member needs one. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageReference Include="MyVedicStar.ApiProtection" Version="1.5.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
+    <!-- Transitive overrides: force patched versions of vulnerable IdentityModel packages (GHSA-59j7-ghrg-fj52). -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.4.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicDay.Api.Tests.Integration" />
+  </ItemGroup>
+
+  <!-- The host depends only on Business modules (facades) and Shared; never on Calculation, Data or Integration. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Festivals.Business\MyVedicDay.Festivals.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Muhurta.Business\MyVedicDay.Muhurta.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Panchang.Business\MyVedicDay.Panchang.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Traditions.Business\MyVedicDay.Traditions.Business.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../SharedApi/*.cs" Link="Infrastructure/Shared/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

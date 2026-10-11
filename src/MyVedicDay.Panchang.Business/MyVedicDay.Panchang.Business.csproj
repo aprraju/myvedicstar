@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Caching\MyVedicDay.Caching.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Panchang.Calculation\MyVedicDay.Panchang.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Panchang.Data\MyVedicDay.Panchang.Data.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Traditions.Business\MyVedicDay.Traditions.Business.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <PackageReference Include="NodaTime" Version="3.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicDay.Panchang.Tests.Unit" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
+</Project>

@@ -25,3 +25,19 @@ generated_code = true
 [tests/**.cs]
 # Test names use Method_Scenario_Expectation.
 dotnet_diagnostic.CA1707.severity = none
+
+# Preserve MyVedicDay's original build policy: its library projects do not emit XML documentation.
+[src/MyVedicDay.*/**.cs]
+dotnet_diagnostic.IDE0005.severity = none
+
+[tests/MyVedicDay.*/**.cs]
+dotnet_diagnostic.IDE0005.severity = none
+
+[src/MyVedicStar.Host/**.cs]
+dotnet_diagnostic.IDE0005.severity = none
+
+[tests/MyVedicStar.Host.Tests.Integration/**.cs]
+dotnet_diagnostic.IDE0005.severity = none
+
+[src/SharedApi/**.cs]
+dotnet_diagnostic.IDE0005.severity = none

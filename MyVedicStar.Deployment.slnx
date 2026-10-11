@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MyVedicDay.Ai.Integration/MyVedicDay.Ai.Integration.csproj" />
+    <Project Path="src/MyVedicDay.Api/MyVedicDay.Api.csproj" />
+    <Project Path="src/MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
+    <Project Path="src/MyVedicDay.Caching/MyVedicDay.Caching.csproj" />
+    <Project Path="src/MyVedicDay.Festivals.Business/MyVedicDay.Festivals.Business.csproj" />
+    <Project Path="src/MyVedicDay.Festivals.Calculation/MyVedicDay.Festivals.Calculation.csproj" />
+    <Project Path="src/MyVedicDay.Festivals.Data/MyVedicDay.Festivals.Data.csproj" />
+    <Project Path="src/MyVedicDay.Localization.Business/MyVedicDay.Localization.Business.csproj" />
+    <Project Path="src/MyVedicDay.Localization.Data/MyVedicDay.Localization.Data.csproj" />
+    <Project Path="src/MyVedicDay.Location.Business/MyVedicDay.Location.Business.csproj" />
+    <Project Path="src/MyVedicDay.Location.Integration/MyVedicDay.Location.Integration.csproj" />
+    <Project Path="src/MyVedicDay.Muhurta.Business/MyVedicDay.Muhurta.Business.csproj" />
+    <Project Path="src/MyVedicDay.Muhurta.Calculation/MyVedicDay.Muhurta.Calculation.csproj" />
+    <Project Path="src/MyVedicDay.Muhurta.Data/MyVedicDay.Muhurta.Data.csproj" />
+    <Project Path="src/MyVedicDay.Panchang.Business/MyVedicDay.Panchang.Business.csproj" />
+    <Project Path="src/MyVedicDay.Panchang.Calculation/MyVedicDay.Panchang.Calculation.csproj" />
+    <Project Path="src/MyVedicDay.Panchang.Data/MyVedicDay.Panchang.Data.csproj" />
+    <Project Path="src/MyVedicDay.Shared/MyVedicDay.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Traditions.Business/MyVedicDay.Traditions.Business.csproj" />
+    <Project Path="src/MyVedicStar.Authorize.Api/MyVedicStar.Authorize.Api.csproj" />
+    <Project Path="src/MyVedicStar.Authorize.Business/MyVedicStar.Authorize.Business.csproj" />
+    <Project Path="src/MyVedicStar.Authorize.Data/MyVedicStar.Authorize.Data.csproj" />
+    <Project Path="src/MyVedicStar.Host/MyVedicStar.Host.csproj" />
+    <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MyVedicStar.Host.Tests.Integration/MyVedicStar.Host.Tests.Integration.csproj" />
+  </Folder>
+</Solution>

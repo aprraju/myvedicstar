@@ -33,7 +33,7 @@
   ],
   "secrets": {},
   "probes": {
-    "$comment": "Paths come from HealthChecks in src/MyVedicStar.Authorize.Api/appsettings.json; port matches ASPNETCORE_HTTP_PORTS.",
+    "$comment": "Paths come from HealthChecks in src/MyVedicDay.Api/appsettings.json; port matches ASPNETCORE_HTTP_PORTS.",
     "port": 8080,
     "startup": { "initialDelaySeconds": 2, "periodSeconds": 5, "timeoutSeconds": 3, "failureThreshold": 10 },
     "liveness": { "periodSeconds": 15, "timeoutSeconds": 3, "failureThreshold": 3 },

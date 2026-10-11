@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Astronomy.Calculation\MyVedicDay.Astronomy.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Caching\MyVedicDay.Caching.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Festivals.Calculation\MyVedicDay.Festivals.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Festivals.Data\MyVedicDay.Festivals.Data.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Traditions.Business\MyVedicDay.Traditions.Business.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <PackageReference Include="NodaTime" Version="3.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicDay.Festivals.Tests.Unit" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,469 @@
+{
+  "$comment": "MyVedicDay daily-guidance methodology: the app's own way of summarizing the five Panchanga limbs into simple daily guidance. It is NOT a universal traditional rule and is not a Muhurta calculation. Ratings are provisional, based on classical groupings (Nanda/Bhadra/Jaya/Rikta/Purna Tithis; Dhruva, Mridu, Kshipra, Chara, Mishra, Ugra, Tikshna Nakshatras; the nine malefic Yogas; Vishti Karana). Review with the reference astrologer; bump 'version' on every change. 'traditions' holds partial per-tradition overrides of 'default'. 'valueSelection': 'PredominantDaytime' rates the Tithi/Nakshatra/Yoga/Karana in force for most of the daytime (sunrise to sunset); 'Sunrise' rates the value at sunrise (the formal Panchang-day convention).",
+  "version": "2026.1-provisional",
+  "valueSelection": "PredominantDaytime",
+  "ratingScores": {
+    "HighlyFavorable": 100,
+    "Favorable": 80,
+    "Mixed": 55,
+    "Caution": 35,
+    "Avoid": 10
+  },
+  "thresholds": [
+    {
+      "rating": "HighlyFavorable",
+      "minScore": 85
+    },
+    {
+      "rating": "Favorable",
+      "minScore": 70
+    },
+    {
+      "rating": "Mixed",
+      "minScore": 50
+    },
+    {
+      "rating": "Caution",
+      "minScore": 30
+    },
+    {
+      "rating": "Avoid",
+      "minScore": 0
+    }
+  ],
+  "bestWindows": {
+    "minimumMinutes": 45,
+    "maximumCount": 3
+  },
+  "spiritualPeriods": [
+    "BrahmaMuhurta"
+  ],
+  "default": {
+    "weights": {
+      "nakshatra": 30,
+      "tithi": 25,
+      "yoga": 20,
+      "karana": 15,
+      "vara": 10
+    },
+    "tithi": {
+      "ShuklaPratipada": {
+        "rating": "Mixed",
+        "group": "nanda"
+      },
+      "ShuklaDwitiya": {
+        "rating": "Favorable",
+        "group": "bhadra"
+      },
+      "ShuklaTritiya": {
+        "rating": "Favorable",
+        "group": "jaya"
+      },
+      "ShuklaChaturthi": {
+        "rating": "Caution",
+        "group": "rikta"
+      },
+      "ShuklaPanchami": {
+        "rating": "HighlyFavorable",
+        "group": "purna"
+      },
+      "ShuklaShashthi": {
+        "rating": "Mixed",
+        "group": "nanda"
+      },
+      "ShuklaSaptami": {
+        "rating": "Favorable",
+        "group": "bhadra"
+      },
+      "ShuklaAshtami": {
+        "rating": "Caution",
+        "group": "ashtami"
+      },
+      "ShuklaNavami": {
+        "rating": "Caution",
+        "group": "rikta"
+      },
+      "ShuklaDashami": {
+        "rating": "HighlyFavorable",
+        "group": "purna"
+      },
+      "ShuklaEkadashi": {
+        "rating": "HighlyFavorable",
+        "group": "nanda"
+      },
+      "ShuklaDwadashi": {
+        "rating": "Favorable",
+        "group": "bhadra"
+      },
+      "ShuklaTrayodashi": {
+        "rating": "Favorable",
+        "group": "jaya"
+      },
+      "ShuklaChaturdashi": {
+        "rating": "Caution",
+        "group": "rikta"
+      },
+      "Purnima": {
+        "rating": "Favorable",
+        "group": "purna"
+      },
+      "KrishnaPratipada": {
+        "rating": "Favorable",
+        "group": "nanda"
+      },
+      "KrishnaDwitiya": {
+        "rating": "Favorable",
+        "group": "bhadra"
+      },
+      "KrishnaTritiya": {
+        "rating": "Favorable",
+        "group": "jaya"
+      },
+      "KrishnaChaturthi": {
+        "rating": "Caution",
+        "group": "rikta"
+      },
+      "KrishnaPanchami": {
+        "rating": "Favorable",
+        "group": "purna"
+      },
+      "KrishnaShashthi": {
+        "rating": "Mixed",
+        "group": "nanda"
+      },
+      "KrishnaSaptami": {
+        "rating": "Mixed",
+        "group": "waning"
+      },
+      "KrishnaAshtami": {
+        "rating": "Caution",
+        "group": "ashtami"
+      },
+      "KrishnaNavami": {
+        "rating": "Caution",
+        "group": "rikta"
+      },
+      "KrishnaDashami": {
+        "rating": "Mixed",
+        "group": "waning"
+      },
+      "KrishnaEkadashi": {
+        "rating": "Favorable",
+        "group": "nanda"
+      },
+      "KrishnaDwadashi": {
+        "rating": "Mixed",
+        "group": "waning"
+      },
+      "KrishnaTrayodashi": {
+        "rating": "Mixed",
+        "group": "waning"
+      },
+      "KrishnaChaturdashi": {
+        "rating": "Avoid",
+        "group": "rikta"
+      },
+      "Amavasya": {
+        "rating": "Avoid",
+        "group": "amavasya"
+      }
+    },
+    "nakshatra": {
+      "Ashwini": {
+        "rating": "HighlyFavorable",
+        "group": "kshipra"
+      },
+      "Bharani": {
+        "rating": "Caution",
+        "group": "ugra"
+      },
+      "Krittika": {
+        "rating": "Mixed",
+        "group": "mishra"
+      },
+      "Rohini": {
+        "rating": "HighlyFavorable",
+        "group": "dhruva"
+      },
+      "Mrigashira": {
+        "rating": "HighlyFavorable",
+        "group": "mridu"
+      },
+      "Ardra": {
+        "rating": "Avoid",
+        "group": "tikshna"
+      },
+      "Punarvasu": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Pushya": {
+        "rating": "HighlyFavorable",
+        "group": "kshipra"
+      },
+      "Ashlesha": {
+        "rating": "Avoid",
+        "group": "tikshna"
+      },
+      "Magha": {
+        "rating": "Caution",
+        "group": "ugra"
+      },
+      "PurvaPhalguni": {
+        "rating": "Caution",
+        "group": "ugra"
+      },
+      "UttaraPhalguni": {
+        "rating": "Favorable",
+        "group": "dhruva"
+      },
+      "Hasta": {
+        "rating": "HighlyFavorable",
+        "group": "kshipra"
+      },
+      "Chitra": {
+        "rating": "Favorable",
+        "group": "mridu"
+      },
+      "Swati": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Vishakha": {
+        "rating": "Mixed",
+        "group": "mishra"
+      },
+      "Anuradha": {
+        "rating": "HighlyFavorable",
+        "group": "mridu"
+      },
+      "Jyeshtha": {
+        "rating": "Avoid",
+        "group": "tikshna"
+      },
+      "Mula": {
+        "rating": "Avoid",
+        "group": "tikshna"
+      },
+      "PurvaAshadha": {
+        "rating": "Caution",
+        "group": "ugra"
+      },
+      "UttaraAshadha": {
+        "rating": "Favorable",
+        "group": "dhruva"
+      },
+      "Shravana": {
+        "rating": "HighlyFavorable",
+        "group": "chara"
+      },
+      "Dhanishta": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Shatabhisha": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "PurvaBhadrapada": {
+        "rating": "Caution",
+        "group": "ugra"
+      },
+      "UttaraBhadrapada": {
+        "rating": "Favorable",
+        "group": "dhruva"
+      },
+      "Revati": {
+        "rating": "HighlyFavorable",
+        "group": "mridu"
+      }
+    },
+    "yoga": {
+      "Vishkambha": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Priti": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Ayushman": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Saubhagya": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Shobhana": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Atiganda": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Sukarma": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Dhriti": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Shula": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Ganda": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Vriddhi": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Dhruva": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Vyaghata": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Harshana": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Vajra": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Siddhi": {
+        "rating": "HighlyFavorable",
+        "group": "uttama"
+      },
+      "Vyatipata": {
+        "rating": "Avoid",
+        "group": "mahaDosha"
+      },
+      "Variyana": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Parigha": {
+        "rating": "Caution",
+        "group": "ashubha"
+      },
+      "Shiva": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Siddha": {
+        "rating": "HighlyFavorable",
+        "group": "uttama"
+      },
+      "Sadhya": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Shubha": {
+        "rating": "HighlyFavorable",
+        "group": "uttama"
+      },
+      "Shukla": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Brahma": {
+        "rating": "HighlyFavorable",
+        "group": "uttama"
+      },
+      "Indra": {
+        "rating": "Favorable",
+        "group": "shubha"
+      },
+      "Vaidhriti": {
+        "rating": "Avoid",
+        "group": "mahaDosha"
+      }
+    },
+    "karana": {
+      "Kimstughna": {
+        "rating": "Favorable",
+        "group": "kimstughna"
+      },
+      "Bava": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Balava": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Kaulava": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Taitila": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Gara": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Vanija": {
+        "rating": "Favorable",
+        "group": "chara"
+      },
+      "Vishti": {
+        "rating": "Avoid",
+        "group": "bhadra"
+      },
+      "Shakuni": {
+        "rating": "Caution",
+        "group": "sthira"
+      },
+      "Chatushpada": {
+        "rating": "Caution",
+        "group": "sthira"
+      },
+      "Naga": {
+        "rating": "Caution",
+        "group": "sthira"
+      }
+    },
+    "vara": {
+      "Sunday": {
+        "rating": "Mixed",
+        "group": "surya"
+      },
+      "Monday": {
+        "rating": "Favorable",
+        "group": "saumya"
+      },
+      "Tuesday": {
+        "rating": "Caution",
+        "group": "krura"
+      },
+      "Wednesday": {
+        "rating": "Favorable",
+        "group": "saumya"
+      },
+      "Thursday": {
+        "rating": "HighlyFavorable",
+        "group": "saumya"
+      },
+      "Friday": {
+        "rating": "Favorable",
+        "group": "saumya"
+      },
+      "Saturday": {
+        "rating": "Caution",
+        "group": "krura"
+      }
+    }
+  },
+  "traditions": {}
+}

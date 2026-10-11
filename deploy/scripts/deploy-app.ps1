@@ -46,7 +46,7 @@ $subscriptionId = Get-AzSubscriptionId
 
 function Get-HealthEndpointPaths {
     # Single source of truth: the paths the application itself serves (HealthChecks section of appsettings.json).
-    $appSettingsPath = Join-Path $RepositoryRoot 'src/MyVedicStar.Authorize.Api/appsettings.json'
+    $appSettingsPath = Join-Path $RepositoryRoot 'src/MyVedicDay.Api/appsettings.json'
     $healthChecks = (Get-Content -Raw -LiteralPath $appSettingsPath | ConvertFrom-Json).HealthChecks
     Assert-Required $healthChecks.LivenessPath "HealthChecks:LivenessPath in $appSettingsPath"
     Assert-Required $healthChecks.ReadinessPath "HealthChecks:ReadinessPath in $appSettingsPath"
@@ -72,6 +72,10 @@ $appId = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers
 $app = Invoke-ArmGet $appId $ContainerAppsApiVersion
 if ($null -eq $app) {
     throw "Container App '$ContainerAppName' was not found in '$ResourceGroup' (or this identity cannot read it). It is created by Terraform."
+}
+
+if ($app.properties.configuration.activeRevisionsMode -ne 'Single') {
+    throw 'Shared deployment requires single revision mode so readiness verifies the released image. Configure revision mode in the infrastructure before deploying.'
 }
 
 if (-not (Test-ImageExists $RegistryName $ImageTag)) {

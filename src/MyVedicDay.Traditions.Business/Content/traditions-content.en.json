@@ -1,0 +1,13 @@
+{
+  "language": "en",
+  "entries": {
+    "traditions.all": { "name": "All traditions", "description": "Every regional convention; shows every timing." },
+    "traditions.telugu": { "name": "Telugu", "description": "Andhra Pradesh and Telangana." },
+    "traditions.tamil": { "name": "Tamil", "description": "Tamil Nadu." },
+    "traditions.kannada": { "name": "Kannada", "description": "Karnataka." },
+    "traditions.malayalam": { "name": "Malayalam", "description": "Kerala." },
+    "traditions.north-indian": { "name": "North Indian", "description": "Hindi-speaking North India." },
+    "traditions.gujarati": { "name": "Gujarati", "description": "Gujarat and Rajasthan." },
+    "traditions.marathi": { "name": "Marathi", "description": "Maharashtra." }
+  }
+}

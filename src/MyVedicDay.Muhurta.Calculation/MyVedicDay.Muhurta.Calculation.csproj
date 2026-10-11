@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure Muhurta evaluation: builds on the shared astronomy and on Panchang's calculation contract (ADR-0008, rule 3). -->
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Astronomy.Calculation\MyVedicDay.Astronomy.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Panchang.Calculation\MyVedicDay.Panchang.Calculation.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="NodaTime" Version="3.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicDay.Muhurta.Tests.Calculation" />
+  </ItemGroup>
+
+</Project>

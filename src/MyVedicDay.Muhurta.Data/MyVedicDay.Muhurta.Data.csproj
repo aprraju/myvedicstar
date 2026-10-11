@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicDay.Localization.Data\MyVedicDay.Localization.Data.csproj" />
+    <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Muhurta display content (joins the shared content repository), activity rules and AI prompts.
+         WithCulture=false stops MSBuild treating ".en." as a satellite-assembly culture. -->
+    <EmbeddedResource Include="Content\muhurta-content.*.json" LogicalName="MyVedicDay.Content.%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="Content\muhurta-activities.json" LogicalName="MyVedicDay.Muhurta.Activities.json" WithCulture="false" />
+    <EmbeddedResource Include="Content\muhurta-ai-prompts.json" LogicalName="MyVedicDay.Muhurta.AiPrompts.json" WithCulture="false" />
+  </ItemGroup>
+
+</Project>

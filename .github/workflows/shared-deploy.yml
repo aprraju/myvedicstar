@@ -1,0 +1,112 @@
+name: Shared VedicStar Deployment
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '*sln*'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.editorconfig'
+      - 'deploy/**'
+      - '.github/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vedicstar-shared-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate-day:
+    uses: ./.github/workflows/myvedicday-ci.yml
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+      actions: read
+    secrets: inherit
+  validate-star:
+    uses: ./.github/workflows/authorize-api.yml
+    permissions:
+      contents: read
+      packages: read
+    secrets: inherit
+  validate-host:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Test shared host
+        run: dotnet test tests/MyVedicStar.Host.Tests.Integration/MyVedicStar.Host.Tests.Integration.csproj --configuration Release --logger trx --results-directory host-test-results
+      - name: Verify deployment contract
+        shell: pwsh
+        run: ./tests/deployment/DeploymentContract.Tests.ps1
+      - name: Verify combined publish
+        run: dotnet publish src/MyVedicStar.Host/MyVedicStar.Host.csproj --configuration Release --no-restore --output combined-publish -p:UseAppHost=false
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: host-test-results
+          path: host-test-results/*.trx
+  build-image:
+    needs: [validate-day, validate-star, validate-host]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build combined image
+        shell: pwsh
+        env:
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./deploy/scripts/build-image.ps1
+  deploy-prod:
+    needs: build-image
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+      url: ${{ steps.deploy.outputs.app-url }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy both APIs to VedicStar
+        id: deploy
+        shell: pwsh
+        env:
+          DEPLOY_ENVIRONMENT: prod
+          IMAGE_TAG: ${{ github.sha }}
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
+          CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME || 'ca-myvedicstar-api-prod' }}
+        run: ./deploy/scripts/deploy-app.ps1

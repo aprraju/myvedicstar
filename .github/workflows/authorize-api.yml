@@ -1,71 +1,38 @@
-# Release pipeline for the Authorize API. Infrastructure is managed by Terraform; this workflow only builds the
-# image and updates the existing Container App (deploy/scripts/deploy-app.ps1).
-#
-#   1. code-scan     optional, advisory: analyzers, code style, vulnerable packages, deployment scripts.
-#                    Findings are annotations and a job summary; it never fails the run or gates a release.
-#   2. test          restore from nuget.org and GitHub Packages, build, test (gates everything below)
-#   3. (test)        test results and coverage are published with the run
-#   4. build-image   main / manual runs: publish and build myvedicstar-authorize-api:<commit SHA> in ACR
-#   5. deploy-prod   release that tag to the Container App (deploy/scripts/deploy-app.ps1)
-#
-# Redeploy / rollback: run this workflow manually with "image-tag" set to a commit SHA already in ACR. Stages 1-4
-# are skipped and only that tag is deployed (no rebuild, no tests).
-#
-# Azure sign-in uses OpenID Connect: no Azure credentials are stored in GitHub. The app registration in
-# AZURE_CLIENT_ID needs a federated credential whose subject matches the token exactly; this repository
-# uses immutable IDs:  repo:aprraju@867910/myvedicstar@1396964516:environment:prod
-#
-# Repository variables used (not secrets: none of the values is sensitive):
-#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
-#   REGISTRY_NAME, REGISTRY_RESOURCE_GROUP, RESOURCE_GROUP_NAME, CONTAINER_APP_NAME
-#
-# MyVedicStar.* packages are restored from GitHub Packages with the built-in GITHUB_TOKEN (packages: read);
-# every other package comes from nuget.org (package source mapping in nuget.config).
-# The package must grant this repository read access: package settings -> Manage Actions access.
-
-name: Authorize API
-
+name: MyVedicStar API CI
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'deploy/**'
-      - 'MyVedicStar.slnx'
-      - 'nuget.config'
-      - '.dockerignore'
-      - '.github/workflows/authorize-api*.yml'
-      - '.github/scripts/**'
   pull_request:
-    branches: [ main ]
+    paths:
+      - 'src/SharedApi/**'
+      - 'src/MyVedicStar.*/**'
+      - 'tests/MyVedicStar.*/**'
+      - 'MyVedicStar.slnx'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.editorconfig'
+      - '.github/workflows/authorize-api.yml'
+      - '.github/scripts/**'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'src/SharedApi/**'
+      - 'src/MyVedicStar.*/**'
+      - 'tests/MyVedicStar.*/**'
+      - 'MyVedicStar.slnx'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.editorconfig'
+      - '.github/workflows/authorize-api.yml'
+      - '.github/scripts/**'
   workflow_dispatch:
-    inputs:
-      image-tag:
-        description: Redeploy / roll back to this existing image tag (a commit SHA in ACR). Leave empty to build and deploy this commit.
-        type: string
-        default: ''
-      run-code-scan:
-        description: Run the advisory code scan (never blocks the release; ignored for a redeploy)
-        type: boolean
-        default: true
-
+  workflow_call:
 permissions:
   contents: read
-
-concurrency:
-  group: authorize-api-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
-
 jobs:
   code-scan:
     # Push and PR runs always scan; a manual run can skip it, and a redeploy never runs it. Every check reports
     # and exits 0, and the job is also continue-on-error, so the scan can never fail the workflow. Nothing depends on it.
-    if: github.event_name != 'workflow_dispatch' || (inputs.run-code-scan && inputs.image-tag == '')
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -108,12 +75,23 @@ jobs:
         run: echo "::warning title=Code scan incomplete::Package restore failed, so analyzer, style and package checks were skipped. The test job reports the cause."
 
   test:
-    if: github.event_name != 'workflow_dispatch' || inputs.image-tag == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     env:
+      MYVEDICSTAR_TEST_POSTGRES: 'Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres'
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read by nuget.config for GitHub Packages
     steps:
       - uses: actions/checkout@v4
@@ -162,7 +140,7 @@ jobs:
         if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: star-test-results
           path: TestResults
           retention-days: 14
 
@@ -170,68 +148,3 @@ jobs:
         shell: pwsh
         run: Get-ChildItem deploy/environments -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }
 
-  build-image:
-    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.image-tag == '')
-    needs: test
-    runs-on: ubuntu-latest
-    environment: prod
-    permissions:
-      contents: read
-      id-token: write
-      packages: read
-    outputs:
-      image-tag: ${{ steps.build.outputs.image-tag }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Build image in Azure Container Registry
-        id: build
-        shell: pwsh
-        env:
-          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
-          IMAGE_TAG: ${{ github.sha }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # publish restores MyVedicStar.* from GitHub Packages
-        run: ./deploy/scripts/build-image.ps1
-
-  deploy-prod:
-    # After a successful image build, or on its own for a manual redeploy (build-image is then skipped).
-    needs: build-image
-    if: >-
-      always() && github.event_name != 'pull_request' &&
-      (needs.build-image.result == 'success' ||
-       (github.event_name == 'workflow_dispatch' && inputs.image-tag != '' && needs.build-image.result == 'skipped'))
-    runs-on: ubuntu-latest
-    environment:
-      name: prod
-      url: ${{ steps.deploy.outputs.app-url }}
-    concurrency:
-      group: authorize-api-deploy-prod
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Deploy to Container App
-        id: deploy
-        shell: pwsh
-        # Inputs reach the script as environment variables, never interpolated into script text.
-        env:
-          DEPLOY_ENVIRONMENT: prod
-          IMAGE_TAG: ${{ inputs.image-tag || needs.build-image.outputs.image-tag }}
-          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
-          RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
-          CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
-        run: ./deploy/scripts/deploy-app.ps1

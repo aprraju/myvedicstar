@@ -47,14 +47,13 @@ internal sealed partial class GlobalExceptionHandler : IExceptionHandler
         });
     }
 
-    private static (int StatusCode, string Title, string Detail) MapException(Exception exception) => exception switch
+    private static (int StatusCode, string Title, string? Detail) MapException(Exception exception) => exception switch
     {
         ValidationException e => (StatusCodes.Status400BadRequest, "Invalid request", e.PublicMessage),
         AuthenticationFailedException e => (StatusCodes.Status401Unauthorized, "Authentication failed", e.PublicMessage),
         ResourceNotFoundException e => (StatusCodes.Status404NotFound, "Not found", e.PublicMessage),
-        IntegrationException e => (StatusCodes.Status503ServiceUnavailable, "Service unavailable", e.PublicMessage),
-        DataAccessException e => (StatusCodes.Status503ServiceUnavailable, "Service unavailable", e.PublicMessage),
-        _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
+        IntegrationException or DataAccessException => (StatusCodes.Status503ServiceUnavailable, "A dependency is temporarily unavailable. Please retry later.", null),
+        _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", null),
     };
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Request failed with {StatusCode}")]

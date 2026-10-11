@@ -1,0 +1,44 @@
+{
+  "traditions": [
+    {
+      "key": "all",
+      "calculationMethod": "drik",
+      "display": [ "RahuKalam", "Yamagandam", "GulikaKalam", "DurMuhurtam", "Varjyam", "AmritKalam", "AbhijitMuhurta", "BrahmaMuhurta", "Choghadiya" ]
+    },
+    {
+      "key": "telugu",
+      "calculationMethod": "drik",
+      "display": [ "Varjyam", "DurMuhurtam", "RahuKalam", "Yamagandam", "GulikaKalam", "AmritKalam", "AbhijitMuhurta", "BrahmaMuhurta" ]
+    },
+    {
+      "key": "tamil",
+      "calculationMethod": "drik",
+      "display": [ "RahuKalam", "Yamagandam", "GulikaKalam", "AmritKalam", "AbhijitMuhurta", "BrahmaMuhurta" ]
+    },
+    {
+      "key": "kannada",
+      "calculationMethod": "drik",
+      "display": [ "RahuKalam", "Yamagandam", "GulikaKalam", "DurMuhurtam", "AmritKalam", "AbhijitMuhurta", "BrahmaMuhurta" ]
+    },
+    {
+      "key": "malayalam",
+      "calculationMethod": "drik",
+      "display": [ "RahuKalam", "Yamagandam", "GulikaKalam", "AmritKalam", "AbhijitMuhurta", "BrahmaMuhurta" ]
+    },
+    {
+      "key": "north-indian",
+      "calculationMethod": "drik",
+      "display": [ "RahuKalam", "Choghadiya", "AbhijitMuhurta", "AmritKalam", "BrahmaMuhurta" ]
+    },
+    {
+      "key": "gujarati",
+      "calculationMethod": "drik",
+      "display": [ "Choghadiya", "RahuKalam", "AbhijitMuhurta", "AmritKalam", "BrahmaMuhurta" ]
+    },
+    {
+      "key": "marathi",
+      "calculationMethod": "drik",
+      "display": [ "RahuKalam", "AbhijitMuhurta", "Choghadiya", "AmritKalam", "BrahmaMuhurta" ]
+    }
+  ]
+}
