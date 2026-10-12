@@ -186,8 +186,12 @@ Vulnerable packages no longer fail the build. Watch the code-scan summary, and a
 - **Terraform variables the app does not read yet**: `Authentication__Authority`/`Authentication__Audience`
   (the app reads `Authentication__EntraExternalId__*`, set by `prod.json`), `KeyVault__Uri`, `Storage__BlobEndpoint` and `Security__OriginVerify*`.
   User persistence is enabled (`FeatureFlags__UserPersistence=true`). Before deploying, provide the existing
-  PostgreSQL `Database__ConnectionString` through a secret and apply EF migrations using the migration job
-  `caj-myvedicstar-migrate-prod`. The API does not acquire managed-identity database tokens automatically.
+  PostgreSQL settings `Database__Host`, `Database__Name`, `Database__Username`, and `Database__SslMode` are
+  used with `Database__UseManagedIdentity=true`. The assigned identity is selected using `AZURE_CLIENT_ID`
+  (or `Database__ManagedIdentityClientId`). Entra tokens are supplied to Npgsql when opening connections.
+  Grant that identity database access and apply EF migrations using `caj-myvedicstar-migrate-prod` before
+  deploying. Password-based environments can set `Database__UseManagedIdentity=false` and supply
+  `Database__ConnectionString` through a secret.
 - **Capacity**: Terraform sets 0.25 vCPU / 0.5 GiB, `maxReplicas: 1` and scale-to-zero. Raise `minReplicas` to at
   least 1 (2 for zone resilience) to avoid cold starts and single-instance outages.
 

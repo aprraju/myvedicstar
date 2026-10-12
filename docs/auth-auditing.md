@@ -16,7 +16,9 @@ Call `POST /api/v1/auth/logout` with a valid bearer token before clearing client
 
 ## Database configuration and migration
 
-`FeatureFlags:UserPersistence` is enabled in Star defaults and the production deployment manifest. Supply `Database:ConnectionString` through local user secrets or `Database__ConnectionString` through the existing deployment secret. Development applies pending EF migrations on startup. Production must apply them before deploying this version.
+`FeatureFlags:UserPersistence` is enabled in Star defaults and the production deployment manifest. Production enables `Database:UseManagedIdentity`, builds its connection from `Database:Host`, `Name`, `Username`, `Port` (default 5432), and `SslMode`, and uses Entra tokens as connection passwords. `Database:ManagedIdentityClientId` selects a user-assigned identity, falling back to the existing `AZURE_CLIENT_ID`; without either, the system-assigned identity is used. TLS is required. The identity must be registered as a PostgreSQL Entra principal and granted schema/table access. Tokens are acquired only when opening physical connections and cached/refreshed by the Azure SDK; they are never stored in configuration or user/audit tables.
+
+For local password authentication, leave `Database:UseManagedIdentity=false` and supply `Database:ConnectionString` through user secrets or `Database__ConnectionString` through a secret. Development applies pending EF migrations on startup. Production must apply them before deploying this version. The following command is for the password-based migration path; the managed-identity migration job must also acquire an Entra token and use an identity with migration permissions.
 
 ```powershell
 dotnet ef database update --project src/MyVedicStar.Authorize.Data --connection $env:Database__ConnectionString

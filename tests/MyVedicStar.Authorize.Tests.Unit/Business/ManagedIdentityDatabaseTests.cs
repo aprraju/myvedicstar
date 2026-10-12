@@ -34,7 +34,7 @@ public sealed class ManagedIdentityDatabaseTests
         Assert.Equal("myvedicstar", connection.Database);
         Assert.Equal("api-identity", connection.Username);
         Assert.Equal(SslMode.Require, connection.SslMode);
-        Assert.False(connection.ContainsKey("Password"));
+        Assert.True(string.IsNullOrEmpty(connection.Password));
     }
 
     [Theory]
