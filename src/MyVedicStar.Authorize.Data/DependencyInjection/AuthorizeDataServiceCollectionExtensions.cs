@@ -19,13 +19,16 @@ public static class AuthorizeDataServiceCollectionExtensions
     {
         services.AddOptions<DatabaseOptions>()
             .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .PostConfigure(options => options.ManagedIdentityClientId ??= configuration["AZURE_CLIENT_ID"])
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddSingleton(provider => new AuthorizeDatabaseDataSource(provider.GetRequiredService<IOptions<DatabaseOptions>>().Value));
         services.AddDbContext<AuthorizeDbContext>((serviceProvider, builder) =>
             AuthorizeDbContextOptionsConfigurator.Configure(
                 builder,
-                serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value));
+                serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value,
+                serviceProvider.GetRequiredService<AuthorizeDatabaseDataSource>().Source));
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserLoginRepository, UserLoginRepository>();

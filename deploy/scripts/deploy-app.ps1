@@ -100,6 +100,38 @@ $secretMappings = @()
 if ($config.secrets) {
     $secretMappings = @($config.secrets.PSObject.Properties | ForEach-Object { [pscustomobject]@{ EnvironmentVariable = $_.Name; SecretName = $_.Value } })
 }
+
+# Validate persistence configuration before creating a revision or updating secret references.
+$persistenceSetting = $config.settings.PSObject.Properties['FeatureFlags__UserPersistence']
+if ($persistenceSetting -and [string]$persistenceSetting.Value -ieq 'true') {
+    $managedIdentitySetting = $config.settings.PSObject.Properties['Database__UseManagedIdentity']
+    if ($managedIdentitySetting -and [string]$managedIdentitySetting.Value -ieq 'true') {
+        foreach ($requiredDatabaseSetting in @('Database__Host', 'Database__Name', 'Database__Username')) {
+            $ownedSetting = $config.settings.PSObject.Properties[$requiredDatabaseSetting]
+            $existingSetting = @($app.properties.template.containers | Where-Object name -eq $config.containerName |
+                ForEach-Object { $_.env } | Where-Object name -eq $requiredDatabaseSetting)
+            $hasValue = if ($ownedSetting) { -not [string]::IsNullOrWhiteSpace([string]$ownedSetting.Value) }
+                else { @($existingSetting | Where-Object { $_.PSObject.Properties['value'] -and -not [string]::IsNullOrWhiteSpace([string]$_.value) }).Count -gt 0 }
+            if (-not $hasValue) { throw "Managed-identity PostgreSQL requires $requiredDatabaseSetting before deployment." }
+        }
+    }
+    else {
+    $connectionSetting = $config.settings.PSObject.Properties['Database__ConnectionString']
+    $hasConnection = ($connectionSetting -and -not [string]::IsNullOrWhiteSpace([string]$connectionSetting.Value)) -or
+        @($secretMappings | Where-Object EnvironmentVariable -eq 'Database__ConnectionString').Count -gt 0
+    if (-not $connectionSetting -and -not $hasConnection) {
+        $hasConnection = @($app.properties.template.containers | Where-Object name -eq $config.containerName |
+            ForEach-Object { $_.env } | Where-Object {
+                $_.name -eq 'Database__ConnectionString' -and
+                (($_.PSObject.Properties['secretRef'] -and -not [string]::IsNullOrWhiteSpace([string]$_.secretRef)) -or
+                 ($_.PSObject.Properties['value'] -and -not [string]::IsNullOrWhiteSpace([string]$_.value)))
+            }).Count -gt 0
+    }
+    if (-not $hasConnection) {
+        throw 'User persistence is enabled but Database__ConnectionString is missing. Configure a PostgreSQL connection-string secret, or enable Database__UseManagedIdentity with Host, Name and Username.'
+    }
+    }
+}
 $keyVaultUri = ''
 if ($secretMappings.Count -gt 0) {
     $keyVault = Invoke-ArmGet (Get-KeyVaultResourceId $subscriptionId $config) $KeyVaultApiVersion
@@ -202,7 +234,7 @@ do {
 
     $state = "running=$($revision.properties.runningState) health=$($revision.properties.healthState)"
     Write-Host "Revision $($revisionName): $state"
-    if ($revision.properties.runningState -eq 'Failed' -or $revision.properties.provisioningState -eq 'Failed') {
+    if ($revision.properties.runningState -in @('Failed', 'ActivationFailed') -or $revision.properties.provisioningState -eq 'Failed') {
         throw "Revision $revisionName failed to start ($state). Check the container logs in Log Analytics. Traffic stays on '$previousRevision'."
     }
     # healthState is "None" when an idle revision has scaled to zero, so only "Unhealthy" blocks success here;

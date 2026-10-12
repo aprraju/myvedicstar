@@ -24,6 +24,9 @@ $global:fakeApp = [pscustomobject]@{
                     env = @(
                         @{ name = 'UNRELATED_SETTING'; value = 'preserve-me' }
                         @{ name = 'Database__ConnectionString'; secretRef = 'existing-secret' }
+                        @{ name = 'Database__Host'; value = 'postgres.example.com' }
+                        @{ name = 'Database__Name'; value = 'myvedicstar' }
+                        @{ name = 'Database__Username'; value = 'api-identity' }
                         @{ name = 'Authentication__EntraExternalId__Audience'; value = 'retired' }
                     )
                 }
@@ -36,6 +39,7 @@ $global:fakeApp = [pscustomobject]@{
 $global:capturedPatch = $null
 $global:mutationCount = 0
 $global:fakeImagePresent = $true
+$global:fakeRunningState = 'Running'
 function az {
     $arguments = @($args)
     $global:LASTEXITCODE = 0
@@ -53,7 +57,7 @@ function az {
         $url = $arguments[[array]::IndexOf($arguments, '--url') + 1]
         if ($method -eq 'get') {
             if ($url -match '/revisions/') {
-                return (@{ properties = @{ runningState = 'Running'; healthState = 'Healthy'; provisioningState = 'Succeeded' } } | ConvertTo-Json -Depth 10)
+                return (@{ properties = @{ runningState = $global:fakeRunningState; healthState = 'Healthy'; provisioningState = 'Succeeded' } } | ConvertTo-Json -Depth 10)
             }
             return ($global:fakeApp | ConvertTo-Json -Depth 30)
         }
@@ -105,8 +109,25 @@ try {
     } catch { $multipleRejected = $_.Exception.Message -like '*single revision mode*' }
     Assert-Deployment $multipleRejected 'Multiple revision mode must not falsely verify traffic on an old revision.'
     Assert-Deployment ($global:mutationCount -eq 1) 'Invalid revision mode caused a mutation.'
-    Write-Host 'Deployment contract checks passed: image, probes, resources, scaling, environment, secrets and sidecar preservation.'
+    $global:fakeApp.properties.configuration.activeRevisionsMode = 'Single'
+    $savedEnvironment = $global:fakeApp.properties.template.containers[0].env
+    $global:fakeApp.properties.template.containers[0].env = @($savedEnvironment | Where-Object name -ne 'Database__Host')
+    $missingDatabaseRejected = $false
+    try {
+        & (Join-Path $repositoryPath 'deploy/scripts/deploy-app.ps1') -Environment prod -ResourceGroup test-rg -ContainerAppName vedicstar -RegistryName testregistry -ImageTag test-commit
+    } catch { $missingDatabaseRejected = $_.Exception.Message -like '*Managed-identity PostgreSQL requires Database__Host*' }
+    Assert-Deployment $missingDatabaseRejected 'Enabled persistence without database configuration must be rejected before deployment.'
+    Assert-Deployment ($global:mutationCount -eq 1) 'Missing database configuration caused a mutation.'
+    $global:fakeApp.properties.template.containers[0].env = $savedEnvironment
+    $global:fakeRunningState = 'ActivationFailed'
+    $global:fakeApp.properties.latestRevisionName = 'old-revision'
+    $activationRejected = $false
+    try {
+        & (Join-Path $repositoryPath 'deploy/scripts/deploy-app.ps1') -Environment prod -ResourceGroup test-rg -ContainerAppName vedicstar -RegistryName testregistry -ImageTag test-commit
+    } catch { $activationRejected = $_.Exception.Message -like '*failed to start*ActivationFailed*' }
+    Assert-Deployment $activationRejected 'ActivationFailed must fail immediately, even if stale readiness metadata claims success.'
+    Write-Host 'Deployment contract checks passed: image, probes, resources, scaling, environment, secrets, sidecar preservation and activation failure detection.'
 }
 finally {
-    Remove-Variable fakeApp, capturedPatch, mutationCount, fakeImagePresent -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable fakeApp, capturedPatch, mutationCount, fakeImagePresent, fakeRunningState -Scope Global -ErrorAction SilentlyContinue
 }

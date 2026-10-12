@@ -18,6 +18,7 @@
     "Authentication__EntraExternalId__TenantId": "cbece845-e124-4de7-89d3-96a71abb7b83",
     "Authentication__EntraExternalId__ClientId": "1a3384a0-8857-4854-8d96-3f94c1b1c18e",
     "FeatureFlags__UserPersistence": "true",
+    "Database__UseManagedIdentity": "true",
     "TransportSecurity__RedirectHttpToHttps": "false",
     "ApiProtection__TrustedProxies__0": "10.2.0.0/23",
     "Observability__ServiceName": "myvedicstar-api",
