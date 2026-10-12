@@ -78,7 +78,7 @@ function Assert-Deployment([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw $Message }
 }
 try {
-    & (Join-Path $repositoryPath 'deploy/scripts/deploy-app.ps1') -Environment prod -ResourceGroup test-rg -ContainerAppName vedicstar -RegistryName testregistry -ImageTag test-commit
+    & (Join-Path $repositoryPath 'deploy/scripts/deploy-app.ps1') -Environment prod -ResourceGroup test-rg -ContainerAppName ca-myvedicstar-api-prod -RegistryName testregistry -ImageTag test-commit
     Assert-Deployment ($global:mutationCount -eq 1) 'Deployment must issue one template patch.'
     Assert-Deployment ($global:capturedPatch.properties.PSObject.Properties.Name.Count -eq 1) 'Networking and configuration must not be patched.'
     $template = $global:capturedPatch.properties.template
@@ -93,7 +93,8 @@ try {
     Assert-Deployment (@($api.env | Where-Object name -eq 'Authentication__EntraExternalId__Audience').Count -eq 0) 'Retired setting was retained.'
     Assert-Deployment (@($api.probes | Where-Object type -eq 'Readiness')[0].httpGet.path -eq '/health/ready') 'Wrong readiness path.'
     Assert-Deployment (@($api.probes | Where-Object type -eq 'Liveness')[0].httpGet.path -eq '/health/live') 'Wrong liveness path.'
-    Assert-Deployment ($template.revisionSuffix -match '^r[0-9a-f]{32}$') 'Deployment must explicitly supply a unique revision suffix.'
+    Assert-Deployment ($template.revisionSuffix -match '^r[0-9a-f]{1,19}$') 'Deployment must explicitly supply a bounded unique revision suffix.'
+    Assert-Deployment (("ca-myvedicstar-api-prod--" + $template.revisionSuffix).Length -le 54) 'Combined production revision name exceeds Azure limit.'
     Assert-Deployment ($template.revisionSuffix -ne $global:fakeApp.properties.template.revisionSuffix) 'Old revision suffix retained.'
     $global:fakeImagePresent = $false
     $missingImageRejected = $false
@@ -127,6 +128,17 @@ try {
         & (Join-Path $repositoryPath 'deploy/scripts/deploy-app.ps1') -Environment prod -ResourceGroup test-rg -ContainerAppName vedicstar -RegistryName testregistry -ImageTag test-commit
     } catch { $activationRejected = $_.Exception.Message -like '*failed to start*ActivationFailed*' }
     Assert-Deployment $activationRejected 'ActivationFailed must fail immediately, even if stale readiness metadata claims success.'
+    $global:fakeRunningState = 'Running'
+    $previousSuffix = ''
+    foreach ($name in @('ca-myvedicstar-api-prod', ('a' * 32), 'ca-myvedicstar-api-prod')) {
+        $global:fakeApp.properties.latestRevisionName = 'old-revision'
+        & (Join-Path $repositoryPath 'deploy/scripts/deploy-app.ps1') -Environment prod -ResourceGroup test-rg -ContainerAppName $name -RegistryName testregistry -ImageTag test-commit
+        $suffix = $global:capturedPatch.properties.template.revisionSuffix
+        Assert-Deployment (("$name--$suffix").Length -le 54) 'Combined revision name exceeds Azure limit.'
+        Assert-Deployment ($suffix -match '^[a-z][a-z0-9-]*[a-z0-9]$') 'Revision suffix has invalid characters.'
+        Assert-Deployment ($suffix -ne $previousSuffix) 'Repeated deployment reused the revision suffix.'
+        $previousSuffix = $suffix
+    }
     Write-Host 'Deployment contract checks passed: image, probes, resources, scaling, environment, secrets, sidecar preservation and activation failure detection.'
 }
 finally {

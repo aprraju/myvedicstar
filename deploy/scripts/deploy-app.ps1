@@ -197,7 +197,9 @@ $container | Add-Member -NotePropertyName probes -NotePropertyValue $probes -For
 $template | Add-Member -NotePropertyName terminationGracePeriodSeconds -NotePropertyValue ([int] $config.terminationGracePeriodSeconds) -Force
 # PATCH omission retains the old suffix. Explicitly name each deployment uniquely,
 # including retries of an image tag or deployments after a manually named revision.
-$revisionSuffix = 'r' + [guid]::NewGuid().ToString('N')
+$suffixLength = [Math]::Min(20, 54 - $ContainerAppName.Length - 2)
+if ($suffixLength -lt 2) { throw 'Container App name leaves insufficient space for a revision suffix.' }
+$revisionSuffix = 'r' + [guid]::NewGuid().ToString('N').Substring(0, $suffixLength - 1)
 $template | Add-Member -NotePropertyName revisionSuffix -NotePropertyValue $revisionSuffix -Force
 
 $previousRevision = $app.properties.latestRevisionName

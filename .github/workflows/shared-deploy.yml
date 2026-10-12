@@ -48,7 +48,9 @@ jobs:
         run: dotnet test tests/MyVedicStar.Host.Tests.Integration/MyVedicStar.Host.Tests.Integration.csproj --configuration Release --logger trx --results-directory host-test-results
       - name: Verify deployment contract
         shell: pwsh
-        run: ./tests/deployment/DeploymentContract.Tests.ps1
+        run: |
+          ./tests/deployment/DeploymentContract.Tests.ps1
+          ./tests/deployment/MigrationContract.Tests.ps1
       - name: Verify combined publish
         run: dotnet publish src/MyVedicStar.API/MyVedicStar.API.csproj --configuration Release --no-restore --output combined-publish -p:UseAppHost=false
       - name: Smoke test published host
