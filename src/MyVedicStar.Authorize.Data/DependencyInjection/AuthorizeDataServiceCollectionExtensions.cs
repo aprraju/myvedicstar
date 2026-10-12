@@ -37,7 +37,7 @@ public static class AuthorizeDataServiceCollectionExtensions
         services.AddHostedService<DatabaseMigrationHostedService>();
 
         services.AddHealthChecks()
-            .AddDbContextCheck<AuthorizeDbContext>(DatabaseHealthCheckName, tags: [HealthCheckTags.Readiness]);
+            .AddCheck<AuthorizeDatabaseHealthCheck>(DatabaseHealthCheckName, tags: [HealthCheckTags.Readiness]);
 
         return services;
     }
