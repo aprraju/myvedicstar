@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory)] [string] $PublishDirectory,
-    [int] $Port = 5289
+    [int] $Port = 5289,
+    [switch] $EnableUserPersistence
 )
 $ErrorActionPreference = 'Stop'
 $publishPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
@@ -20,7 +21,13 @@ $start.RedirectStandardOutput = $true
 $start.RedirectStandardError = $true
 $start.EnvironmentVariables['ASPNETCORE_ENVIRONMENT'] = 'Production'
 $start.EnvironmentVariables['Caching__L2__Enabled'] = 'false'
-$start.EnvironmentVariables['FeatureFlags__UserPersistence'] = 'false'
+$start.EnvironmentVariables['FeatureFlags__UserPersistence'] = $EnableUserPersistence.IsPresent.ToString().ToLowerInvariant()
+if ($EnableUserPersistence) {
+    if ([string]::IsNullOrWhiteSpace($env:MYVEDICSTAR_TEST_POSTGRES)) { throw 'Persistence smoke requires MYVEDICSTAR_TEST_POSTGRES.' }
+    $start.EnvironmentVariables['Database__UseManagedIdentity'] = 'false'
+    $start.EnvironmentVariables['Database__ConnectionString'] = $env:MYVEDICSTAR_TEST_POSTGRES
+    $start.EnvironmentVariables['Database__ApplyMigrationsOnStartup'] = 'false'
+}
 $start.EnvironmentVariables['APPLICATIONINSIGHTS_CONNECTION_STRING'] = ''
 $start.EnvironmentVariables['Logging__EventLog__LogLevel__Default'] = 'None'
 $process = New-Object System.Diagnostics.Process
@@ -36,6 +43,7 @@ try {
         try { $ready = (Invoke-WebRequest -Uri "$baseUrl/health/ready" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200 } catch { Start-Sleep -Milliseconds 200 }
     }
     if (-not $ready) { throw 'Published host did not become ready.' }
+    if ((Invoke-WebRequest -Uri "$baseUrl/health/live" -UseBasicParsing -TimeoutSec 5).StatusCode -ne 200) { throw 'Published host liveness check failed.' }
     $document = Invoke-WebRequest -Uri "$baseUrl/openapi/v1.json" -UseBasicParsing -TimeoutSec 30
     $paths = ($document.Content | ConvertFrom-Json).paths.PSObject.Properties.Name
     if ($paths -notcontains '/api/v1/auth/userinfo' -or $paths -notcontains '/api/v1/muhurta/activities') { throw 'Published host is missing an API route.' }
