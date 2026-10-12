@@ -114,6 +114,7 @@ jobs:
           REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
           IMAGE_TAG: ${{ github.sha }}
           RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
+          MIGRATION_JOB_RESOURCE_ID: ${{ vars.MIGRATION_JOB_RESOURCE_ID || '/subscriptions/e77bb964-ac4f-44f5-89eb-ba00a5d889d1/resourceGroups/rg-myvedicstar-prod-app-eus2/providers/Microsoft.App/jobs/caj-myvedicstar-migrate-prod' }}
         run: ./deploy/scripts/run-migrations.ps1
       - name: Deploy both APIs to VedicStar
         id: deploy
