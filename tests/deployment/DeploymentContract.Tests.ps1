@@ -93,7 +93,8 @@ try {
     Assert-Deployment (@($api.env | Where-Object name -eq 'Authentication__EntraExternalId__Audience').Count -eq 0) 'Retired setting was retained.'
     Assert-Deployment (@($api.probes | Where-Object type -eq 'Readiness')[0].httpGet.path -eq '/health/ready') 'Wrong readiness path.'
     Assert-Deployment (@($api.probes | Where-Object type -eq 'Liveness')[0].httpGet.path -eq '/health/live') 'Wrong liveness path.'
-    Assert-Deployment ($null -eq $template.PSObject.Properties['revisionSuffix']) 'Old revision suffix retained.'
+    Assert-Deployment ($template.revisionSuffix -match '^r[0-9a-f]{32}$') 'Deployment must explicitly supply a unique revision suffix.'
+    Assert-Deployment ($template.revisionSuffix -ne $global:fakeApp.properties.template.revisionSuffix) 'Old revision suffix retained.'
     $global:fakeImagePresent = $false
     $missingImageRejected = $false
     try {

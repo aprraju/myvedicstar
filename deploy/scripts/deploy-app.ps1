@@ -195,8 +195,10 @@ $container | Add-Member -NotePropertyName image -NotePropertyValue $image -Force
 $container | Add-Member -NotePropertyName env -NotePropertyValue $environmentVariables -Force
 $container | Add-Member -NotePropertyName probes -NotePropertyValue $probes -Force
 $template | Add-Member -NotePropertyName terminationGracePeriodSeconds -NotePropertyValue ([int] $config.terminationGracePeriodSeconds) -Force
-# Let the platform name the revision so redeploying the same tag never collides with an existing name.
-$template.PSObject.Properties.Remove('revisionSuffix')
+# PATCH omission retains the old suffix. Explicitly name each deployment uniquely,
+# including retries of an image tag or deployments after a manually named revision.
+$revisionSuffix = 'r' + [guid]::NewGuid().ToString('N')
+$template | Add-Member -NotePropertyName revisionSuffix -NotePropertyValue $revisionSuffix -Force
 
 $previousRevision = $app.properties.latestRevisionName
 $body = @{ properties = @{ template = $template } } | ConvertTo-Json -Depth 50 -Compress
