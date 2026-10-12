@@ -1,0 +1,5 @@
+FROM postgres:17-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends curl jq ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY bootstrap-roles.sql migrate.sh migrations.sql ./
+ENTRYPOINT ["/bin/sh", "/app/migrate.sh"]

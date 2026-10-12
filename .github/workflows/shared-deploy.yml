@@ -85,6 +85,13 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./deploy/scripts/build-image.ps1
+      - name: Build migration image
+        shell: pwsh
+        env:
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./deploy/scripts/build-migrator.ps1
   deploy-prod:
     needs: build-image
     runs-on: ubuntu-latest
@@ -101,6 +108,13 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Apply database migrations
+        shell: pwsh
+        env:
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+          RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME }}
+        run: ./deploy/scripts/run-migrations.ps1
       - name: Deploy both APIs to VedicStar
         id: deploy
         shell: pwsh

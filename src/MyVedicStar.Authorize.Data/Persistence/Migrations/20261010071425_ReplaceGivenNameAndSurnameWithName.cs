@@ -25,7 +25,7 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
             migrationBuilder.Sql(
                 """
                 UPDATE "myvedicstar"."User"
-                SET "Name" = LEFT(NULLIF(concat_ws(' ', NULLIF(btrim("GivenName"), ''), NULLIF(btrim("Surname"), '')), ''), 256)
+                SET "Name" = LEFT(NULLIF(concat_ws(' ', NULLIF(btrim("GivenName"), ''), NULLIF(btrim("Surname"), '')), ''), 256);
                 """);
 
             migrationBuilder.DropColumn(
@@ -59,7 +59,7 @@ namespace MyVedicStar.Authorize.Data.Persistence.Migrations
                 maxLength: 256,
                 nullable: true);
 
-            migrationBuilder.Sql("""UPDATE "myvedicstar"."User" SET "GivenName" = "Name" """);
+            migrationBuilder.Sql("""UPDATE "myvedicstar"."User" SET "GivenName" = "Name"; """);
 
             migrationBuilder.DropColumn(
                 name: "Name",
