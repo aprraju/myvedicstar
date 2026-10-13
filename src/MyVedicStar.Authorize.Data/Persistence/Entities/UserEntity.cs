@@ -16,6 +16,18 @@ internal sealed class UserEntity
 
     public string? FamilyName { get; set; }
 
+    public string? StreetAddress { get; set; }
+    public string? StreetAddress2 { get; set; }
+    public string? Country { get; set; }
+    public string? State { get; set; }
+    public string? City { get; set; }
+    public string? PostalCode { get; set; }
+    public string? PhoneNumber { get; set; }
+    public long ProfileRevision { get; set; }
+    public bool ProfileManaged { get; set; }
+    public bool FirstNameSyncPending { get; set; }
+    public bool LastNameSyncPending { get; set; }
+
     public DateTime CreatedUtc { get; set; }
 
     public DateTime UpdatedUtc { get; set; }

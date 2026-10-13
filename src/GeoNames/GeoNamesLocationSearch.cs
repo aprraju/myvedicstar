@@ -25,8 +25,14 @@ public sealed record LocationSearchResponse(IReadOnlyList<LocationSuggestion> Re
 public sealed record LocationReverseResponse(LocationSuggestion? Place);
 public sealed record LocationTimezoneResponse(string TimeZone);
 
+public sealed record GeographyOption(string Code, string Name);
+public sealed record GeographyOptions(IReadOnlyList<GeographyOption> Results);
+
 public interface ILocationSearchProvider
 {
+    Task<GeographyOptions> CountriesAsync(CancellationToken token) => throw new NotSupportedException();
+    Task<GeographyOptions> RegionsAsync(string country, CancellationToken token) => throw new NotSupportedException();
+    Task<LocationSearchResponse> AddressCitiesAsync(string text, string country, string? region, CancellationToken token) => SearchAsync(text, country, null, 8, token);
     Task<LocationSearchResponse> SearchAsync(string text, string? country, string? language, int maxRows, CancellationToken cancellationToken);
     Task<LocationSearchResponse> PostalAsync(string text, string? country, int maxRows, CancellationToken cancellationToken);
     Task<LocationReverseResponse> ReverseAsync(double latitude, double longitude, string? language, CancellationToken cancellationToken);
@@ -46,6 +52,36 @@ public sealed class GeoNamesLocationSearchClient(HttpClient http, IOptions<GeoNa
     private readonly MemoryCache cache = new(new MemoryCacheOptions { SizeLimit = 500 });
     private readonly SemaphoreSlim concurrency = new(4);
     private long nextAllowedRequest;
+
+    public async Task<GeographyOptions> CountriesAsync(CancellationToken token)
+    {
+        var data = await ReadAsync("countryInfoJSON", new(), TimeSpan.FromHours(options.Value.SearchCacheHours), token);
+        return new(data.GetProperty("geonames").EnumerateArray()
+            .Select(row => new GeographyOption(row.GetProperty("countryCode").GetString()!, row.GetProperty("countryName").GetString()!))
+            .OrderBy(row => row.Name, StringComparer.Ordinal).ToArray());
+    }
+
+    public async Task<GeographyOptions> RegionsAsync(string country, CancellationToken token)
+    {
+        var data = await ReadAsync("searchJSON", new() { ["country"] = country, ["featureCode"] = "ADM1", ["maxRows"] = "1000", ["style"] = "LONG" }, TimeSpan.FromHours(options.Value.SearchCacheHours), token);
+        return new(data.GetProperty("geonames").EnumerateArray()
+            .Select(row => new GeographyOption(row.GetProperty("adminCode1").GetString()!, row.GetProperty("name").GetString()!))
+            .OrderBy(row => row.Name, StringComparer.Ordinal).ToArray());
+    }
+
+    public async Task<LocationSearchResponse> AddressCitiesAsync(string text, string country, string? region, CancellationToken token)
+    {
+        var data = await ReadAsync("searchJSON", new()
+        {
+            ["country"] = country,
+            ["adminCode1"] = region,
+            ["featureClass"] = "P",
+            ["name_startsWith"] = text,
+            ["maxRows"] = "8",
+            ["style"] = "LONG"
+        }, TimeSpan.FromHours(options.Value.SearchCacheHours), token);
+        return new(Places(data, "geonames", "city", 8));
+    }
 
     public async Task<LocationSearchResponse> SearchAsync(string text, string? country, string? language, int maxRows, CancellationToken cancellationToken)
     {

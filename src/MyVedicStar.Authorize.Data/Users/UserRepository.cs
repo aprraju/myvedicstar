@@ -23,8 +23,13 @@ internal sealed class UserRepository : IUserRepository
 
         var created = new UserEntity
         {
-            Id = Guid.CreateVersion7(), ExternalId = profile.ExternalId, Issuer = profile.Issuer,
-            Email = profile.Email, GivenName = profile.GivenName, FamilyName = profile.FamilyName, IsActive = true,
+            Id = Guid.CreateVersion7(),
+            ExternalId = profile.ExternalId,
+            Issuer = profile.Issuer,
+            Email = profile.Email,
+            GivenName = profile.GivenName,
+            FamilyName = profile.FamilyName,
+            IsActive = true,
         };
         _dbContext.Users.Add(created);
         try
@@ -33,7 +38,7 @@ internal sealed class UserRepository : IUserRepository
             return created.Id;
         }
         catch (DbUpdateException error) when (error.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: UserEntityConfiguration.ExternalIdUniqueIndexName })
+        { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: UserEntityConfiguration.ExternalIdUniqueIndexName })
         {
             // SaveChanges rolls back to its transaction savepoint; retrieve the winning registration.
             _dbContext.Entry(created).State = EntityState.Detached;
@@ -53,7 +58,7 @@ internal sealed class UserRepository : IUserRepository
     private async Task<Guid> UpdateProfileAsync(UserEntity user, UserProfileData profile, CancellationToken cancellationToken)
     {
         var id = ActiveId(user);
-        if (user.GivenName != profile.GivenName || user.FamilyName != profile.FamilyName || user.Email != profile.Email)
+        if (!user.ProfileManaged && (user.GivenName != profile.GivenName || user.FamilyName != profile.FamilyName || user.Email != profile.Email))
         {
             user.GivenName = profile.GivenName;
             user.FamilyName = profile.FamilyName;

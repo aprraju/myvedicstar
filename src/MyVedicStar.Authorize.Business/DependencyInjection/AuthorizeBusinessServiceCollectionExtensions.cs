@@ -4,6 +4,7 @@ using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Authorize.Business.Users;
 using MyVedicStar.Authorize.Data.DependencyInjection;
 using MyVedicStar.Shared.Caching;
+using MyVedicStar.Authorize.Integration;
 
 namespace MyVedicStar.Authorize.Business.DependencyInjection;
 
@@ -31,11 +32,15 @@ public static class AuthorizeBusinessServiceCollectionExtensions
         else
         {
             services.AddScoped<IUserSignInRecorder, DisabledUserSignInRecorder>();
+            services.AddScoped<MyVedicStar.Authorize.Data.Users.IProfileRepository, DisabledProfileRepository>();
         }
 
         services.AddSingleton<SignedInUserReader>();
         services.AddScoped<UserSignInService>();
         services.AddScoped<IAuthorizeFacade, AuthorizeFacade>();
+        services.AddGraphProfileIntegration(configuration);
+        services.AddScoped<IProfileService, ProfileService>();
+        services.AddScoped<IAddressLookupFacade, AddressLookupFacade>();
 
         return services;
     }

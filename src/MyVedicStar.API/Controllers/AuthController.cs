@@ -55,6 +55,24 @@ public sealed class AuthController : ControllerBase
         return Ok(new UserInfoResponse(userInfo.Id, userInfo.Name, userInfo.Email));
     }
 
+    [HttpGet("profile")]
+    [EnableRateLimiting(RateLimitPolicyNames.AuthenticatedStandard)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<ProfileResponse>> Profile(CancellationToken token) =>
+        Ok(ProfileResponse.From(await _authorizeFacade.GetProfileAsync(User, token)));
+
+    [HttpPatch("profile")]
+    [EnableRateLimiting(RateLimitPolicyNames.AuthenticatedStandard)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<ProfileResponse>> UpdateProfile([FromBody] UpdateProfileRequest request, CancellationToken token) =>
+        Ok(ProfileResponse.From(await _authorizeFacade.UpdateProfileAsync(User, new ProfileUpdateRequest(request.Revision, request.Changes), token)));
+
+    [HttpPost("profile/sync")]
+    [EnableRateLimiting(RateLimitPolicyNames.AuthenticatedStandard)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<ProfileResponse>> RetryProfileSync(CancellationToken token) =>
+        Ok(ProfileResponse.From(await _authorizeFacade.RetryProfileSyncAsync(User, token)));
+
     /// <summary>Records explicit logout once per session. The client still signs out of its identity provider.</summary>
     [HttpPost("logout")]
     [EnableRateLimiting(RateLimitPolicyNames.AuthenticatedStandard)]

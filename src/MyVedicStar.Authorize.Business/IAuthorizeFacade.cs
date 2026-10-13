@@ -21,5 +21,13 @@ public interface IAuthorizeFacade
     /// <summary>Completes login, optionally using a client session UUID for idempotency across token refreshes.</summary>
     Task<UserInfo> LoginAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken);
     /// <summary>Audits explicit logout once per session, without changing provider authentication.</summary>
+    /// <summary>Reads the authenticated account without creating a user or audit event.</summary>
+    Task<ProfileResult> GetProfileAsync(ClaimsPrincipal user, CancellationToken token);
+    /// <summary>Updates only supplied fields and attempts pending name synchronization.</summary>
+    Task<ProfileResult> UpdateProfileAsync(ClaimsPrincipal user, ProfileUpdateRequest request, CancellationToken token);
+    /// <summary>Retries durable pending name synchronization.</summary>
+    Task<ProfileResult> RetryProfileSyncAsync(ClaimsPrincipal user, CancellationToken token);
+    /// <summary>Returns the active registered account ID derived from verified token identity.</summary>
+    Task<Guid> GetRegisteredAccountIdAsync(ClaimsPrincipal user, CancellationToken token);
     Task LogoutAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken);
 }

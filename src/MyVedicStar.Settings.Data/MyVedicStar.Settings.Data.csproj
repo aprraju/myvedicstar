@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../MyVedicStar.Authorize.Data/MyVedicStar.Authorize.Data.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12"><PrivateAssets>all</PrivateAssets></PackageReference><InternalsVisibleTo Include="MyVedicStar.Settings.Tests.Unit" /><InternalsVisibleTo Include="MyVedicStar.Settings.Tests.Integration" /></ItemGroup>
+</Project>

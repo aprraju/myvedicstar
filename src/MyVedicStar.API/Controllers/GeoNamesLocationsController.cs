@@ -23,6 +23,27 @@ namespace MyVedicStar.API.Controllers;
 [ProducesResponseType<ProblemDetails>(503)]
 public sealed class GeoNamesLocationsController(ILocationSearchProvider provider) : ControllerBase
 {
+#if !GEONAMES_COMPATIBILITY
+    /// <summary>Lists countries for worldwide address editing through the Business facade.</summary>
+    [HttpGet("countries"), ProducesResponseType<MyVedicStar.API.Contracts.AddressOptionsResponse>(200)]
+    public async Task<IActionResult> Countries([FromServices] MyVedicStar.Authorize.Business.IAddressLookupFacade facade, CancellationToken token) =>
+        Ok(new MyVedicStar.API.Contracts.AddressOptionsResponse((await facade.CountriesAsync(token)).Select(MyVedicStar.API.Contracts.AddressOptionResponse.From).ToArray()));
+
+    /// <summary>Lists administrative regions belonging to the selected country.</summary>
+    [HttpGet("regions"), ProducesResponseType<MyVedicStar.API.Contracts.AddressOptionsResponse>(200)]
+    public async Task<IActionResult> Regions([FromQuery, Required, RegularExpression("^[A-Z]{2}$")] string country,
+        [FromServices] MyVedicStar.Authorize.Business.IAddressLookupFacade facade, CancellationToken token) =>
+        Ok(new MyVedicStar.API.Contracts.AddressOptionsResponse((await facade.RegionsAsync(country, token)).Select(MyVedicStar.API.Contracts.AddressOptionResponse.From).ToArray()));
+
+    /// <summary>Suggests cities within the selected country and administrative region.</summary>
+    [HttpGet("address-cities"), ProducesResponseType<MyVedicStar.API.Contracts.AddressPlacesResponse>(200)]
+    public async Task<IActionResult> AddressCities([FromQuery, Required, StringLength(120, MinimumLength = 2)] string text,
+        [FromQuery, Required, RegularExpression("^[A-Z]{2}$")] string country,
+        [FromQuery, StringLength(20), RegularExpression("^[A-Za-z0-9-]+$")] string? region,
+        [FromServices] MyVedicStar.Authorize.Business.IAddressLookupFacade facade, CancellationToken token) =>
+        Ok(new MyVedicStar.API.Contracts.AddressPlacesResponse((await facade.CitiesAsync(text.Trim(), country, region, token)).Select(MyVedicStar.API.Contracts.AddressPlaceResponse.From).ToArray()));
+#endif
+
     [HttpGet("search")]
     [ProducesResponseType<LocationSearchResponse>(200)]
     public Task<IActionResult> Search([FromQuery, Required, StringLength(120, MinimumLength = 2)] string text,

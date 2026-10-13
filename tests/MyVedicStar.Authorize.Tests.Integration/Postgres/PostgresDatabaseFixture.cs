@@ -19,6 +19,8 @@ public sealed class PostgresDatabaseFixture : IAsyncLifetime
     private readonly string _databaseName = $"myvedicstar_test_{Guid.NewGuid():N}";
     private ServiceProvider? _services;
 
+    public string TestConnectionString => new NpgsqlConnectionStringBuilder(_adminConnectionString) { Database = _databaseName }.ConnectionString;
+
     public bool IsAvailable => !string.IsNullOrWhiteSpace(_adminConnectionString);
 
     public IServiceProvider Services => _services ?? throw new InvalidOperationException("PostgreSQL is not configured.");

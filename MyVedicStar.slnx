@@ -1,5 +1,9 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
+    <Project Path="src/MyVedicStar.Settings.Data/MyVedicStar.Settings.Data.csproj" />
+    <Project Path="src/MyVedicStar.Settings.Integration/MyVedicStar.Settings.Integration.csproj" />
+
     <Project Path="src/GeoNames/GeoNames.csproj" />
     <Project Path="src/MyVedicStar.API/MyVedicStar.API.csproj" />
     <Project Path="src/MyVedicStar.Authorize.Business/MyVedicStar.Authorize.Business.csproj" />
@@ -9,6 +13,9 @@
     <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MyVedicStar.Settings.Tests.Unit/MyVedicStar.Settings.Tests.Unit.csproj" />
+    <Project Path="tests/MyVedicStar.Settings.Tests.Integration/MyVedicStar.Settings.Tests.Integration.csproj" />
+
     <Project Path="tests/GeoNames.Tests/GeoNames.Tests.csproj" />
     <Project Path="tests/MyVedicStar.Authorize.Tests.Integration/MyVedicStar.Authorize.Tests.Integration.csproj" />
     <Project Path="tests/MyVedicStar.Authorize.Tests.Unit/MyVedicStar.Authorize.Tests.Unit.csproj" />

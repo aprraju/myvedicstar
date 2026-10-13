@@ -19,6 +19,7 @@ public static class MyVedicStarApiModule
             .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new GeoNamesCompatibilityControllerFilter()));
         services.Configure<HostOptions>(configuration.GetSection(nameof(HostOptions)));
         services.AddAuthorizeBusiness(configuration);
+        MyVedicStar.Settings.Business.SettingsBusinessRegistration.AddSettingsBusiness(services, configuration);
         services.AddOptions<HealthEndpointOptions>()
             .Bind(configuration.GetSection(HealthEndpointOptions.SectionName))
             .ValidateDataAnnotations()

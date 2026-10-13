@@ -63,6 +63,17 @@ public sealed class SharedHostTests
             "POST api/v1/auth/userinfo",
             "POST api/v1/auth/login",
             "POST api/v1/auth/logout",
+            "GET api/v1/auth/profile",
+            "PATCH api/v1/auth/profile",
+            "POST api/v1/auth/profile/sync",
+            "GET api/v1/settings",
+            "PUT api/v1/settings",
+            "GET api/v1/settings/locations",
+            "POST api/v1/settings/locations",
+            "DELETE api/v1/settings/locations/{locationId:guid}",
+            "GET api/v1/locations/countries",
+            "GET api/v1/locations/regions",
+            "GET api/v1/locations/address-cities",
             "GET api/v1/festivals/upcoming",
             "GET api/v1/locations/resolve",
             "GET api/v1/locations/search",
@@ -89,14 +100,19 @@ public sealed class SharedHostTests
         var actual = endpoints.SelectMany(endpoint => endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods
             .Select(method => $"{method} {endpoint.RoutePattern.RawText}"));
         Assert.Equal(expected.Order(), actual.Order());
-        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/v1/auth/userinfo" or "api/v1/auth/login" or "api/v1/auth/logout" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone"), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
+        Assert.All(endpoints.Where(endpoint => IsStarRoute(endpoint)), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
-        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is not ("api/v1/auth/userinfo" or "api/v1/auth/login" or "api/v1/auth/logout" or "api/v1/locations/search" or "api/v1/locations/postal" or "api/v1/locations/reverse" or "api/v1/locations/timezone")), endpoint => Assert.Equal("MyVedicDay.Api",
+        Assert.All(endpoints.Where(endpoint => !IsStarRoute(endpoint)), endpoint => Assert.Equal("MyVedicDay.Api",
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly.GetName().Name));
-        string[] anonymous = ["api/v1/panchang/today", "api/v1/locations/resolve", "api/v1/locations/search", "api/v1/locations/postal", "api/v1/locations/reverse", "api/v1/locations/timezone"];
+        string[] anonymous = ["api/v1/locations/countries", "api/v1/locations/regions", "api/v1/locations/address-cities", "api/v1/panchang/today", "api/v1/locations/resolve", "api/v1/locations/search", "api/v1/locations/postal", "api/v1/locations/reverse", "api/v1/locations/timezone"];
         Assert.Equal(anonymous.Order(), endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
             .Select(endpoint => endpoint.RoutePattern.RawText).Order());
     }
+
+    private static bool IsStarRoute(RouteEndpoint endpoint) =>
+        endpoint.RoutePattern.RawText!.StartsWith("api/v1/auth/", StringComparison.Ordinal) ||
+        endpoint.RoutePattern.RawText.StartsWith("api/v1/settings", StringComparison.Ordinal) ||
+        (endpoint.RoutePattern.RawText.StartsWith("api/v1/locations/", StringComparison.Ordinal) && endpoint.RoutePattern.RawText != "api/v1/locations/resolve");
 
     [Fact]
     public async Task BothApis_AcceptTheSameAudienceAndPreserveTheirRoutes()
@@ -253,6 +269,10 @@ public sealed class SharedHostTests
 
     private sealed class FailingFacade : IAuthorizeFacade
     {
+        public Task<ProfileResult> GetProfileAsync(System.Security.Claims.ClaimsPrincipal user, CancellationToken token) => throw new NotSupportedException();
+        public Task<ProfileResult> UpdateProfileAsync(System.Security.Claims.ClaimsPrincipal user, ProfileUpdateRequest request, CancellationToken token) => throw new NotSupportedException();
+        public Task<ProfileResult> RetryProfileSyncAsync(System.Security.Claims.ClaimsPrincipal user, CancellationToken token) => throw new NotSupportedException();
+        public Task<Guid> GetRegisteredAccountIdAsync(System.Security.Claims.ClaimsPrincipal user, CancellationToken token) => throw new NotSupportedException();
         public Task<UserInfo> LoginAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken) =>
             SignInUserAsync(user, clientIpAddress, cancellationToken);
         public Task LogoutAsync(ClaimsPrincipal user, IPAddress? clientIpAddress, string? sessionId, CancellationToken cancellationToken) =>

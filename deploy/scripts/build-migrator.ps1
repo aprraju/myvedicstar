@@ -10,14 +10,20 @@ if (-not (Test-Path (Join-Path $tools 'dotnet-ef')) -and -not (Test-Path (Join-P
     & dotnet tool install dotnet-ef --tool-path $tools --version 10.0.12
     if ($LASTEXITCODE) { throw 'EF tool installation failed.' }
 }
-$project = Join-Path $RepositoryRoot 'src/MyVedicStar.Authorize.Data/MyVedicStar.Authorize.Data.csproj'
-# EF requests project metadata before its own build; restore must already have created project.assets.json.
-& dotnet restore $project
-if ($LASTEXITCODE) { throw 'Migration project restore failed. Check NuGet feed access and GITHUB_TOKEN.' }
-& dotnet build $project --configuration Release --no-restore
-if ($LASTEXITCODE) { throw 'Migration project build failed.' }
-& "$tools/dotnet-ef" migrations script --idempotent --project $project --configuration Release --no-build --output "$context/migrations.sql"
-if ($LASTEXITCODE) { throw 'Migration SQL generation failed.' }
+$scripts = [Collections.Generic.List[string]]::new()
+foreach ($domain in 'Authorize', 'Settings') {
+    $project = Join-Path $RepositoryRoot "src/MyVedicStar.$domain.Data/MyVedicStar.$domain.Data.csproj"
+    & dotnet restore $project
+    if ($LASTEXITCODE) { throw "$domain migration project restore failed." }
+    & dotnet build $project --configuration Release --no-restore
+    if ($LASTEXITCODE) { throw "$domain migration project build failed." }
+    $output = Join-Path $context "$domain.sql"
+    & "$tools/dotnet-ef" migrations script --idempotent --project $project --configuration Release --no-build --output $output
+    if ($LASTEXITCODE) { throw "$domain migration SQL generation failed." }
+    $scripts.Add((Get-Content -LiteralPath $output -Raw))
+}
+# Authorize must run first: Settings foreign keys reference its existing user table.
+[IO.File]::WriteAllText((Join-Path $context 'migrations.sql'), ($scripts -join "`n"), [Text.UTF8Encoding]::new($false))
 Copy-Item "$RepositoryRoot/deploy/database/*" $context
 Copy-Item "$RepositoryRoot/deploy/docker/Migrator.Dockerfile" "$context/Dockerfile"
 foreach ($name in 'migrations.sql', 'migrate.sh', 'bootstrap-roles.sql') {
