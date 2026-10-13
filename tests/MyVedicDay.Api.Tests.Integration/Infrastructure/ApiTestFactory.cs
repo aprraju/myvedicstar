@@ -36,6 +36,8 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
             // is satisfied by the test scheme above, not by a real provider JWT.
             services.AddAuthorization(options =>
             {
+                options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder(TestAuthenticationHandler.SchemeName).RequireAuthenticatedUser().Build();
+                options.FallbackPolicy = options.DefaultPolicy;
                 options.AddPolicy(AuthPolicyNames.AnyProvider, policy =>
                     policy
                         .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)

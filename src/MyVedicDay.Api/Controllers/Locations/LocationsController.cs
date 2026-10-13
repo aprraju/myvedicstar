@@ -42,7 +42,6 @@ public sealed class LocationsController(ILocationFacade locations) : ControllerB
     /// <param name="location">A place and/or browser coordinates.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
     [HttpGet("resolve", Name = "ResolveLocation")]
-    [AllowAnonymous]
     [ProducesResponseType<LocationResponse>(StatusCodes.Status200OK, "application/json",
         Description = "The resolved coordinates, time zone and matched or nearest city.")]
     public async Task<LocationResponse> ResolveAsync([FromQuery] LocationRequest location, CancellationToken cancellationToken) =>

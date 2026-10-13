@@ -1,9 +1,10 @@
+using System.Net.Http.Headers;
 using System.Net;
 using System.Text.Json;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
-/// <summary>The OpenAPI document and Swagger UI are published anonymously in every environment.</summary>
+/// <summary>The OpenAPI document and Swagger UI are protected by authentication in every environment.</summary>
 public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApiFactory>
 {
     private readonly PersistenceDisabledApiFactory _factory;
@@ -13,10 +14,20 @@ public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApi
     {
         _factory = factory;
         _client = factory.CreateClient();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.CreateToken([("oid", "00000000-0000-0000-0000-000000000001")]));
+    }
+
+    [Theory]
+    [InlineData("/openapi/v1.json")]
+    [InlineData("/swagger/index.html")]
+    public async Task Documentation_WithoutToken_IsUnauthorized(string path)
+    {
+        using var anonymous = _factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path)).StatusCode);
     }
 
     [Fact]
-    public async Task OpenApiDocument_WithoutToken_DescribesApiWithConfiguredTitleAndBearerScheme()
+    public async Task OpenApiDocument_WithToken_DescribesApiWithConfiguredTitleAndBearerScheme()
     {
         var response = await _client.GetAsync("/openapi/v1.json");
 
@@ -68,6 +79,7 @@ public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApi
             .WithWebHostBuilder(builder => builder.UseSetting("ApiDocumentation:HttpsServerUrlsOnly", "true"))
             .CreateClient();
 
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _factory.CreateToken([("oid", "00000000-0000-0000-0000-000000000001")]));
         var response = await client.GetAsync("http://api.myvedicstar.com:8080/openapi/v1.json");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -77,7 +89,7 @@ public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApi
     }
 
     [Fact]
-    public async Task SwaggerUi_WithoutToken_IsServed()
+    public async Task SwaggerUi_WithToken_IsServed()
     {
         var response = await _client.GetAsync("/swagger/index.html");
 

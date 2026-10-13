@@ -30,6 +30,7 @@ public sealed class SharedHostTests
     {
         await using var factory = new CombinedFactory(rejectGeoNames: true);
         using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.Token());
         var response = await client.GetAsync("/api/v1/locations/search?text=Austin");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -50,7 +51,7 @@ public sealed class SharedHostTests
     }
 
     [Fact]
-    public async Task ConsolidatedApi_PreservesEveryControllerRouteAndAnonymousAccess()
+    public async Task ConsolidatedApi_PreservesEveryControllerRouteAndRequiresAuthentication()
     {
         await using var factory = new CombinedFactory();
         using var client = factory.CreateClient();
@@ -104,9 +105,8 @@ public sealed class SharedHostTests
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
         Assert.All(endpoints.Where(endpoint => !IsStarRoute(endpoint)), endpoint => Assert.Equal("MyVedicDay.Api",
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly.GetName().Name));
-        string[] anonymous = ["api/v1/locations/countries", "api/v1/locations/regions", "api/v1/locations/address-cities", "api/v1/panchang/today", "api/v1/locations/resolve", "api/v1/locations/search", "api/v1/locations/postal", "api/v1/locations/reverse", "api/v1/locations/timezone"];
-        Assert.Equal(anonymous.Order(), endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
-            .Select(endpoint => endpoint.RoutePattern.RawText).Order());
+        Assert.DoesNotContain(endpoints, endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null);
+        Assert.All(endpoints, endpoint => Assert.NotEmpty(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()));
     }
 
     private static bool IsStarRoute(RouteEndpoint endpoint) =>
@@ -131,6 +131,20 @@ public sealed class SharedHostTests
 
     [Theory]
     [InlineData("/api/v1/auth/userinfo", true)]
+    [InlineData("/api/v1/panchang/today", false)]
+    [InlineData("/api/v1/locations/resolve", false)]
+    [InlineData("/api/v1/locations/search?text=Austin", false)]
+    [InlineData("/api/v1/locations/postal?text=78701", false)]
+    [InlineData("/api/v1/locations/reverse?latitude=30&longitude=-97", false)]
+    [InlineData("/api/v1/locations/timezone?latitude=30&longitude=-97", false)]
+    [InlineData("/api/v1/locations/countries", false)]
+    [InlineData("/api/v1/locations/regions?country=US", false)]
+    [InlineData("/api/v1/locations/address-cities?text=Austin&country=US", false)]
+    [InlineData("/api/v1/auth/profile", false)]
+    [InlineData("/api/v1/settings", false)]
+    [InlineData("/api/v1/settings/locations", false)]
+    [InlineData("/openapi/v1.json", false)]
+    [InlineData("/swagger/index.html", false)]
     [InlineData("/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867", false)]
     public async Task ProtectedRoutes_RejectAnonymousRequests(string path, bool post)
     {
@@ -168,6 +182,7 @@ public sealed class SharedHostTests
     {
         await using var factory = new CombinedFactory();
         using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.Token());
         using var document = JsonDocument.Parse(await client.GetStringAsync("/openapi/v1.json"));
         var paths = document.RootElement.GetProperty("paths");
         Assert.True(paths.TryGetProperty("/api/v1/auth/userinfo", out _));

@@ -70,12 +70,12 @@ public sealed class EnvironmentSettingsTests(WebApplicationFactory<Program> fact
     [InlineData("Development", "/api/v1/locations/resolve")]
     [InlineData("Production", "/api/v1/panchang/today")]
     [InlineData("Production", "/api/v1/locations/resolve")]
-    public async Task HomeEndpoints_AllowAnonymousAccess(string environment, string path)
+    public async Task HomeEndpoints_RequireAuthentication(string environment, string path)
     {
         using var host = factory.WithWebHostBuilder(builder => builder.UseEnvironment(environment));
         using var client = host.CreateClient();
         // Invalid coordinates reach request validation without authentication or external dependencies.
         using var response = await client.GetAsync(new Uri($"{path}?latitude=95&longitude=0", UriKind.Relative));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

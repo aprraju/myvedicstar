@@ -68,7 +68,6 @@ public sealed class PanchangController(IPanchangFacade panchang, IFestivalFacade
     /// <param name="location">Location and tradition.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
     [HttpGet("today", Name = "GetPanchangToday")]
-    [AllowAnonymous]
     [ProducesResponseType<PanchangResponse>(StatusCodes.Status200OK, Json, Description = "Panchang for the location's current local date.")]
     public async Task<PanchangResponse> GetTodayAsync([FromQuery] PanchangLocationRequest location, CancellationToken cancellationToken) =>
         await RespondAsync(location, await panchang.GetTodayAsync(ToQuery(location), cancellationToken), cancellationToken);

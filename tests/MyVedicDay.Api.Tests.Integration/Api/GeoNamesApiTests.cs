@@ -14,12 +14,11 @@ public sealed class GeoNamesApiTests(ApiTestFactory factory) : IClassFixture<Api
     [InlineData("postal?text=78701&country=US", "results")]
     [InlineData("reverse?latitude=30.2672&longitude=-97.7431", "place")]
     [InlineData("timezone?latitude=30.2672&longitude=-97.7431", "timeZone")]
-    public async Task Routes_ReturnFrontendContractsWithoutAuthentication(string query, string property)
+    public async Task Routes_ReturnFrontendContractsWithAuthentication(string query, string property)
     {
         using var host = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             services.AddSingleton<ILocationSearchProvider>(new StubProvider())));
         using var client = host.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Test-Anonymous", "true");
         using var response = await client.GetAsync(new Uri($"/api/v1/locations/{query}", UriKind.Relative));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
@@ -35,7 +34,6 @@ public sealed class GeoNamesApiTests(ApiTestFactory factory) : IClassFixture<Api
     public async Task Routes_RejectInvalidInputBeforeProvider(string query)
     {
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Test-Anonymous", "true");
         using var response = await client.GetAsync(new Uri($"/api/v1/locations/{query}", UriKind.Relative));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }

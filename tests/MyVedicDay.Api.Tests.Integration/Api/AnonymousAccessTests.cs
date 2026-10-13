@@ -8,15 +8,15 @@ public sealed class AnonymousAccessTests(ApiTestFactory factory) : IClassFixture
     [Theory]
     [InlineData("/api/v1/panchang/today")]
     [InlineData("/api/v1/locations/resolve")]
-    public async Task PublicEndpoints_ReachValidationWithoutAuthentication(string path)
+    public async Task FormerPublicEndpoints_RequireAuthentication(string path)
     {
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Test-Anonymous", "true");
 
-        // Invalid coordinates prove the action's validation runs without needing calculation or cache services.
+        // Authentication runs before validation even when request parameters are invalid.
         using var response = await client.GetAsync(new Uri($"{path}?latitude=95&longitude=0", UriKind.Relative));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Theory]

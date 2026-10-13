@@ -37,8 +37,8 @@ internal static class ApiDocumentationExtensions
         }
 
         // Generating the document runs real calculations for its examples: rate-limited like the API everywhere but
-        // Development, so a public Swagger cannot be used to load the service.
-        var document = app.MapOpenApi().AllowAnonymous();
+        // Development, so Swagger cannot be used to load the service.
+        var document = app.MapOpenApi().RequireAuthorization(MyVedicStar.ApiProtection.Auth.AuthPolicyNames.ApiScope);
         if (app.Environment.IsDevelopment())
         {
             document.DisableRateLimiting();

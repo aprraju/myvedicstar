@@ -44,13 +44,7 @@ try {
     }
     if (-not $ready) { throw 'Published host did not become ready.' }
     if ((Invoke-WebRequest -Uri "$baseUrl/health/live" -UseBasicParsing -TimeoutSec 5).StatusCode -ne 200) { throw 'Published host liveness check failed.' }
-    $document = Invoke-WebRequest -Uri "$baseUrl/openapi/v1.json" -UseBasicParsing -TimeoutSec 30
-    $paths = ($document.Content | ConvertFrom-Json).paths.PSObject.Properties.Name
-    if ($paths -notcontains '/api/v1/auth/userinfo' -or $paths -notcontains '/api/v1/muhurta/activities') { throw 'Published host is missing an API route.' }
-    foreach ($path in '/api/v1/settings', '/api/v1/settings/locations', '/api/v1/settings/locations/{locationId}', '/api/v1/auth/profile', '/api/v1/auth/profile/sync', '/api/v1/locations/countries', '/api/v1/locations/regions', '/api/v1/locations/address-cities', '/api/v1/locations/search', '/api/v1/locations/postal', '/api/v1/locations/reverse', '/api/v1/locations/timezone') {
-        if ($paths -notcontains $path) { throw "Published API is missing $path" }
-    }
-    foreach ($request in @(@{ Path = '/api/v1/settings'; Method = 'GET' }, @{ Path = '/api/v1/settings/locations'; Method = 'GET' }, @{ Path = '/api/v1/auth/profile'; Method = 'GET' }, @{ Path = '/api/v1/auth/userinfo'; Method = 'POST' }, @{ Path = '/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867'; Method = 'GET' })) {
+    foreach ($request in @(@{ Path = '/openapi/v1.json'; Method = 'GET' }, @{ Path = '/swagger/index.html'; Method = 'GET' }, @{ Path = '/api/v1/panchang/today'; Method = 'GET' }, @{ Path = '/api/v1/locations/resolve'; Method = 'GET' }, @{ Path = '/api/v1/locations/search?text=Austin'; Method = 'GET' }, @{ Path = '/api/v1/locations/postal?text=78701'; Method = 'GET' }, @{ Path = '/api/v1/locations/reverse?latitude=30&longitude=-97'; Method = 'GET' }, @{ Path = '/api/v1/locations/timezone?latitude=30&longitude=-97'; Method = 'GET' }, @{ Path = '/api/v1/locations/countries'; Method = 'GET' }, @{ Path = '/api/v1/locations/regions?country=US'; Method = 'GET' }, @{ Path = '/api/v1/locations/address-cities?text=Austin&country=US'; Method = 'GET' }, @{ Path = '/api/v1/settings'; Method = 'GET' }, @{ Path = '/api/v1/settings/locations'; Method = 'GET' }, @{ Path = '/api/v1/auth/profile'; Method = 'GET' }, @{ Path = '/api/v1/auth/userinfo'; Method = 'POST' }, @{ Path = '/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867'; Method = 'GET' })) {
         $status = 0
         try { $status = [int](Invoke-WebRequest -Uri ($baseUrl + $request.Path) -Method $request.Method -UseBasicParsing -TimeoutSec 10).StatusCode }
         catch { if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode } else { throw } }

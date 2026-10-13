@@ -37,15 +37,15 @@ internal static class ApiApplicationBuilderExtensions
             app.UseHttpsRedirection();
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseCors();
-        // Swagger UI is middleware rather than an endpoint, so serve its configured branch before fallback auth.
-        // The OpenAPI endpoint explicitly allows anonymous access and still goes through the rate limiter.
-        app.MapApiDocumentation();
+
 
         // Request size (needs endpoint metadata, so after routing) and correlation. The rate limiter comes after
         // authentication so user-based partitions resolve correctly.
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseRateLimiter();
+        // Documentation middleware also runs after authentication and fallback authorization.
+        app.MapApiDocumentation();
 
         app.MapControllers().RequireAuthorization(AuthPolicyNames.ApiScope);
 

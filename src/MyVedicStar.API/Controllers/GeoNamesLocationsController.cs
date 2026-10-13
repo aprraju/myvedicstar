@@ -14,7 +14,7 @@ namespace MyVedicStar.API.Controllers;
 
 /// <summary>Additive routes; existing /locations/resolve and calculation contracts are untouched.</summary>
 [ApiController]
-[AllowAnonymous]
+[Authorize]
 [EnableRateLimiting("public-read")]
 [Route("api/v1/locations")]
 [Microsoft.AspNetCore.Http.Tags("Locations")]

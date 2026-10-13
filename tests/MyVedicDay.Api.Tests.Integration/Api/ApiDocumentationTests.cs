@@ -1,3 +1,4 @@
+using MyVedicDay.Api.Tests.Integration.Infrastructure;
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using System.Text.Json;
@@ -8,7 +9,7 @@ namespace MyVedicDay.Api.Tests.Integration.Api;
 /// <summary>
 /// Guards the published OpenAPI document and Swagger UI (on by default in every environment; the test host runs Development).
 /// </summary>
-public sealed class ApiDocumentationTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ApiDocumentationTests(ApiTestFactory factory) : IClassFixture<ApiTestFactory>
 {
     [Fact]
     public async Task OpenApiDocument_DescribesEveryOperationWithExamples()
@@ -85,7 +86,7 @@ public sealed class ApiDocumentationTests(WebApplicationFactory<Program> factory
 
     [Theory]
     [InlineData(null, HttpStatusCode.OK)]
-    [InlineData("false", HttpStatusCode.Unauthorized)]
+    [InlineData("false", HttpStatusCode.NotFound)]
     public async Task OutsideDevelopment_DocumentationIsOnByDefault_AndCanBeTurnedOff(string? enabled, HttpStatusCode expected)
     {
         using var production = factory.WithWebHostBuilder(builder =>
