@@ -124,12 +124,15 @@ public sealed class SharedHostTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
-    public async Task WrongAudience_IsRejectedByBothApis()
+    [Theory]
+    [InlineData("wrong-audience")]
+    [InlineData("1a3384a0-8857-4854-8d96-3f94c1b1c18e")]
+    [InlineData("8a04afd8-56e8-49a1-b904-7c8f9e7b0df2")]
+    public async Task WrongAudience_IsRejectedByBothApis(string audience)
     {
         await using var factory = new CombinedFactory();
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.Token("wrong-audience"));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.Token(audience));
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsync("/api/v1/auth/userinfo", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867")).StatusCode);
     }
@@ -199,8 +202,8 @@ public sealed class SharedHostTests
 
     private sealed class CombinedFactory(bool failStar = false, int globalLimit = 1000, bool persistence = false, bool rejectGeoNames = false) : WebApplicationFactory<HostProgram>
     {
-        private const string Issuer = "https://test.ciamlogin.com/test/v2.0";
-        private const string Audience = "shared-api-audience";
+        private const string Issuer = "https://cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0";
+        private const string Audience = "fdaa908a-4c0b-4d63-a6d1-de637e0edc4e";
         private readonly RsaSecurityKey _key = new(RSA.Create(2048)) { KeyId = "shared-key" };
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -209,8 +212,8 @@ public sealed class SharedHostTests
             foreach (var setting in new Dictionary<string, string?>
             {
                 ["Authentication:EntraExternalId:Enabled"] = "true",
-                ["Authentication:EntraExternalId:TenantId"] = "test",
-                ["Authentication:EntraExternalId:TenantDomain"] = "test.ciamlogin.com",
+                ["Authentication:EntraExternalId:TenantId"] = "cbece845-e124-4de7-89d3-96a71abb7b83",
+                ["Authentication:EntraExternalId:TenantDomain"] = "cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com",
                 ["Authentication:EntraExternalId:ClientId"] = Audience,
                 ["FeatureFlags:UserPersistence"] = persistence.ToString(),
                 ["Database:ConnectionString"] = "Host=127.0.0.1;Port=1;Database=unused;Username=unused;Timeout=1",
@@ -243,7 +246,7 @@ public sealed class SharedHostTests
             Issuer = Issuer,
             Audience = audience,
             Expires = DateTime.UtcNow.AddMinutes(5),
-            Subject = new ClaimsIdentity(new[] { new Claim("oid", "shared-user"), new Claim("name", "Shared User"), new Claim("email", "shared@example.com") }.Concat(scope is null ? [] : new[] { new Claim("scp", scope) })),
+            Subject = new ClaimsIdentity(new[] { new Claim("oid", "shared-user"), new Claim("given_name", "Shared"), new Claim("family_name", "User"), new Claim("azp", "8a04afd8-56e8-49a1-b904-7c8f9e7b0df2"), new Claim("sid", "shared-session"), new Claim("email", "shared@example.com") }.Concat(scope is null ? [] : new[] { new Claim("scp", scope) })),
             SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.RsaSha256),
         });
     }

@@ -2,6 +2,13 @@
 $ErrorActionPreference = 'Stop'
 $repositoryPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $config = Get-Content (Join-Path $repositoryPath 'deploy/environments/prod.json') -Raw | ConvertFrom-Json
+# Keep both hosts and release environment aligned with the shared API app registration.
+$expectedApiId = 'fdaa908a-4c0b-4d63-a6d1-de637e0edc4e'
+if ($config.settings.Authentication__EntraExternalId__ClientId -ne $expectedApiId) { throw 'Production API audience does not match the shared API registration.' }
+foreach ($hostSettings in @('src/MyVedicStar.API/appsettings.Development.json', 'src/MyVedicStar.API/appsettings.Production.json', 'src/MyVedicDay.Api/appsettings.Development.json', 'src/MyVedicDay.Api/appsettings.Production.json')) {
+    $hostConfig = Get-Content (Join-Path $repositoryPath $hostSettings) -Raw | ConvertFrom-Json
+    if ($hostConfig.Authentication.EntraExternalId.ClientId -ne $expectedApiId) { throw "API audience mismatch in $hostSettings" }
+}
 $identityPath = "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$($config.keyVaultIdentityName)"
 $global:fakeApp = [pscustomobject]@{
     identity = @{ userAssignedIdentities = @{ $identityPath = @{} } }
