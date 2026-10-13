@@ -23,7 +23,7 @@ internal sealed partial class UserSignInService
 
         LogUserSignedIn(_logger, user.ExternalUserId);
 
-        return new UserInfo(user.ExternalUserId, user.Name, user.Email);
+        return new UserInfo(user.ExternalUserId, user.GivenName is null && user.FamilyName is null ? null : user.GivenName + "," + user.FamilyName, user.Email);
     }
 
     public Task SignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>

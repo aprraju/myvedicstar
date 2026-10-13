@@ -8,7 +8,8 @@ namespace MyVedicStar.Authorize.Data.Users;
 public sealed record UserProfileData(
     string ExternalId,
     string? Email,
-    string? Name,
+    string? GivenName,
+    string? FamilyName,
     string Issuer = "")
 {
     public const int MaxIssuerLength = 512;
@@ -18,6 +19,6 @@ public sealed record UserProfileData(
     /// <summary>Longest storable email address (the RFC 5321 limit).</summary>
     public const int MaxEmailLength = 320;
 
-    /// <summary>Longest storable display name.</summary>
+    /// <summary>Longest storable given or family name.</summary>
     public const int MaxNameLength = 256;
 }

@@ -13,7 +13,7 @@ public sealed class DatabaseUserSignInRecorderTests
     private static readonly Guid InternalUserId = Guid.Parse("0199a3b4-0000-7000-8000-000000000001");
     private static readonly IPAddress ClientIp = IPAddress.Parse("203.0.113.7");
 
-    private static readonly SignedInUser User = new("object-id", "John Smith", "john.smith@example.com", "https://accounts.google.com", "session-key");
+    private static readonly SignedInUser User = new("object-id", "John", "Smith", "john.smith@example.com", "https://accounts.google.com", "session-key");
 
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly IUserLoginRepository _userLoginRepository = Substitute.For<IUserLoginRepository>();
@@ -32,7 +32,7 @@ public sealed class DatabaseUserSignInRecorderTests
         await _recorder.RecordSignInAsync(User, ClientIp, CancellationToken.None);
 
         await _userRepository.Received(1).UpsertAsync(
-            new UserProfileData("object-id", "john.smith@example.com", "John Smith", User.Issuer),
+            new UserProfileData("object-id", "john.smith@example.com", "John", "Smith", User.Issuer),
             Arg.Any<CancellationToken>());
     }
 
@@ -67,12 +67,12 @@ public sealed class DatabaseUserSignInRecorderTests
     [Fact]
     public async Task RecordSignInAsync_NameLongerThanColumn_StoresShortenedName()
     {
-        var user = User with { Name = new string('a', UserProfileData.MaxNameLength + 10) };
+        var user = User with { GivenName = new string('a', UserProfileData.MaxNameLength + 10), FamilyName = new string('b', UserProfileData.MaxNameLength + 10) };
 
         await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
 
         await _userRepository.Received(1).UpsertAsync(
-            Arg.Is<UserProfileData>(profile => profile.Name == new string('a', UserProfileData.MaxNameLength)),
+            Arg.Is<UserProfileData>(profile => profile.GivenName == new string('a', UserProfileData.MaxNameLength) && profile.FamilyName == new string('b', UserProfileData.MaxNameLength)),
             Arg.Any<CancellationToken>());
     }
 
@@ -80,12 +80,12 @@ public sealed class DatabaseUserSignInRecorderTests
     public async Task RecordSignInAsync_NameCutInsideSurrogatePair_DropsTheWholeCharacter()
     {
         // "𝔸" is one character made of two UTF-16 code units; the limit falls between them.
-        var user = User with { Name = new string('a', UserProfileData.MaxNameLength - 1) + "𝔸" };
+        var user = User with { GivenName = new string('a', UserProfileData.MaxNameLength - 1) + "𝔸" };
 
         await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
 
         await _userRepository.Received(1).UpsertAsync(
-            Arg.Is<UserProfileData>(profile => profile.Name == new string('a', UserProfileData.MaxNameLength - 1)),
+            Arg.Is<UserProfileData>(profile => profile.GivenName == new string('a', UserProfileData.MaxNameLength - 1)),
             Arg.Any<CancellationToken>());
     }
 
@@ -97,7 +97,7 @@ public sealed class DatabaseUserSignInRecorderTests
         await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
 
         await _userRepository.Received(1).UpsertAsync(
-            Arg.Is<UserProfileData>(profile => profile.Email == null && profile.Name == User.Name),
+            Arg.Is<UserProfileData>(profile => profile.Email == null && profile.GivenName == User.GivenName),
             Arg.Any<CancellationToken>());
     }
 

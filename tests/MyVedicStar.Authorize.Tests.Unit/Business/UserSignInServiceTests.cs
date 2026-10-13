@@ -12,7 +12,7 @@ public sealed class UserSignInServiceTests
 {
     private static readonly IPAddress ClientIp = IPAddress.Parse("203.0.113.7");
 
-    private static readonly SignedInUser User = new("object-id", "John Smith", "john.smith@example.com");
+    private static readonly SignedInUser User = new("object-id", "John", "Smith", "john.smith@example.com");
 
     private readonly IUserSignInRecorder _signInRecorder = Substitute.For<IUserSignInRecorder>();
     private readonly UserSignInService _service;
@@ -35,7 +35,7 @@ public sealed class UserSignInServiceTests
     {
         var userInfo = await _service.SignInAsync(User, ClientIp, CancellationToken.None);
 
-        Assert.Equal(new UserInfo("object-id", "John Smith", "john.smith@example.com"), userInfo);
+        Assert.Equal(new UserInfo("object-id", "John,Smith", "john.smith@example.com"), userInfo);
     }
 
     [Fact]

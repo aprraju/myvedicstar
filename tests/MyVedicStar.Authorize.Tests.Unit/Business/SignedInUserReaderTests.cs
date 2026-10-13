@@ -18,11 +18,11 @@ public sealed class SignedInUserReaderTests
     [Fact]
     public void GetSignedInUser_AllClaimsPresent_ReturnsObjectIdNameAndEmail()
     {
-        var user = CreateUser(("oid", "object-id"), ("sub", "pairwise-subject"), ("name", "John Smith"), ("email", "john.smith@example.com"));
+        var user = CreateUser(("oid", "object-id"), ("sub", "pairwise-subject"), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"), ("email", "john.smith@example.com"));
 
         var result = _reader.GetSignedInUser(user);
         Assert.Equal("object-id", result.ExternalUserId);
-        Assert.Equal("John Smith", result.Name);
+        Assert.Equal("John", result.GivenName);
         Assert.Equal("john.smith@example.com", result.Email);
         Assert.Equal("https://test.ciamlogin.com/test/v2.0", result.Issuer);
     }
@@ -34,7 +34,7 @@ public sealed class SignedInUserReaderTests
 
         var result = _reader.GetSignedInUser(user);
         Assert.Equal("object-id", result.ExternalUserId);
-        Assert.Null(result.Name);
+        Assert.Null(result.GivenName);
         Assert.Null(result.Email);
     }
 
@@ -49,9 +49,9 @@ public sealed class SignedInUserReaderTests
     [Fact]
     public void GetSignedInUser_TrimsValues()
     {
-        var user = CreateUser(("oid", "object-id"), ("name", "  John Smith "));
+        var user = CreateUser(("oid", "object-id"), ("given_name", "  John "), ("family_name", " Smith "));
 
-        Assert.Equal("John Smith", _reader.GetSignedInUser(user).Name);
+        Assert.Equal("John", _reader.GetSignedInUser(user).GivenName);
     }
 
     [Theory]
@@ -61,14 +61,15 @@ public sealed class SignedInUserReaderTests
     {
         var result = _reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("name", name), ("preferred_username", "aprraju@gmail.com")));
         Assert.Equal("aprraju@gmail.com", result.Email);
-        Assert.Null(result.Name);
+        Assert.Null(result.GivenName);
     }
 
     [Fact]
     public void PlaceholderName_UsesGivenAndFamilyNameClaims()
     {
         var result = _reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("name", "unknown"), ("given_name", " Jane "), ("family_name", " Doe ")));
-        Assert.Equal("Jane Doe", result.Name);
+        Assert.Equal("Jane", result.GivenName);
+        Assert.Equal("Doe", result.FamilyName);
     }
 
     [Theory]
@@ -80,7 +81,7 @@ public sealed class SignedInUserReaderTests
     [Fact]
     public void GetSignedInUser_OnlySubjectPresent_ThrowsBecauseSubjectIsNotTheDirectoryId()
     {
-        var user = CreateUser(("sub", "pairwise-subject"), ("name", "John Smith"));
+        var user = CreateUser(("sub", "pairwise-subject"), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"));
 
         Assert.Throws<AuthenticationFailedException>(() => _reader.GetSignedInUser(user));
     }

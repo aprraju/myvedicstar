@@ -9,7 +9,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
 {
     private const string UserInfoPath = "/api/v1/auth/userinfo";
     private const string ObjectId = "11111111-2222-3333-4444-555555555555";
-    private const string Name = "John Smith";
+    private const string Name = "John,Smith";
     private const string Email = "john.smith@example.com";
 
     private readonly AuthorizeApiFactory _factory;
@@ -49,7 +49,10 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
 
     [Theory]
     [InlineData("unknown", null, null, null)]
-    [InlineData("aprraju@gmail.com", "Jane", "Doe", "Jane Doe")]
+    [InlineData("Ignored Display Name", "Jane", "Doe", "Jane,Doe")]
+    [InlineData("Ignored Display Name", "Jane", null, "Jane,")]
+    [InlineData("Ignored Display Name", null, "Doe", ",Doe")]
+    [InlineData("aprraju@gmail.com", "Jane", "Doe", "Jane,Doe")]
     public async Task UserInfo_PreferredUsernameEmail_ReturnsSeparateEmailAndUsableName(string name, string? given, string? family, string? expectedName)
     {
         var claims = new List<(string, string)> { ("oid", ObjectId), ("name", name), ("preferred_username", "aprraju@gmail.com") };
@@ -71,7 +74,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         await PostUserInfoAsync(ValidToken());
 
         Assert.Equal(
-            new Data.Users.UserProfileData(ObjectId, Email, Name, AuthorizeApiFactory.Issuer),
+            new Data.Users.UserProfileData(ObjectId, Email, "John", "Smith", AuthorizeApiFactory.Issuer),
             _factory.UserStore.FindUser(ObjectId));
 
         var login = Assert.Single(_factory.UserStore.Logins);
@@ -82,13 +85,13 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     [Fact]
     public async Task UserInfo_CalledTwiceInSameSession_UpdatesProfileAndRecordsOneLogin()
     {
-        var token = _factory.CreateToken([("oid", ObjectId), ("name", Name), ("email", Email), ("sid", "session-1")]);
+        var token = _factory.CreateToken([("oid", ObjectId), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"), ("email", Email), ("sid", "session-1")]);
         await PostUserInfoAsync(token);
         var firstUserId = _factory.UserStore.FindUserId(ObjectId);
-        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "John Smith-Jones"), ("email", Email), ("sid", "session-1")]));
+        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("given_name", "John"), ("family_name", "Smith-Jones"), ("email", Email), ("sid", "session-1")]));
 
         Assert.Equal(firstUserId, _factory.UserStore.FindUserId(ObjectId));
-        Assert.Equal("John Smith-Jones", _factory.UserStore.FindUser(ObjectId)?.Name);
+        Assert.Equal("Smith-Jones", _factory.UserStore.FindUser(ObjectId)?.FamilyName);
         Assert.Single(_factory.UserStore.Logins);
     }
 
@@ -104,15 +107,16 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     [Fact]
     public async Task UserInfo_ExistingUser_SynchronizesFallbackEmailAndNullNameWithoutAnotherSessionAudit()
     {
-        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", Name), ("email", Email), ("sid", "profile-session")]));
+        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"), ("email", Email), ("sid", "profile-session")]));
         var id = _factory.UserStore.FindUserId(ObjectId);
         var response = await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "unknown"), ("preferred_username", "aprraju@gmail.com"), ("sid", "profile-session")]));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var stored = _factory.UserStore.FindUser(ObjectId);
-        Assert.Equal(body.GetProperty("name").GetString(), stored!.Name);
+        Assert.Equal(body.GetProperty("name").GetString(), stored!.GivenName);
         Assert.Equal(body.GetProperty("email").GetString(), stored.Email);
-        Assert.Null(stored.Name);
+        Assert.Null(stored.GivenName);
+        Assert.Null(stored.FamilyName);
         Assert.Equal("aprraju@gmail.com", stored.Email);
         Assert.Equal(id, _factory.UserStore.FindUserId(ObjectId));
         Assert.Single(_factory.UserStore.Logins);
@@ -183,7 +187,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     private string ValidToken() =>
-        _factory.CreateToken([("oid", ObjectId), ("sub", "pairwise-subject"), ("name", Name), ("email", Email)]);
+        _factory.CreateToken([("oid", ObjectId), ("sub", "pairwise-subject"), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"), ("email", Email)]);
 
     private Task<HttpResponseMessage> PostUserInfoAsync(string token, string? remoteIp = null, string? forwardedFor = null)
     {

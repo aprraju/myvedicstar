@@ -48,7 +48,7 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
         }, cancellationToken);
 
     /// <summary>
-    /// Fits the token's values to what can be stored, so an unusually long claim never blocks sign-in: the display
+    /// Fits the token's values to what can be stored, so an unusually long claim never blocks sign-in: each
     /// name is shortened, and an email address too long to be valid is not stored. The user ID is never shortened,
     /// because a shortened ID could match another user.
     /// </summary>
@@ -63,7 +63,8 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
         }
 
         var email = user.Email?.Length <= UserProfileData.MaxEmailLength ? user.Email : null;
-        return new UserProfileData(user.ExternalUserId, email, Truncate(user.Name, UserProfileData.MaxNameLength), user.Issuer);
+        return new UserProfileData(user.ExternalUserId, email, Truncate(user.GivenName, UserProfileData.MaxNameLength),
+            Truncate(user.FamilyName, UserProfileData.MaxNameLength), user.Issuer);
     }
 
     /// <summary>Shortens <paramref name="value"/> to at most <paramref name="maxLength"/> characters without splitting a surrogate pair.</summary>

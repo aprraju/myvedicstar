@@ -24,7 +24,7 @@ internal sealed class UserRepository : IUserRepository
         var created = new UserEntity
         {
             Id = Guid.CreateVersion7(), ExternalId = profile.ExternalId, Issuer = profile.Issuer,
-            Email = profile.Email, Name = profile.Name, IsActive = true,
+            Email = profile.Email, GivenName = profile.GivenName, FamilyName = profile.FamilyName, IsActive = true,
         };
         _dbContext.Users.Add(created);
         try
@@ -53,9 +53,10 @@ internal sealed class UserRepository : IUserRepository
     private async Task<Guid> UpdateProfileAsync(UserEntity user, UserProfileData profile, CancellationToken cancellationToken)
     {
         var id = ActiveId(user);
-        if (user.Name != profile.Name || user.Email != profile.Email)
+        if (user.GivenName != profile.GivenName || user.FamilyName != profile.FamilyName || user.Email != profile.Email)
         {
-            user.Name = profile.Name;
+            user.GivenName = profile.GivenName;
+            user.FamilyName = profile.FamilyName;
             user.Email = profile.Email;
             user.UpdatedUtc = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);

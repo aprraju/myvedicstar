@@ -52,7 +52,8 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         Assert.NotNull(stored);
         Assert.Equal(userId, stored.Id);
         Assert.Equal("john.smith@example.com", stored.Email);
-        Assert.Equal("John Smith", stored.Name);
+        Assert.Equal("John", stored.GivenName);
+        Assert.Equal("Smith", stored.FamilyName);
         Assert.Equal(DateTimeKind.Utc, stored.CreatedUtc.Kind);
         Assert.True(stored.IsActive);
     }
@@ -65,11 +66,11 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         var firstId = await UpsertInNewScopeAsync(original);
         var created = (await FindUserAsync(original.ExternalId))!.CreatedUtc;
 
-        var secondId = await UpsertInNewScopeAsync(original with { Name = "Jonathan", Email = "new@example.com" });
+        var secondId = await UpsertInNewScopeAsync(original with { GivenName = "Jonathan", Email = "new@example.com" });
 
         var stored = await FindUserAsync(original.ExternalId);
         Assert.Equal(firstId, secondId);
-        Assert.Equal("Jonathan", stored!.Name);
+        Assert.Equal("Jonathan", stored!.GivenName);
         Assert.Equal("new@example.com", stored.Email);
         Assert.Equal(created, stored.CreatedUtc);
         Assert.True(stored.UpdatedUtc >= stored.CreatedUtc);
@@ -80,11 +81,11 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     public async Task Upsert_ResolvedNullNameAndEmailFallback_ReplaceStaleProfile()
     {
         SkipIfUnavailable();
-        var original = CreateProfile() with { Name = "unknown", Email = null };
+        var original = CreateProfile() with { GivenName = "unknown", Email = null };
         var id = await UpsertInNewScopeAsync(original);
-        Assert.Equal(id, await UpsertInNewScopeAsync(original with { Name = null, Email = "aprraju@gmail.com" }));
+        Assert.Equal(id, await UpsertInNewScopeAsync(original with { GivenName = null, Email = "aprraju@gmail.com" }));
         var stored = await FindUserAsync(original.ExternalId);
-        Assert.Null(stored!.Name);
+        Assert.Null(stored!.GivenName);
         Assert.Equal("aprraju@gmail.com", stored.Email);
         Assert.True(stored.IsActive);
     }
@@ -96,13 +97,14 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         var profile = new UserProfileData(
             ExternalId: Guid.NewGuid().ToString().PadRight(UserProfileData.MaxExternalIdLength, 'x'),
             Email: new string('e', UserProfileData.MaxEmailLength),
-            Name: new string('n', UserProfileData.MaxNameLength));
+            GivenName: new string('n', UserProfileData.MaxNameLength), FamilyName: new string('f', UserProfileData.MaxNameLength));
 
         await UpsertInNewScopeAsync(profile);
 
         var stored = await FindUserAsync(profile.ExternalId);
         Assert.Equal(profile.Email, stored?.Email);
-        Assert.Equal(profile.Name, stored?.Name);
+        Assert.Equal(profile.GivenName, stored?.GivenName);
+        Assert.Equal(profile.FamilyName, stored?.FamilyName);
     }
 
     [SkippableFact]
@@ -261,7 +263,8 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
             await migrator.MigrateAsync();
             var user = await db.Users.SingleAsync();
             Assert.Equal(id, user.Id);
-            Assert.Equal("Original Name", user.Name);
+            Assert.Equal("Original Name", user.GivenName);
+            Assert.Null(user.FamilyName);
             Assert.True(user.IsActive);
             Assert.Equal("https://cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0", user.Issuer);
             var audit = await db.UserLogins.SingleAsync();
@@ -269,7 +272,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
             Assert.Equal(1, audit.Type);
             Assert.Null(audit.SessionKey);
             var repository = new Data.Users.UserRepository(db);
-            Assert.Equal(id, await repository.UpsertAsync(new UserProfileData(user.ExternalId, "changed@example.com", "Changed", user.Issuer), default));
+            Assert.Equal(id, await repository.UpsertAsync(new UserProfileData(user.ExternalId, "changed@example.com", "Changed", null, user.Issuer), default));
         }
         finally
         {
@@ -285,7 +288,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     private static UserProfileData CreateProfile() => new(
         ExternalId: Guid.NewGuid().ToString(),
         Email: "john.smith@example.com",
-        Name: "John Smith");
+        GivenName: "John", FamilyName: "Smith");
 
     private async Task<Guid> UpsertInNewScopeAsync(UserProfileData profile)
     {

@@ -44,14 +44,10 @@ internal sealed class SignedInUserReader
             : throw new AuthenticationFailedException("The token does not identify a session. Supply X-Auth-Session-Id.");
         var sessionKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(session)));
         var email = _options.Email.Select(type => FindFirstValue(user, [type])).FirstOrDefault(IsEmail);
-        var name = _options.Name.Select(type => FindFirstValue(user, [type])).FirstOrDefault(IsUsableName);
-        if (name is null)
-        {
-            var parts = new[] { FindFirstValue(user, ["given_name"]), FindFirstValue(user, ["family_name"]) }.Where(IsUsableName);
-            name = string.Join(" ", parts);
-            if (name.Length == 0) name = null;
-        }
-        return new SignedInUser(externalUserId, name, email, issuer, sessionKey);
+        var givenName = FindFirstValue(user, ["given_name", ClaimTypes.GivenName]);
+        var familyName = FindFirstValue(user, ["family_name", ClaimTypes.Surname]);
+        return new SignedInUser(externalUserId, IsUsableName(givenName) ? givenName : null,
+            IsUsableName(familyName) ? familyName : null, email, issuer, sessionKey);
     }
 
     private static bool IsEmail(string? value) => value is not null && value.Contains('@')
