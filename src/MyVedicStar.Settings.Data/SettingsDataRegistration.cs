@@ -8,6 +8,7 @@ public static class SettingsDataRegistration
     {
         services.AddDbContext<SettingsDbContext>((provider, builder) => AuthorizeDataServiceCollectionExtensions.ConfigureDomainDatabase(builder, provider, "myvedicstarsettings"));
         services.AddScoped<ISettingsRepository, SettingsRepository>();
+        services.AddHostedService<SettingsDatabaseMigrationHostedService>();
         return services;
     }
 }
