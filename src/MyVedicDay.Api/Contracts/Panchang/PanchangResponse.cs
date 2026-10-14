@@ -181,8 +181,11 @@ public sealed record MixedWindowResponse(
 /// <param name="End">When the element ends and the next one begins.</param>
 /// <param name="StartDisplay"><paramref name="Start"/> in the location's display format.</param>
 /// <param name="EndDisplay"><paramref name="End"/> in the location's display format.</param>
+/// <param name="ShortName">Optional backend-defined abbreviated label, e.g. Chatur for Tithi.</param>
+/// <param name="CompactName">Optional compact code, e.g. P4 or A15.</param>
 public sealed record PanchangElementResponse(
-    string Key, int Number, string Name, DateTimeOffset Start, DateTimeOffset End, string StartDisplay, string EndDisplay);
+    string Key, int Number, string Name, DateTimeOffset Start, DateTimeOffset End, string StartDisplay, string EndDisplay,
+    string? ShortName = null, string? CompactName = null);
 
 /// <summary>A classified time period. Its meaning, description and message are in <c>glossary.periods[kind]</c>.</summary>
 /// <param name="Kind">Stable identifier and glossary key, e.g. <c>RahuKalam</c>.</param>

@@ -41,8 +41,11 @@ public sealed record SunTimesDisplay(string Sunrise, string Sunset, string NextS
 /// <param name="End">When the element ends and the next begins.</param>
 /// <param name="StartDisplay"><paramref name="Start"/> in the location's display format.</param>
 /// <param name="EndDisplay"><paramref name="End"/> in the location's display format.</param>
+/// <param name="ShortName">Optional backend-defined abbreviated label, e.g. Chatur for Tithi.</param>
+/// <param name="CompactName">Optional compact code, e.g. P4 or A15.</param>
 public sealed record PanchangElementPeriod(
-    string Key, int Number, string Name, DateTimeOffset Start, DateTimeOffset End, string StartDisplay, string EndDisplay);
+    string Key, int Number, string Name, DateTimeOffset Start, DateTimeOffset End, string StartDisplay, string EndDisplay,
+    string? ShortName = null, string? CompactName = null);
 
 /// <summary>A classified period such as Rahu Kalam, Varjyam, Abhijit Muhurta or a Choghadiya segment.</summary>
 /// <param name="Kind">Stable, language-independent identifier, e.g. <c>RahuKalam</c>; also its glossary key.</param>

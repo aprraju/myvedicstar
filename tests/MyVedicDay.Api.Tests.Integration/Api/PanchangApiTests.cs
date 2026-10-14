@@ -13,6 +13,22 @@ namespace MyVedicDay.Api.Tests.Integration.Api;
 /// </summary>
 public sealed class PanchangApiTests(ApiTestFactory factory) : IClassFixture<ApiTestFactory>
 {
+    [Fact]
+    public async Task Month_ReturnsBackendTithiShortAndCompactNames()
+    {
+        var response = await GetPanchangAsync($"/api/v1/panchang/month/2026/10?{Hyderabad}&language=en");
+        string[] shortNames = ["Prati", "Dwiti", "Triti", "Chatur", "Panch", "Shash", "Sapta", "Ashta", "Nava", "Dasha", "Ekad", "Dwad", "Trayo", "Chaturd", "Purn"];
+        var tithis = response.Days.SelectMany(day => day.Tithis).ToArray();
+        Assert.Equal(30, tithis.Select(tithi => tithi.Number).Distinct().Count());
+        foreach (var tithi in tithis)
+        {
+            var ordinal = (tithi.Number - 1) % 15 + 1;
+            Assert.Equal(tithi.Number == 30 ? "Amav" : shortNames[ordinal - 1], tithi.ShortName);
+            Assert.Equal(tithi.Number == 30 ? "A15" : $"P{ordinal}", tithi.CompactName);
+        }
+        Assert.All(response.Days.SelectMany(day => day.Nakshatras), element => Assert.Null(element.ShortName));
+    }
+
     private const string Hyderabad = "latitude=17.385&longitude=78.4867";
     private const string Austin = "latitude=30.2672&longitude=-97.7431";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

@@ -116,7 +116,7 @@ internal static class PanchangResponseMapper
         period.Group.Equals("Choghadiya", StringComparison.Ordinal);
 
     private static PanchangElementResponse ToResponse(PanchangElementPeriod period) =>
-        new(period.Key, period.Number, period.Name, period.Start, period.End, period.StartDisplay, period.EndDisplay);
+        new(period.Key, period.Number, period.Name, period.Start, period.End, period.StartDisplay, period.EndDisplay, period.ShortName, period.CompactName);
 
     private static TimePeriodResponse ToResponse(PanchangTimePeriod period) =>
         new(

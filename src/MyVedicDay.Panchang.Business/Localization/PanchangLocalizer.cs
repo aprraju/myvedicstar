@@ -130,5 +130,7 @@ internal sealed class PanchangLocalizer(
             period.Start,
             period.End,
             format.FormatDateTime(period.Start),
-            format.FormatDateTime(period.End))).ToArray();
+            format.FormatDateTime(period.End),
+            content.GetEntry(category, period.Key).ShortName,
+            content.GetEntry(category, period.Key).CompactName)).ToArray();
 }

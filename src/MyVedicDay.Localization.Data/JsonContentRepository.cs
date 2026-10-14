@@ -100,7 +100,9 @@ internal sealed partial class JsonContentRepository(
                     entry.Meaning ?? current.Meaning,
                     entry.Description ?? current.Description,
                     entry.Message ?? current.Message,
-                    entry.Icon ?? current.Icon)
+                    entry.Icon ?? current.Icon,
+                    entry.ShortName ?? current.ShortName,
+                    entry.CompactName ?? current.CompactName)
                 : entry;
         }
 

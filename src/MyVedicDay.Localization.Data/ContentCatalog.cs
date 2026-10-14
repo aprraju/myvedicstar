@@ -22,4 +22,6 @@ public sealed record ContentEntry(
     string? Meaning = null,
     string? Description = null,
     string? Message = null,
-    string? Icon = null);
+    string? Icon = null,
+    string? ShortName = null,
+    string? CompactName = null);

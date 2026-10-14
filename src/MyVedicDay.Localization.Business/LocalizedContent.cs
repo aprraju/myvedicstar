@@ -10,7 +10,7 @@ namespace MyVedicDay.Localization;
 /// <param name="Description">Short, app-friendly description.</param>
 /// <param name="Message">One-line message for compact UI.</param>
 /// <param name="Icon">Optional visual indicator.</param>
-public sealed record LocalizedEntry(string Name, string? Meaning, string? Description, string? Message, string? Icon);
+public sealed record LocalizedEntry(string Name, string? Meaning, string? Description, string? Message, string? Icon, string? ShortName = null, string? CompactName = null);
 
 /// <summary>
 /// Content for one language and (optionally) one tradition. Keys are <c>{category}.{id}</c>; a tradition-specific key is
@@ -55,7 +55,9 @@ public sealed class LocalizedContent
             candidates.Select(entry => entry?.Meaning).FirstOrDefault(value => value is not null),
             candidates.Select(entry => entry?.Description).FirstOrDefault(value => value is not null),
             candidates.Select(entry => entry?.Message).FirstOrDefault(value => value is not null),
-            candidates.Select(entry => entry?.Icon).FirstOrDefault(value => value is not null));
+            candidates.Select(entry => entry?.Icon).FirstOrDefault(value => value is not null),
+            candidates.Select(entry => entry?.ShortName).FirstOrDefault(value => value is not null),
+            candidates.Select(entry => entry?.CompactName).FirstOrDefault(value => value is not null));
     }
 
     /// <summary>Ids present in a category (generic entries only), in the requested or the default language.</summary>
