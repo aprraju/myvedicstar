@@ -9,23 +9,36 @@ public sealed class MoonEventCalculatorTests
 {
     private static readonly DateTimeZone India = DateTimeZoneProviders.Tzdb["Asia/Kolkata"];
     private static readonly GeoCoordinate NewDelhi = new(28.6139, 77.2090);
+    private static readonly GeoCoordinate DrikNewDelhi = new(28 + (38 / 60d) + (8 / 3600d), 77 + (13 / 60d) + (28 / 3600d));
     private static readonly IMoonEventCalculator Calculator = new MoonEventCalculator(new MeeusEphemeris());
 
-    /// <summary>Moonrise in New Delhi on Karwa Chauth, as published for the moon sighting.</summary>
+    /// <summary>
+    /// Moonrise in New Delhi (28°38′08″ N, 77°13′28″ E) on the Sankashti Chaturthis of 2025, as published by Drik
+    /// Panchang to the minute.
+    /// </summary>
     [Theory]
-    [InlineData(2023, 11, 1, 20, 15)]
-    [InlineData(2024, 10, 20, 19, 54)]
-    [InlineData(2025, 10, 10, 20, 13)]
-    public void Moonrise_MatchesPublishedTimes(int year, int month, int day, int hour, int minute)
+    [InlineData(1, 17, 21, 13)]
+    [InlineData(2, 16, 21, 43)]
+    [InlineData(3, 17, 21, 22)]
+    [InlineData(4, 16, 22, 5)]
+    [InlineData(5, 16, 22, 44)]
+    [InlineData(6, 14, 22, 12)]
+    [InlineData(7, 14, 21, 59)]
+    [InlineData(8, 12, 21, 4)]
+    [InlineData(9, 10, 20, 11)]
+    [InlineData(10, 10, 20, 18)]
+    [InlineData(11, 8, 20, 4)]
+    [InlineData(12, 7, 20, 0)]
+    public void Moonrise_MatchesDrikPanchang(int month, int day, int hour, int minute)
     {
-        var date = new LocalDate(year, month, day);
+        var date = new LocalDate(2025, month, day);
         var expected = date.At(new LocalTime(hour, minute)).InZoneStrictly(India).ToInstant();
 
-        var moonrise = Calculator.FindMoonrise(StartOf(date), StartOf(date.PlusDays(1)), NewDelhi);
+        var moonrise = Calculator.FindMoonrise(StartOf(date), StartOf(date.PlusDays(1)), DrikNewDelhi);
 
         Assert.NotNull(moonrise);
         var error = moonrise.Value - expected;
-        Assert.True(Duration.Max(error, -error) <= Duration.FromMinutes(3), $"Moonrise {moonrise.Value.InZone(India):HH:mm}, expected {hour:00}:{minute:00}.");
+        Assert.True(Duration.Max(error, -error) <= Duration.FromMinutes(1), $"Moonrise {moonrise.Value.InZone(India):HH:mm:ss}, expected {hour:00}:{minute:00}.");
     }
 
     [Fact]

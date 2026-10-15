@@ -68,7 +68,7 @@ internal sealed class FestivalCalculator(IPanchangCalculator panchang, ILunisola
                 moonEvents,
                 request.Location,
                 request.Festivals.SelectMany(festival => festival.Rules).Any(rule => rule.Time == ObservanceTime.Moonrise)),
-            new Dictionary<Instant, (LunarMonth Month, bool IsAdhika)>());
+            new Dictionary<(Instant Start, Instant End), (LunarMonth Month, bool IsAdhika)>());
 
         return request.Festivals
             .SelectMany(festival => festival.Rules.SelectMany(rule => Evaluate(festival.Key, rule, context)))
@@ -150,10 +150,10 @@ internal sealed class FestivalCalculator(IPanchangCalculator panchang, ILunisola
     /// </summary>
     private (LunarMonth Month, bool IsAdhika) LunarMonthOf(EvaluationContext context, Instant start, Instant end)
     {
-        if (!context.LunarMonths.TryGetValue(start, out var month))
+        if (!context.LunarMonths.TryGetValue((start, end), out var month))
         {
             month = calendar.GetLunarMonth(start + ((end - start) / 2));
-            context.LunarMonths[start] = month;
+            context.LunarMonths[(start, end)] = month;
         }
 
         return month;
@@ -318,7 +318,7 @@ internal sealed class FestivalCalculator(IPanchangCalculator panchang, ILunisola
         IReadOnlyList<(Instant Start, Instant End)> Bhadra,
         IReadOnlyList<Sankranti> Sankrantis,
         MoonriseCache Moonrises,
-        Dictionary<Instant, (LunarMonth Month, bool IsAdhika)> LunarMonths)
+        Dictionary<(Instant Start, Instant End), (LunarMonth Month, bool IsAdhika)> LunarMonths)
     {
         /// <summary>The day's observance window; null when it has none (no moonrise that day).</summary>
         public (Instant Start, Instant End)? Window(PanchangDay day, ObservanceTime time) =>

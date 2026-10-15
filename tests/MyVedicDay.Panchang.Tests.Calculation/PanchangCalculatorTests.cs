@@ -41,6 +41,52 @@ public sealed class PanchangCalculatorTests
         AssertClose(Instant.FromUtc(2024, 4, 23, 23, 49), pratipada.Start);
     }
 
+    /// <summary>
+    /// The Drik Panchang day for New Delhi (28°38′08″ N, 77°13′28″ E) on 2025-10-20 (Diwali), whose times are rounded to
+    /// the nearest minute: every element end and period boundary must round to the published minute (±1 minute where
+    /// the engine lies within a few seconds of a rounding boundary).
+    /// </summary>
+    [Fact]
+    public void Day_MatchesDrikPanchang_NewDelhi_2025_10_20()
+    {
+        var delhi = new GeoCoordinate(28 + (38 / 60d) + (8 / 3600d), 77 + (13 / 60d) + (28 / 3600d));
+        var day = _calculator.Calculate(new PanchangCalculationRequest(new LocalDate(2025, 10, 20), delhi, Kolkata, PanchangTraditions.Drik));
+        Instant At(int dayOfMonth, int hour, int minute) => new LocalDateTime(2025, 10, dayOfMonth, hour, minute).InZoneStrictly(Kolkata).ToInstant();
+        TimePeriod Period(PanchangPeriodKind kind) => day.Periods.First(period => period.Kind == kind);
+
+        var expectations = new (string Name, Instant Engine, Instant Drik)[]
+        {
+            ("Sunrise", day.Sun.Sunrise, At(20, 6, 25)),
+            ("Sunset", day.Sun.Sunset, At(20, 17, 46)),
+            ("Chaturdashi ends", day.Tithis[0].End, At(20, 15, 44)),
+            ("Hasta ends", day.Nakshatras[0].End, At(20, 20, 17)),
+            ("Vaidhriti ends", day.Yogas[0].End, At(21, 2, 35)),
+            ("Shakuni ends", day.Karanas[0].End, At(20, 15, 44)),
+            ("Chatushpada ends", day.Karanas[1].End, At(21, 4, 47)),
+            ("Brahma Muhurta starts", Period(PanchangPeriodKind.BrahmaMuhurta).Start, At(20, 4, 44)),
+            ("Brahma Muhurta ends", Period(PanchangPeriodKind.BrahmaMuhurta).End, At(20, 5, 34)),
+            ("Abhijit starts", Period(PanchangPeriodKind.AbhijitMuhurta).Start, At(20, 11, 43)),
+            ("Abhijit ends", Period(PanchangPeriodKind.AbhijitMuhurta).End, At(20, 12, 28)),
+            ("Rahu Kalam starts", Period(PanchangPeriodKind.RahuKalam).Start, At(20, 7, 50)),
+            ("Rahu Kalam ends", Period(PanchangPeriodKind.RahuKalam).End, At(20, 9, 15)),
+            ("Yamagandam starts", Period(PanchangPeriodKind.Yamagandam).Start, At(20, 10, 40)),
+            ("Yamagandam ends", Period(PanchangPeriodKind.Yamagandam).End, At(20, 12, 6)),
+            ("Gulika starts", Period(PanchangPeriodKind.GulikaKalam).Start, At(20, 13, 31)),
+            ("Gulika ends", Period(PanchangPeriodKind.GulikaKalam).End, At(20, 14, 56)),
+            ("Amrit Kalam starts", Period(PanchangPeriodKind.AmritKalam).Start, At(20, 13, 40)),
+            ("Amrit Kalam ends", Period(PanchangPeriodKind.AmritKalam).End, At(20, 15, 26)),
+            ("Varjyam starts", Period(PanchangPeriodKind.Varjyam).Start, At(21, 5, 11)),
+            ("Varjyam ends", Period(PanchangPeriodKind.Varjyam).End, At(21, 6, 57)),
+            ("Dur Muhurtam starts", Period(PanchangPeriodKind.DurMuhurtam).Start, At(20, 12, 28)),
+        };
+
+        Assert.All(expectations, expectation =>
+        {
+            var error = expectation.Engine - expectation.Drik;
+            Assert.True(Duration.Max(error, -error) <= Duration.FromSeconds(60), $"{expectation.Name}: engine {expectation.Engine.InZone(Kolkata):HH:mm:ss}, Drik {expectation.Drik.InZone(Kolkata):HH:mm}.");
+        });
+    }
+
     [Theory]
     [InlineData(2024, 1, 1)]
     [InlineData(2025, 6, 15)]

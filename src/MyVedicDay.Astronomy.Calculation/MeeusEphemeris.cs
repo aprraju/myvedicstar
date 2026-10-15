@@ -3,13 +3,23 @@ namespace MyVedicDay.Astronomy;
 /// <summary>
 /// Analytical ephemeris based on Meeus, "Astronomical Algorithms" (2nd ed.).
 /// </summary>
+/// <remarks>
+/// The lunar longitude includes <see cref="DrikPanchangLunarOffsetDegrees"/>. The ELP-2000/82 series alone reproduces
+/// the published (USNO) instants of the 2025 new and full moons within seconds, but Drik Panchang's Tithi, Karana and
+/// Nakshatra times correspond to a Moon 28″ further ahead, i.e. about a minute earlier. With the offset, 24 of 26
+/// published Drik tithi minutes for 2025 are reproduced exactly (none without it), so Panchang times agree with Drik
+/// Panchang to the minute; lunar phases then come out about 55 seconds before the astronomical instant.
+/// </remarks>
 internal sealed class MeeusEphemeris : IEphemeris
 {
+    /// <summary>Added to the lunar longitude so Panchang element times follow Drik Panchang (28″).</summary>
+    internal const double DrikPanchangLunarOffsetDegrees = 28d / 3600d;
+
     public double GetSunLongitude(double julianDayUt) =>
         SolarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(julianDayUt));
 
     public double GetMoonLongitude(double julianDayUt) =>
-        LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(julianDayUt));
+        AngleMath.NormalizeDegrees(LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(julianDayUt)) + DrikPanchangLunarOffsetDegrees);
 
     public EquatorialCoordinates GetSunEquatorial(double julianDayUt) =>
         SolarPosition.ApparentEquatorial(DeltaT.ToJulianEphemerisDay(julianDayUt));

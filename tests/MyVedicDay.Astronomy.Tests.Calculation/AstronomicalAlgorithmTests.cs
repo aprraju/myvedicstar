@@ -112,9 +112,18 @@ public sealed class AstronomicalAlgorithmTests
     }
 
     [Fact]
-    public void LahiriAyanamsa_AtJ2000_Is23Point857Degrees()
+    public void LahiriAyanamsa_MatchesTheValueDrikPanchangPublishes()
     {
-        // Swiss Ephemeris SE_SIDM_LAHIRI mean ayanamsa at J2000: 23.857°.
-        Assert.InRange(new LahiriAyanamsa().GetDegrees(JulianDay.J2000), 23.856, 23.858);
+        // Drik Panchang, New Delhi, 2025-10-20 (sunrise 00:55 UT): Lahiri Ayanamsha 24.224241°.
+        var sunrise = JulianDay.FromInstant(Instant.FromUtc(2025, 10, 20, 0, 55));
+
+        Assert.InRange(new LahiriAyanamsa().GetDegrees(sunrise), 24.224241 - 0.000005, 24.224241 + 0.000005);
+    }
+
+    [Fact]
+    public void LahiriAyanamsa_AtJ2000_IsTheSwissEphemerisValuePlusDriksOffset()
+    {
+        // Swiss Ephemeris SE_SIDM_LAHIRI mean ayanamsa at J2000: 23.857092°, plus Drik Panchang's 24.1″.
+        Assert.InRange(new LahiriAyanamsa().GetDegrees(JulianDay.J2000), 23.8638 - 0.0003, 23.8638 + 0.0003);
     }
 }

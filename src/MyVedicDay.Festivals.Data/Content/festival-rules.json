@@ -79,7 +79,7 @@
     { "key": "GitaJayanti", "category": "festival", "traditions": [ "north-indian", "gujarati", "marathi" ],
       "rules": [ { "basis": "Tithi", "lunarMonth": "Margashirsha", "tithi": "ShuklaEkadashi", "time": "Sunrise", "ekadashi": "Smarta" } ], "supersedes": [ "Ekadashi", "VaishnavaEkadashi" ] },
     { "key": "VaikunthaEkadashi", "category": "festival", "traditions": [ "telugu", "tamil", "kannada", "malayalam" ],
-      "rules": [ { "basis": "Tithi", "solarMonth": "Dhanu", "tithi": "ShuklaEkadashi", "time": "Sunrise" } ], "supersedes": [ "Ekadashi", "VaishnavaEkadashi" ] },
+      "rules": [ { "basis": "Tithi", "solarMonth": "Dhanu", "tithi": "ShuklaEkadashi", "time": "Arunodaya", "ekadashi": "Vaishnava" } ], "supersedes": [ "Ekadashi", "VaishnavaEkadashi" ] },
     { "key": "Lohri", "category": "festival", "traditions": [ "north-indian" ],
       "rules": [ { "basis": "Sankranti", "sign": "Makara", "time": "Sunset", "offsetDays": -1 } ] },
     { "key": "Bhogi", "category": "festival", "traditions": [ "telugu", "tamil", "kannada" ],

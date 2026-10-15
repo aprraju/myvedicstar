@@ -33,8 +33,10 @@ solstice instants (±1.5 minutes), published sunrise/sunset times and known new 
   precise planetary positions (outer planets, Lagna degrees) will need a higher-precision `IEphemeris`
   implementation. That is a new adapter, not a redesign.
 - **Moonrise** (`IMoonEventCalculator`) uses the Moon's latitude and distance (Meeus table 47.B and the distance column
-  of 47.A, validated against example 47.a) and the standard altitude h₀ = 0.7275·π − 0°34′. It matches published
-  New Delhi moonrise times within 3 minutes. The search samples hourly, so near-polar grazing moonrises can be missed.
+  of 47.A, validated against example 47.a). It follows Drik Panchang's definition: the centre of the disc, seen from
+  the observer, on the geometric horizon (h₀ = +π, no refraction). This reproduces Drik's twelve 2025 Sankashti
+  moonrise times for New Delhi within half a minute. The almanac definition (upper limb with refraction) would be
+  about 4 minutes earlier. The search samples hourly, so near-polar grazing moonrises can be missed.
 - **Planets** (`IPlanetEphemeris`) come from Standish's JPL Keplerian elements (table 1, fitted to 1800–2050), not from
   VSOP87: 0.1–0.2° for Jupiter and Saturn, better for the inner planets. This is ample for combustion orbs of 8–17°;
   published 2023–2026 conjunctions and oppositions are reproduced within hours. Longitudes are in the J2000 frame, so
@@ -43,7 +45,16 @@ solstice instants (±1.5 minutes), published sunrise/sunset times and known new 
 - The Espenak–Meeus ΔT model limits verified accuracy to 1900–2100, so requests outside that range are rejected.
 - The VSOP87 series costs about 0.6 ms more per Panchang day than the chapter 25 formula (about 1.3 ms in all). This is
   paid only on a cache miss.
-- Sankranti instants still come out about 6–11 minutes earlier than the moments published by Drik Panchang (for example
-  Makar Sankranti 2026: 15:07 vs 15:13 IST), although equinoxes match. This points to a difference of about 20″ in the
-  Lahiri ayanamsa definition rather than to the Sun. It has not moved any festival date in the 2021–2026 backtest. It
-  needs confirming against an authoritative ayanamsa value before the ayanamsa is changed.
+- **Calibration to Drik Panchang.** Drik Panchang (`drik` tradition) is the reference, and two of its conventions
+  differ from the bare astronomy:
+  - Its Lahiri ayanamsa is 24.1″ larger than the Government of India 1956 definition (it publishes 24.224241° for
+    2025-10-20). `LahiriAyanamsa` adds that constant, so Sankrantis are no longer about 10 minutes early.
+  - Its Tithi, Karana and Nakshatra times correspond to a lunar longitude 28″ ahead of ELP-2000/82, about a minute
+    earlier. The series itself reproduces USNO's 2025 new and full moons with a mean error of 0.6 s. `MeeusEphemeris`
+    adds the offset: with it, 24 of 26 published Drik tithi minutes for 2025 are reproduced exactly, against 0
+    without. Lunar phases therefore come out about 55 seconds before the astronomical instant, by design.
+  - Verified against Drik Panchang data (2025): the full Panchang of 20 October in New Delhi (22 timings, all to the
+    minute), every Ekadashi with its Gauna date in New Delhi (25 + 5) and Georgetown, Texas (25 + 4; one Smarta date
+    differs, where the Ekadashi begins 54 seconds before sunrise), and every Sankashti Chaturthi with its moonrise.
+  - Calibration changed 8 of about 4,450 festival occurrences in a 2021–2026 backtest of four cities. Each was a
+    tithi or Sankranti boundary within about a minute of the deciding moment.

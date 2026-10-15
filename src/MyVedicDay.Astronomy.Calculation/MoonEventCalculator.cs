@@ -16,15 +16,16 @@ public interface IMoonEventCalculator
 }
 
 /// <summary>
-/// Finds moonrise and moonset as the instants the Moon's upper limb crosses the horizon, with standard refraction and
-/// the Moon's parallax: altitude h₀ = 0.7275·π − 0°34′ (Meeus, "Astronomical Algorithms", chapter 15). The altitude is
-/// sampled every hour (the Moon cannot rise and set within an hour outside the polar regions) and each crossing is
-/// bisected to a tenth of a second.
+/// Finds moonrise and moonset as the instants the centre of the Moon's disc, seen from the observer, crosses the
+/// geometric horizon: no refraction, and the parallax applied, so the geocentric altitude is h₀ = +π (the Moon's
+/// horizontal parallax). This is the convention of Drik Panchang, whose published New Delhi moonrise times (the twelve
+/// Sankashti Chaturthis of 2025) it reproduces within half a minute; the almanac convention of Meeus, "Astronomical
+/// Algorithms", chapter 15 (upper limb with refraction, h₀ = 0.7275·π − 0°34′) gives moonrise about 4 minutes earlier.
+/// The altitude is sampled every hour (the Moon cannot rise and set within an hour outside the polar regions) and each
+/// crossing is bisected to a tenth of a second.
 /// </summary>
 internal sealed class MoonEventCalculator(IEphemeris ephemeris) : IMoonEventCalculator
 {
-    private const double RefractionDegrees = 0.5667;
-    private const double ParallaxFactor = 0.7275;
     private const double SampleDays = 1d / 24d;
     private const double ToleranceDays = 0.1 / 86400d;
 
@@ -82,7 +83,7 @@ internal sealed class MoonEventCalculator(IEphemeris ephemeris) : IMoonEventCalc
         return above;
     }
 
-    /// <summary>The Moon's geocentric altitude minus the altitude of moonrise, in degrees.</summary>
+    /// <summary>The Moon's geocentric altitude minus the altitude of moonrise (its horizontal parallax), in degrees.</summary>
     private double HeightAboveRisingAltitude(double julianDayUt, GeoCoordinate location)
     {
         var moon = ephemeris.GetMoonEquatorial(julianDayUt);
@@ -91,6 +92,6 @@ internal sealed class MoonEventCalculator(IEphemeris ephemeris) : IMoonEventCalc
         var sinAltitude = (AngleMath.Sin(location.Latitude) * AngleMath.Sin(moon.Declination))
             + (AngleMath.Cos(location.Latitude) * AngleMath.Cos(moon.Declination) * AngleMath.Cos(hourAngle));
 
-        return AngleMath.Asin(sinAltitude) - ((ParallaxFactor * moon.HorizontalParallax) - RefractionDegrees);
+        return AngleMath.Asin(sinAltitude) - moon.HorizontalParallax;
     }
 }

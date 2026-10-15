@@ -53,8 +53,10 @@ ADR-0008 lists festivals as a future feature domain.
    - `ekadashi: Smarta | Vaishnava` replaces the day choice for Ekadashi fasts. Smarta: the Ekadashi at sunrise, moved
      a day earlier when Dwadashi ends before the next sunrise (Parana must fall within Dwadashi). Vaishnava: the last
      day whose Arunodaya (96 minutes before sunrise) lies within the Ekadashi, or else the following day. The
-     `VaishnavaEkadashi` observance is hidden when it falls on a Smarta Ekadashi day. Vaikuntha Ekadashi keeps the
-     plain sunrise rule, which matches the Tirumala and Srirangam dates (23 December 2023, 30 December 2025).
+     `VaishnavaEkadashi` observance is hidden when it falls on a Smarta Ekadashi day. Vaikuntha Ekadashi uses the
+     Vaishnava day, as Drik Panchang lists it (31 December 2025 in New Delhi). Some temple calendars (Tirumala) use
+     the Smarta-style day instead (30 December 2025). The rules reproduce Drik's complete 2025 Ekadashi lists for New
+     Delhi (25 Smarta and 5 Gauna dates) and Georgetown, Texas (25 and 4).
 
    Rules with `avoidBhadra` or `sunriseDayMinimumFraction` first take the first day whose whole window the element
    covers. Other rules keep the plain "most of the window" choice. Applying the full-coverage step everywhere would

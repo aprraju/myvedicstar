@@ -208,17 +208,58 @@ public sealed class FestivalCalculatorTests
     }
 
     /// <summary>
-    /// Vaikuntha Ekadashi follows the South Indian temple calendars (Tirumala, Srirangam): the plain sunrise rule,
-    /// without the Smarta Parana shift (which would give 22 December 2023).
+    /// Drik Panchang lists Vaikuntha Ekadashi on the Vaishnava day: 10 January and 31 December 2025 in New Delhi
+    /// (Smarta Ekadashi 30 December), 9 January and 30 December 2025 in Georgetown, Texas.
     /// </summary>
     [Theory]
-    [InlineData("2023-12-10", "2023-12-23")]
-    [InlineData("2025-12-20", "2025-12-30")]
-    public void VaikunthaEkadashi_FollowsTheTempleCalendars(string from, string expected)
+    [InlineData("Asia/Kolkata", 28.6356, 77.2244, "2025-01-01", "2025-01-10")]
+    [InlineData("Asia/Kolkata", 28.6356, 77.2244, "2025-12-20", "2025-12-31")]
+    [InlineData("America/Chicago", 30.6327, -97.6772, "2025-01-01", "2025-01-09")]
+    [InlineData("America/Chicago", 30.6327, -97.6772, "2025-12-20", "2025-12-30")]
+    public void VaikunthaEkadashi_IsTheVaishnavaEkadashiInDhanu(string zone, double latitude, double longitude, string from, string expected)
     {
-        var rule = new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Sunrise, Tithi: Panchang.Calculation.Models.Tithi.ShuklaEkadashi, SolarMonth: Rashi.Dhanu);
+        var rule = new FestivalRule(
+            FestivalBasis.Tithi, ObservanceTime.Arunodaya, Tithi: Panchang.Calculation.Models.Tithi.ShuklaEkadashi, SolarMonth: Rashi.Dhanu,
+            Ekadashi: EkadashiConvention.Vaishnava);
 
-        Assert.Equal(Parse(expected), Assert.Single(Calculate(Chennai, Parse(from), Parse(from).PlusDays(20), rule)).Date);
+        var occurrences = Calculator.Calculate(new FestivalCalculationRequest(
+            Parse(from), Parse(from).PlusDays(15), new GeoCoordinate(latitude, longitude), DateTimeZoneProviders.Tzdb[zone], [new FestivalDefinition("Test", [rule])]));
+
+        Assert.Equal(Parse(expected), Assert.Single(occurrences).Date);
+    }
+
+    /// <summary>
+    /// Drik Panchang's complete 2025 lists for New Delhi: 25 Smarta Ekadashis, the 5 Gauna (Vaishnava) dates that
+    /// differ from them, and 12 Sankashti Chaturthis.
+    /// </summary>
+    [Fact]
+    public void Year2025_EkadashiAndSankashti_MatchDrikPanchang_NewDelhi()
+    {
+        var delhi = new GeoCoordinate(28.6356, 77.2244);
+        LocalDate[] Dates(params string[] dates) => dates.Select(Parse).ToArray();
+        var ekadashi = new[] { Panchang.Calculation.Models.Tithi.ShuklaEkadashi, Panchang.Calculation.Models.Tithi.KrishnaEkadashi };
+        FestivalDefinition Festival(string key, Func<Panchang.Calculation.Models.Tithi, FestivalRule> rule, params Panchang.Calculation.Models.Tithi[] tithis) =>
+            new(key, tithis.Select(rule).ToArray());
+
+        var occurrences = Calculator.Calculate(new FestivalCalculationRequest(new LocalDate(2025, 1, 1), new LocalDate(2025, 12, 31), delhi, India,
+        [
+            Festival("Smarta", tithi => new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Sunrise, Tithi: tithi, Ekadashi: EkadashiConvention.Smarta), ekadashi),
+            Festival("Vaishnava", tithi => new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Arunodaya, Tithi: tithi, Ekadashi: EkadashiConvention.Vaishnava), ekadashi),
+            Festival("Sankashti", tithi => new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Moonrise, Tithi: tithi), Panchang.Calculation.Models.Tithi.KrishnaChaturthi),
+        ]));
+        LocalDate[] Of(string key) => occurrences.Where(occurrence => occurrence.Key == key).Select(occurrence => occurrence.Date).ToArray();
+
+        var smarta = Of("Smarta");
+        Assert.Equal(
+            Dates("2025-01-10", "2025-01-25", "2025-02-08", "2025-02-24", "2025-03-10", "2025-03-25", "2025-04-08", "2025-04-24", "2025-05-08",
+                "2025-05-23", "2025-06-06", "2025-06-21", "2025-07-06", "2025-07-21", "2025-08-05", "2025-08-19", "2025-09-03", "2025-09-17",
+                "2025-10-03", "2025-10-17", "2025-11-01", "2025-11-15", "2025-12-01", "2025-12-15", "2025-12-30"),
+            smarta);
+        Assert.Equal(Dates("2025-03-26", "2025-06-07", "2025-06-22", "2025-11-02", "2025-12-31"), Of("Vaishnava").Except(smarta));
+        Assert.Equal(
+            Dates("2025-01-17", "2025-02-16", "2025-03-17", "2025-04-16", "2025-05-16", "2025-06-14", "2025-07-14", "2025-08-12", "2025-09-10",
+                "2025-10-10", "2025-11-08", "2025-12-07"),
+            Of("Sankashti"));
     }
 
     [Theory]
