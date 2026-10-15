@@ -17,17 +17,44 @@ public sealed class AstronomicalAlgorithmTests
     }
 
     [Fact]
-    public void SolarPosition_MatchesMeeusExample25a()
+    public void SolarPosition_MatchesMeeusExample25b()
     {
-        // 1992 October 13.0 TD. Meeus: true longitude 199.90988°, apparent δ = −7.78507°, α = 198.38083°.
+        // 1992 October 13.0 TD, VSOP87. Meeus: apparent λ = 199°54′21.818″ with Δψ = +15.908″,
+        // α = 13h13m30.749s = 198.378121°, δ = −7°47′01.74″ = −7.783817°.
         const double julianEphemerisDay = 2448908.5;
 
         var longitude = SolarPosition.MeanEquinoxLongitude(julianEphemerisDay);
         var equatorial = SolarPosition.ApparentEquatorial(julianEphemerisDay);
 
-        Assert.Equal(199.90988 - 0.00569, longitude, precision: 3);
-        Assert.Equal(-7.78507, equatorial.Declination, precision: 2);
-        Assert.Equal(198.38083, equatorial.RightAscension, precision: 2);
+        Assert.InRange(longitude, 199.9016410 - 0.0001, 199.9016410 + 0.0001);
+        Assert.Equal(-7.783817, equatorial.Declination, precision: 3);
+        Assert.Equal(198.378121, equatorial.RightAscension, precision: 3);
+    }
+
+    /// <summary>
+    /// Equinoxes and solstices (apparent solar longitude 0°, 90°, 180°, 270°) against the published instants, which
+    /// bound the error of every Sankranti and of the solar term in Tithi times.
+    /// </summary>
+    [Theory]
+    [InlineData(2025, 3, 20, 9, 1, 0)]
+    [InlineData(2025, 6, 21, 2, 42, 90)]
+    [InlineData(2025, 9, 22, 18, 19, 180)]
+    [InlineData(2025, 12, 21, 15, 3, 270)]
+    [InlineData(2026, 3, 20, 14, 46, 0)]
+    [InlineData(2026, 6, 21, 8, 24, 90)]
+    public void SolarLongitude_ReachesTheCardinalPointsAtThePublishedInstants(int year, int month, int day, int hour, int minute, double target)
+    {
+        var expected = Instant.FromUtc(year, month, day, hour, minute);
+        var ephemeris = new MeeusEphemeris();
+
+        var crossing = AngularCrossingFinder.FindCrossing(
+            julianDay => AngleMath.NormalizeDegrees(
+                ephemeris.GetSunLongitude(julianDay) + Nutation.InLongitude(DeltaT.ToJulianEphemerisDay(julianDay))),
+            target,
+            JulianDay.FromInstant(expected));
+
+        var error = JulianDay.ToInstant(crossing) - expected;
+        Assert.True(Duration.Max(error, -error) < Duration.FromMinutes(1.5), $"Off by {error.TotalMinutes:0.0} min.");
     }
 
     [Fact]
@@ -37,6 +64,18 @@ public sealed class AstronomicalAlgorithmTests
         var longitude = LunarPosition.MeanEquinoxLongitude(2448724.5);
 
         Assert.InRange(longitude, 133.162655 - 0.0005, 133.162655 + 0.0005);
+    }
+
+    [Fact]
+    public void LunarPosition_LatitudeDistanceAndParallax_MatchMeeusExample47a()
+    {
+        // 1992 April 12.0 TD. Meeus: β = −3.229126°, Δ = 368409.7 km, π = 0.991990°.
+        var position = LunarPosition.Position(2448724.5);
+
+        Assert.InRange(position.Longitude, 133.162655 - 0.0005, 133.162655 + 0.0005);
+        Assert.InRange(position.Latitude, -3.229126 - 0.0005, -3.229126 + 0.0005);
+        Assert.InRange(position.DistanceKm, 368409.7 - 1, 368409.7 + 1);
+        Assert.InRange(LunarPosition.HorizontalParallax(position.DistanceKm), 0.991990 - 0.0001, 0.991990 + 0.0001);
     }
 
     [Fact]

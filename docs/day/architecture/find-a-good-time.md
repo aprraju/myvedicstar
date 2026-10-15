@@ -136,7 +136,9 @@ Boundaries come from:
 
 - sunrise and sunset;
 - every period the tradition's Muhurta profile considers (Rahu Kalam, Yamagandam, Gulika, Dur Muhurtam, Varjyam,
-  Abhijit, Amrit Kalam, Brahma Muhurta, and Choghadiya where the profile uses it);
+  Abhijit, Amrit Kalam, Brahma Muhurta, and Choghadiya where the profile uses it). The Panchang day reports the
+  Brahma Muhurta before its own sunrise, outside every window. The evaluator therefore adds the one before the next
+  sunrise, at the same fraction of the night, so `Any`-window profiles such as Puja can use it;
 - every Tithi, Nakshatra, Yoga and Karana transition.
 
 Between consecutive boundaries every input is constant, so each elementary segment is evaluated exactly. This
@@ -403,7 +405,7 @@ over `Microsoft.Extensions.AI.IChatClient`. Developers switch providers by confi
 | # | Decision | Recommendation |
 |---|----------|----------------|
 | D1 | AI role | Explanation and "Other" classification only; the deterministic engine decides (C1). |
-| D2 | Wedding and Housewarming without Lagna, planets or personal data | Ship with available factors, cap at Favorable, mark `rulesCompleteness: partial` with reason `PERSONALIZED_MUHURTA_RECOMMENDED`. Alternatively, hide them until Lagna and planetary positions exist. |
+| D2 | Wedding and Housewarming without Lagna, planets or personal data | Ship with available factors, cap at Favorable, mark `rulesCompleteness: partial` with reason `PERSONALIZED_MUHURTA_RECOMMENDED`. Alternatively, hide them until Lagna and planetary positions exist. Update: Guru and Shukra Asta (Jupiter and Venus combustion) are now checked (ADR-0011); Lagna and personal factors are still missing. |
 | D3 | Calendar tile and Home status (C4) | Tiles and Home use the **General Muhurta day status**. `guidance.rating` stays the limb rating on the detail page, labelled "Day factors". |
 | D4 | "Copilot" provider (C3) | Azure OpenAI / Azure AI Foundry. |
 | D5 | UI work in `myvedicstar-ui` | Implement in that repository in phase M4, following its own architecture docs. |

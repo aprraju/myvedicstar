@@ -20,7 +20,8 @@ public interface IMuhurtaCalculator
     MuhurtaEvaluation Evaluate(MuhurtaCalculationRequest request, PanchangDay day) => Evaluate(request);
 }
 
-internal sealed class MuhurtaCalculator(IPanchangCalculator panchang, ILunisolarCalendar calendar) : IMuhurtaCalculator
+internal sealed class MuhurtaCalculator(IPanchangCalculator panchang, ILunisolarCalendar calendar, IPlanetEphemeris planets)
+    : IMuhurtaCalculator
 {
     public MuhurtaEvaluation Evaluate(MuhurtaCalculationRequest request)
     {
@@ -38,14 +39,31 @@ internal sealed class MuhurtaCalculator(IPanchangCalculator panchang, ILunisolar
         ArgumentNullException.ThrowIfNull(day);
         var profile = request.Profile;
         var needsMonth = profile.ExcludeAdhikaMonth || profile.ExcludedLunarMonths.Count > 0;
-        return MuhurtaDayEvaluator.Evaluate(day, profile, needsMonth ? calendar.GetLunarMonth(day.Sun.Sunrise) : null, request.BirthNakshatra);
+        return MuhurtaDayEvaluator.Evaluate(
+            day,
+            profile,
+            needsMonth ? calendar.GetLunarMonth(day.Sun.Sunrise) : null,
+            request.BirthNakshatra,
+            CombustPlanets(profile, JulianDay.FromInstant(day.Sun.Sunrise)));
     }
+
+    /// <summary>The profile's planets that are within their combustion orb of the Sun at <paramref name="julianDayUt"/>.</summary>
+    private Planet[] CombustPlanets(ActivityRuleProfile profile, double julianDayUt) =>
+        (profile.Combustion ?? new Dictionary<Planet, CombustionRule>())
+            .Where(entry =>
+            {
+                var orb = planets.IsRetrograde(entry.Key, julianDayUt) ? entry.Value.RetrogradeOrb : entry.Value.Orb;
+                return Math.Abs(planets.GetElongation(entry.Key, julianDayUt)) < orb;
+            })
+            .Select(entry => entry.Key)
+            .Order()
+            .ToArray();
 }
 
 /// <summary>Version of the Muhurta evaluation algorithm; part of every Muhurta cache key.</summary>
 public static class MuhurtaCalculationVersion
 {
-    public const string Current = "1.0.0";
+    public const string Current = "1.1.0";
 }
 
 /// <summary>Registers the Muhurta calculation engine.</summary>

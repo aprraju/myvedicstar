@@ -86,7 +86,11 @@ internal sealed class FestivalRulesProvider(IFestivalRulesRepository repository)
             ParseOptional<LunarMonth>(festival, "lunarMonth", rule.LunarMonth),
             ParseOptional<Rashi>(festival, "solarMonth", rule.SolarMonth),
             ParseOptional<Rashi>(festival, "sign", rule.Sign),
-            rule.OffsetDays);
+            rule.OffsetDays,
+            rule.AvoidBhadra,
+            rule.SunriseDayMinimumFraction,
+            ParseOptional<SolarMonthOccurrence>(festival, "occurrence", rule.Occurrence) ?? SolarMonthOccurrence.All,
+            ParseOptional<EkadashiConvention>(festival, "ekadashi", rule.Ekadashi));
 
         var complete = basis switch
         {
@@ -95,9 +99,27 @@ internal sealed class FestivalRulesProvider(IFestivalRulesRepository repository)
             _ => true,
         };
 
-        return complete
-            ? parsed
-            : throw new CalculationException($"Festival '{festival}' has a {basis} rule without a {basis.ToString().ToLowerInvariant()}.");
+        if (!complete)
+        {
+            throw new CalculationException($"Festival '{festival}' has a {basis} rule without a {basis.ToString().ToLowerInvariant()}.");
+        }
+
+        if (parsed.SunriseDayMinimumFraction is { } fraction && fraction is not (> 0 and <= 1))
+        {
+            throw new CalculationException($"Festival '{festival}' has a sunriseDayMinimumFraction outside (0, 1].");
+        }
+
+        if (parsed.Occurrence != SolarMonthOccurrence.All && parsed.SolarMonth is null)
+        {
+            throw new CalculationException($"Festival '{festival}' has an occurrence without a solarMonth.");
+        }
+
+        if (parsed.Ekadashi is not null && parsed.Tithi is not (Tithi.ShuklaEkadashi or Tithi.KrishnaEkadashi))
+        {
+            throw new CalculationException($"Festival '{festival}' has an ekadashi convention on a rule that is not an Ekadashi Tithi.");
+        }
+
+        return parsed;
     }
 
     private static TEnum? ParseOptional<TEnum>(string festival, string field, string? value)

@@ -9,7 +9,7 @@ namespace MyVedicDay.Astronomy;
 public static class AstronomyServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds <see cref="IEphemeris"/>, <see cref="ISunEventCalculator"/>, <see cref="LahiriAyanamsa"/> and
+    /// Adds <see cref="IEphemeris"/>, <see cref="ISunEventCalculator"/>, <see cref="IMoonEventCalculator"/>, <see cref="IPlanetEphemeris"/>, <see cref="LahiriAyanamsa"/> and
     /// <see cref="ILunisolarCalendar"/>.
     /// Stateless singletons; safe to call from several modules.
     /// </summary>
@@ -19,6 +19,8 @@ public static class AstronomyServiceCollectionExtensions
 
         services.TryAddSingleton<IEphemeris, MeeusEphemeris>();
         services.TryAddSingleton<ISunEventCalculator, SunEventCalculator>();
+        services.TryAddSingleton<IMoonEventCalculator, MoonEventCalculator>();
+        services.TryAddSingleton<IPlanetEphemeris, KeplerianPlanetEphemeris>();
         services.TryAddSingleton<LahiriAyanamsa>();
         services.TryAddSingleton<ILunisolarCalendar, LunisolarCalendar>();
 

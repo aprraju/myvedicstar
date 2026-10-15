@@ -44,8 +44,11 @@ evaluation for a Muhurta module.
    localized content, and clients never parse text.
 7. **Calendar and Home** use the General activity's day status (decision D3). The limb-only `guidance.rating`
    remains the "day factors" rating on the detail view.
-8. **Wedding and Housewarming** are evaluated with the available factors only (no Lagna, planets or personal data).
-   They are capped at Favorable and marked `rulesCompleteness: partial` (decision D2).
+8. **Wedding and Housewarming** are evaluated with the available factors only (no Lagna or personal data).
+   They are capped at Favorable and marked `rulesCompleteness: partial` (decision D2). Guru and Shukra Asta rule
+   them out: a profile's `combustion` lists planets and orbs (Jupiter 11°, Venus 10°, or 8° when retrograde), and a
+   day on which such a planet is within its orb of the Sun at sunrise gets reason `COMBUST_PLANET` and no Good Time.
+   The orb in longitude is used rather than heliacal visibility, so almanac Asta dates may differ by a day or two.
 
 ## Consequences
 

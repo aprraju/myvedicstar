@@ -54,6 +54,7 @@ public sealed record MuhurtaActivityDefinition(
 /// <param name="UnfavorablePeriods">Per period kind: severity alone and with a favorable period, or <c>ignore</c>.</param>
 /// <param name="ExcludedLunarMonths">Amanta months the activity is not undertaken in.</param>
 /// <param name="ExcludeAdhikaMonth">Whether an Adhika month rules the activity out.</param>
+/// <param name="Combustion">Per planet (<c>Jupiter</c>, <c>Venus</c>…): the combustion orb that rules the activity out, or <c>ignore</c>.</param>
 public sealed record MuhurtaRuleSet(
     string? Window = null,
     int? MinimumMinutes = null,
@@ -65,7 +66,14 @@ public sealed record MuhurtaRuleSet(
     IReadOnlyDictionary<string, FavorablePeriodData>? FavorablePeriods = null,
     IReadOnlyDictionary<string, UnfavorablePeriodData>? UnfavorablePeriods = null,
     IReadOnlyList<string>? ExcludedLunarMonths = null,
-    bool? ExcludeAdhikaMonth = null);
+    bool? ExcludeAdhikaMonth = null,
+    IReadOnlyDictionary<string, CombustionData>? Combustion = null);
+
+/// <summary>
+/// A planet's combustion orb in degrees, and the orb while it is retrograde (defaults to <c>orb</c>); <c>ignore</c>
+/// removes the planet.
+/// </summary>
+public sealed record CombustionData(double Orb = 0, double? RetrogradeOrb = null, bool Ignore = false);
 
 /// <summary>Minimum score for a status.</summary>
 public sealed record MuhurtaThreshold(string Status, int MinScore);

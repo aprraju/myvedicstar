@@ -19,7 +19,17 @@ namespace MyVedicDay.Muhurta.Calculation;
 /// </summary>
 internal static class MuhurtaDayEvaluator
 {
-    public static MuhurtaEvaluation Evaluate(PanchangDay day, ActivityRuleProfile profile, (LunarMonth Month, bool IsAdhika)? lunarMonth, Nakshatra? birthNakshatra = null)
+    /// <param name="day">The calculated Panchang day.</param>
+    /// <param name="profile">The activity's resolved rules.</param>
+    /// <param name="lunarMonth">The lunar month at sunrise, when the profile restricts months.</param>
+    /// <param name="birthNakshatra">The user's birth Nakshatra, for Tara Bala; null to skip it.</param>
+    /// <param name="combustPlanets">Planets of the profile's combustion rules that are combust at sunrise; they rule the day out.</param>
+    public static MuhurtaEvaluation Evaluate(
+        PanchangDay day,
+        ActivityRuleProfile profile,
+        (LunarMonth Month, bool IsAdhika)? lunarMonth,
+        Nakshatra? birthNakshatra = null,
+        IReadOnlyList<Planet>? combustPlanets = null)
     {
         ArgumentNullException.ThrowIfNull(day);
         ArgumentNullException.ThrowIfNull(profile);
@@ -27,7 +37,7 @@ internal static class MuhurtaDayEvaluator
         var windowStart = day.Sun.Sunrise;
         var windowEnd = profile.Window == EvaluationWindow.Daytime ? day.Sun.Sunset : day.Sun.NextSunrise;
 
-        var favorable = day.Periods
+        var favorable = WithClosingBrahmaMuhurta(day)
             .Where(period => profile.FavorablePeriods.TryGetValue(period.Kind, out var rule)
                 && !rule.ExcludedWeekdays.Contains(day.Weekday)
                 && Overlaps(period.Start, period.End, windowStart, windowEnd))
@@ -36,12 +46,16 @@ internal static class MuhurtaDayEvaluator
             .Where(period => profile.UnfavorablePeriods.ContainsKey(period.Kind) && Overlaps(period.Start, period.End, windowStart, windowEnd))
             .ToArray();
 
-        var monthExclusion = GetMonthExclusion(profile, lunarMonth);
+        IReadOnlyList<(string Code, string Subject)> dayExclusions =
+        [
+            .. GetMonthExclusion(profile, lunarMonth) is { } monthExclusion ? [monthExclusion] : Array.Empty<(string, string)>(),
+            .. (combustPlanets ?? []).Select(planet => (ReasonCodes.CombustPlanet, planet.ToString())),
+        ];
 
         var boundaries = Boundaries(day, favorable, unfavorable, windowStart, windowEnd);
         var elementary = boundaries
             .Zip(boundaries.Skip(1))
-            .Select(pair => EvaluateSegment(day, profile, favorable, unfavorable, monthExclusion, pair.First, pair.Second, birthNakshatra))
+            .Select(pair => EvaluateSegment(day, profile, favorable, unfavorable, dayExclusions, pair.First, pair.Second, birthNakshatra))
             .ToArray();
 
         var segments = Merge(elementary)
@@ -62,8 +76,35 @@ internal static class MuhurtaDayEvaluator
             DayStatus(segments, goodTimes),
             segments,
             goodTimes,
-            goodTimes.Length > 0 ? null : NoGoodTimeReason(segments, monthExclusion),
+            goodTimes.Length > 0 ? null : NoGoodTimeReason(segments, dayExclusions),
             lunarMonth?.Month);
+    }
+
+    /// <summary>
+    /// The day's periods plus the Brahma Muhurta that closes this Panchang day. The Panchang reports the Brahma Muhurta
+    /// before the day's sunrise, which no evaluation window reaches; the one before the next sunrise belongs to the
+    /// night evaluated here. It is placed at the same fraction of this night as the reported one of the previous night,
+    /// so it follows the tradition's rule.
+    /// </summary>
+    private static IEnumerable<TimePeriod> WithClosingBrahmaMuhurta(PanchangDay day)
+    {
+        foreach (var period in day.Periods)
+        {
+            yield return period;
+        }
+
+        if (day.Periods.FirstOrDefault(period => period.Kind == PanchangPeriodKind.BrahmaMuhurta) is not { } brahma)
+        {
+            yield break;
+        }
+
+        var previousNight = day.Sun.Sunrise - day.Sun.PreviousSunset;
+        var night = day.Sun.NextSunrise - day.Sun.Sunset;
+        yield return brahma with
+        {
+            Start = day.Sun.NextSunrise - (night * ((day.Sun.Sunrise - brahma.Start) / previousNight)),
+            End = day.Sun.NextSunrise - (night * ((day.Sun.Sunrise - brahma.End) / previousNight)),
+        };
     }
 
     private static (string Code, string Subject)? GetMonthExclusion(ActivityRuleProfile profile, (LunarMonth Month, bool IsAdhika)? lunarMonth)
@@ -110,7 +151,7 @@ internal static class MuhurtaDayEvaluator
         ActivityRuleProfile profile,
         IReadOnlyList<TimePeriod> favorable,
         IReadOnlyList<TimePeriod> unfavorable,
-        (string Code, string Subject)? monthExclusion,
+        IReadOnlyList<(string Code, string Subject)> dayExclusions,
         Instant start,
         Instant end,
         Nakshatra? birthNakshatra)
@@ -177,10 +218,10 @@ internal static class MuhurtaDayEvaluator
             status = Worse(status, activeFavorable.Length > 0 ? rule.WithFavorable : rule.Alone);
         }
 
-        if (monthExclusion is { } exclusion)
+        foreach (var (code, subject) in dayExclusions)
         {
             status = MuhurtaStatus.Avoid;
-            reasons.Add(new MuhurtaReason(ReasonType.Negative, exclusion.Code, exclusion.Subject));
+            reasons.Add(new MuhurtaReason(ReasonType.Negative, code, subject));
         }
 
         if (profile.MaximumStatus is { } maximum)
@@ -273,8 +314,8 @@ internal static class MuhurtaDayEvaluator
         return segments.Count == 0 ? MuhurtaStatus.Avoid : Worse(segments.Min(segment => segment.Status), MuhurtaStatus.Mixed);
     }
 
-    private static string NoGoodTimeReason(IReadOnlyList<MuhurtaSegment> segments, (string Code, string Subject)? monthExclusion) =>
-        monthExclusion is not null || segments.All(segment => segment.Reasons.Any(reason => reason.Code.StartsWith("EXCLUDED_", StringComparison.Ordinal)))
+    private static string NoGoodTimeReason(IReadOnlyList<MuhurtaSegment> segments, IReadOnlyList<(string Code, string Subject)> dayExclusions) =>
+        dayExclusions.Count > 0 || segments.All(segment => segment.Reasons.Any(reason => reason.Code.StartsWith("EXCLUDED_", StringComparison.Ordinal)))
             ? NoGoodTimeReasons.DayExcludedForActivity
             : NoGoodTimeReasons.NoQualifyingPeriod;
 

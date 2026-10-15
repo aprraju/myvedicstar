@@ -37,6 +37,54 @@ public sealed class ConflictResolutionTests
         Assert.Contains(conflict.Reasons, reason => reason.Code == "ABHIJIT_MUHURTA");
     }
 
+    /// <summary>
+    /// The Panchang reports the Brahma Muhurta before the day's sunrise (here the 14th of 15 Muhurtas of a 15-hour
+    /// night: 04:00–05:00). The one that closes the evaluated day sits at the same fraction of this 12-hour night:
+    /// 04:24–05:12 the next morning.
+    /// </summary>
+    [Fact]
+    public void BrahmaMuhurta_BeforeTheNextSunrise_SupportsAWholeDayEvaluation()
+    {
+        var day = Day([Period(PanchangPeriodKind.BrahmaMuhurta, At(4, 0), At(5, 0), auspicious: true)]);
+        day = day with { Sun = day.Sun with { PreviousSunset = At(6, 0) - Duration.FromHours(15) } };
+        var profile = WithBrahmaMuhurta(Profile(window: EvaluationWindow.Any));
+
+        var result = MuhurtaDayEvaluator.Evaluate(day, profile, null);
+
+        var nextMorning = At(4, 24) + Duration.FromDays(1);
+        var brahma = Segment(result, nextMorning);
+        Assert.Equal((nextMorning, nextMorning + Duration.FromMinutes(48)), (brahma.Start, brahma.End));
+        Assert.Equal(MuhurtaStatus.HighlyFavorable, brahma.Status); // 65 + 20
+        Assert.Contains(brahma.Reasons, reason => reason is { Type: ReasonType.Positive, Code: "BRAHMA_MUHURTA" });
+        Assert.True(brahma.IsGoodTime);
+    }
+
+    [Fact]
+    public void CombustPlanet_RulesOutTheWholeDay_WithTheReason()
+    {
+        var day = Day([Period(PanchangPeriodKind.AmritKalam, At(9, 0), At(10, 30), auspicious: true)]);
+
+        var result = MuhurtaDayEvaluator.Evaluate(day, Profile(), null, combustPlanets: [Planet.Jupiter]);
+
+        Assert.All(result.Segments, segment =>
+        {
+            Assert.Equal(MuhurtaStatus.Avoid, segment.Status);
+            Assert.Contains(segment.Reasons, reason => reason is { Type: ReasonType.Negative, Code: "COMBUST_PLANET", Subject: "Jupiter" });
+        });
+        Assert.Empty(result.GoodTimes);
+        Assert.Equal(NoGoodTimeReasons.DayExcludedForActivity, result.NoGoodTimeReason);
+    }
+
+    [Fact]
+    public void BrahmaMuhurta_DoesNotAffectADaytimeEvaluation()
+    {
+        var day = Day([Period(PanchangPeriodKind.BrahmaMuhurta, At(4, 24), At(5, 12), auspicious: true)]);
+
+        var result = MuhurtaDayEvaluator.Evaluate(day, WithBrahmaMuhurta(Profile()), null);
+
+        Assert.DoesNotContain(result.Segments, segment => segment.Reasons.Any(reason => reason.Code == "BRAHMA_MUHURTA"));
+    }
+
     [Fact]
     public void AmritKalamWithRahuKalam_IsMixed_WithTheFullRahuKalamTimes()
     {
@@ -216,4 +264,12 @@ public sealed class ConflictResolutionTests
 
     private static MuhurtaSegment Segment(MuhurtaEvaluation result, Instant start) =>
         Assert.Single(result.Segments, segment => segment.Start == start);
+
+    private static ActivityRuleProfile WithBrahmaMuhurta(ActivityRuleProfile profile) => profile with
+    {
+        FavorablePeriods = new Dictionary<PanchangPeriodKind, FavorablePeriodRule>(profile.FavorablePeriods)
+        {
+            [PanchangPeriodKind.BrahmaMuhurta] = new(20, new HashSet<IsoDayOfWeek>()),
+        },
+    };
 }

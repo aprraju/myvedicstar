@@ -51,6 +51,31 @@ public sealed class RealDayInvariantTests
         Assert.True(goodTimes > 0);
     }
 
+    /// <summary>
+    /// Jupiter is in conjunction with the Sun on 2026-07-29 (combust for about a month around it) and opposite it on
+    /// 2026-01-10. Venus is in superior conjunction on 2026-01-06.
+    /// </summary>
+    [Theory]
+    [InlineData(2026, 7, 29, Planet.Jupiter, true)]
+    [InlineData(2026, 7, 15, Planet.Jupiter, true)]
+    [InlineData(2026, 1, 10, Planet.Jupiter, false)]
+    [InlineData(2026, 1, 6, Planet.Venus, true)]
+    [InlineData(2026, 4, 1, Planet.Venus, false)]
+    public void CombustPlanet_RulesOutDaysNearItsConjunctionWithTheSun(int year, int month, int day, Planet planet, bool combust)
+    {
+        var profile = TestDays.Profile() with
+        {
+            Combustion = new Dictionary<Planet, CombustionRule> { [planet] = new(planet == Planet.Venus ? 10 : 11, planet == Planet.Venus ? 8 : 11) },
+        };
+
+        var result = Calculator.Evaluate(new MuhurtaCalculationRequest(
+            new LocalDate(year, month, day), new GeoCoordinate(17.385, 78.4867), DateTimeZoneProviders.Tzdb["Asia/Kolkata"], profile));
+
+        var ruledOut = result.Segments.All(segment => segment.Reasons.Any(reason => reason.Code == "COMBUST_PLANET" && reason.Subject == planet.ToString()));
+        Assert.Equal(combust, ruledOut);
+        Assert.Equal(combust, result.NoGoodTimeReason == NoGoodTimeReasons.DayExcludedForActivity);
+    }
+
     private static ActivityRuleProfile WithAllConflicts(ActivityRuleProfile profile) => profile with
     {
         UnfavorablePeriods = new Dictionary<PanchangPeriodKind, UnfavorablePeriodRule>

@@ -74,6 +74,7 @@ internal sealed class MuhurtaRulesProvider(IMuhurtaRulesRepository repository)
         var factors = Enum.GetValues<Limb>().ToDictionary(limb => limb, _ => new Dictionary<string, FactorEffect>(StringComparer.Ordinal));
         var favorable = new Dictionary<PanchangPeriodKind, FavorablePeriodRule>();
         var unfavorable = new Dictionary<PanchangPeriodKind, UnfavorablePeriodRule>();
+        var combustion = new Dictionary<Planet, CombustionRule>();
 
         foreach (var layer in layers)
         {
@@ -127,6 +128,24 @@ internal sealed class MuhurtaRulesProvider(IMuhurtaRulesRepository repository)
                     rule.Alone is null ? previous?.Alone ?? MuhurtaStatus.Avoid : Parse<MuhurtaStatus>(activity, "alone", rule.Alone),
                     rule.WithFavorable is null ? previous?.WithFavorable ?? MuhurtaStatus.Mixed : Parse<MuhurtaStatus>(activity, "withFavorable", rule.WithFavorable));
             }
+
+            foreach (var (planetName, rule) in layer.Combustion ?? new Dictionary<string, CombustionData>())
+            {
+                var planet = Parse<Planet>(activity, "combustion", planetName);
+                if (rule.Ignore)
+                {
+                    combustion.Remove(planet);
+                    continue;
+                }
+
+                var retrogradeOrb = rule.RetrogradeOrb ?? rule.Orb;
+                if (rule.Orb is not (> 0 and < 30) || retrogradeOrb is not (> 0 and < 30))
+                {
+                    throw new CalculationException($"Muhurta rules for '{activity}' have a combustion orb for {planet} outside (0°, 30°).");
+                }
+
+                combustion[planet] = new CombustionRule(rule.Orb, retrogradeOrb);
+            }
         }
 
         if (Enum.GetValues<FactorEffect>().Any(effect => !effectScores.ContainsKey(effect)) || thresholds is null || thresholds.Count == 0)
@@ -146,7 +165,8 @@ internal sealed class MuhurtaRulesProvider(IMuhurtaRulesRepository repository)
             favorable,
             unfavorable,
             (excludedMonths ?? []).Select(month => Parse<LunarMonth>(activity, "excludedLunarMonths", month)).ToHashSet(),
-            excludeAdhika ?? false);
+            excludeAdhika ?? false,
+            combustion);
     }
 
     /// <summary>Applies one layer of one limb: <c>*</c> first, then group names, then value keys.</summary>

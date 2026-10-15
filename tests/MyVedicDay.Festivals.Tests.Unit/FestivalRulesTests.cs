@@ -65,11 +65,57 @@ public sealed class FestivalRulesTests
     }
 
     [Fact]
+    public async Task DayChoiceOptions_AreParsed()
+    {
+        var rules = await Parse(
+            new FestivalRuleData("Tithi", "Aparahna", Tithi: "Purnima", AvoidBhadra: true, SunriseDayMinimumFraction: 0.2),
+            new FestivalRuleData("Nakshatra", "Sunrise", Nakshatra: "Shravana", SolarMonth: "Simha", Occurrence: "Last"));
+
+        var (bhadra, last) = (rules.Definitions[0].Rules[0], rules.Definitions[0].Rules[1]);
+        Assert.True(bhadra.AvoidBhadra);
+        Assert.Equal(0.2, bhadra.SunriseDayMinimumFraction);
+        Assert.Equal(Calculation.Models.SolarMonthOccurrence.All, bhadra.Occurrence);
+        Assert.Equal(Calculation.Models.SolarMonthOccurrence.Last, last.Occurrence);
+    }
+
+    [Fact]
+    public async Task EkadashiConvention_IsParsed_AndOnlyAllowedOnEkadashi()
+    {
+        var rules = await Parse(new FestivalRuleData("Tithi", "Arunodaya", Tithi: "KrishnaEkadashi", Ekadashi: "Vaishnava"));
+        Assert.Equal(Calculation.Models.EkadashiConvention.Vaishnava, rules.Definitions[0].Rules[0].Ekadashi);
+
+        await Assert.ThrowsAsync<MyVedicDay.Shared.Exceptions.CalculationException>(() =>
+            Parse(new FestivalRuleData("Tithi", "Sunrise", Tithi: "Purnima", Ekadashi: "Smarta")));
+    }
+
+    [Theory]
+    [InlineData(0d, null, null)]
+    [InlineData(1.5, null, null)]
+    [InlineData(null, "Last", null)]
+    [InlineData(null, "Second", "Simha")]
+    public async Task InvalidDayChoiceOptions_AreRejected(double? fraction, string? occurrence, string? solarMonth)
+    {
+        var rule = new FestivalRuleData("Tithi", "Sunrise", Tithi: "Purnima", SolarMonth: solarMonth, SunriseDayMinimumFraction: fraction, Occurrence: occurrence);
+
+        await Assert.ThrowsAsync<MyVedicDay.Shared.Exceptions.CalculationException>(() => Parse(rule));
+    }
+
+    [Fact]
     public void RegionalNames_OverrideOnlyKnownFestivalsAndTraditions()
     {
         var festivals = Document.Festivals.Select(festival => festival.Key).ToHashSet();
         var regional = English.Entries.Keys.Where(key => key.Contains("/festivals.", StringComparison.Ordinal));
 
         Assert.All(regional, key => Assert.Contains(key[(key.IndexOf('.', StringComparison.Ordinal) + 1)..], festivals));
+    }
+
+    private static Task<FestivalRules> Parse(params FestivalRuleData[] rules) =>
+        new FestivalRulesProvider(new StubRulesRepository(new FestivalRulesDocument(
+            "test", [new FestivalRuleEntry("Test", "festival", ["*"], rules, null)])))
+            .GetRulesAsync(CancellationToken.None);
+
+    private sealed class StubRulesRepository(FestivalRulesDocument document) : IFestivalRulesRepository
+    {
+        public Task<FestivalRulesDocument> GetRulesAsync(CancellationToken cancellationToken) => Task.FromResult(document);
     }
 }

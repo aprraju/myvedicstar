@@ -56,6 +56,14 @@ public sealed record FavorablePeriodRule(int Bonus, IReadOnlySet<IsoDayOfWeek> E
 /// </summary>
 public sealed record UnfavorablePeriodRule(MuhurtaStatus Alone, MuhurtaStatus WithFavorable);
 
+/// <summary>
+/// A planet whose combustion (Asta: being within <paramref name="Orb"/> degrees of the Sun) rules the activity out, e.g.
+/// Jupiter and Venus for weddings.
+/// </summary>
+/// <param name="Orb">Combustion orb in degrees of longitude.</param>
+/// <param name="RetrogradeOrb">Orb while the planet is retrograde (Venus: 8° instead of 10°).</param>
+public sealed record CombustionRule(double Orb, double RetrogradeOrb);
+
 /// <summary>Minimum score for a status.</summary>
 public sealed record StatusThreshold(MuhurtaStatus Status, int MinScore);
 
@@ -75,6 +83,7 @@ public sealed record StatusThreshold(MuhurtaStatus Status, int MinScore);
 /// <param name="UnfavorablePeriods">Periods that conflict with it, with their severities.</param>
 /// <param name="ExcludedLunarMonths">Amanta lunar months in which the activity is not undertaken.</param>
 /// <param name="ExcludeAdhikaMonth">Whether an Adhika (intercalary) month rules the activity out.</param>
+/// <param name="Combustion">Planets whose combustion rules the activity out; null or empty for none.</param>
 public sealed record ActivityRuleProfile(
     string Activity,
     EvaluationWindow Window,
@@ -87,4 +96,5 @@ public sealed record ActivityRuleProfile(
     IReadOnlyDictionary<PanchangPeriodKind, FavorablePeriodRule> FavorablePeriods,
     IReadOnlyDictionary<PanchangPeriodKind, UnfavorablePeriodRule> UnfavorablePeriods,
     IReadOnlySet<LunarMonth> ExcludedLunarMonths,
-    bool ExcludeAdhikaMonth);
+    bool ExcludeAdhikaMonth,
+    IReadOnlyDictionary<Planet, CombustionRule>? Combustion = null);

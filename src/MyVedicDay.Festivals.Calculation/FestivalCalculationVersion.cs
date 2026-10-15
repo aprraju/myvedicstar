@@ -6,5 +6,5 @@ namespace MyVedicDay.Festivals.Calculation;
 /// </summary>
 public static class FestivalCalculationVersion
 {
-    public const string Current = "1.0.0";
+    public const string Current = "1.1.0";
 }

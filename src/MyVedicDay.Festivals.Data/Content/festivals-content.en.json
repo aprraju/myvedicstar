@@ -12,6 +12,7 @@
     "observanceTimes.Sunset": { "name": "Sunset", "description": "At sunset." },
     "observanceTimes.Pradosha": { "name": "Pradosha", "description": "Evening twilight: the first fifth of the night after sunset." },
     "observanceTimes.Nishita": { "name": "Nishita", "description": "Midnight: the 8th of the night's 15 muhurtas." },
+    "observanceTimes.Moonrise": { "name": "Moonrise", "description": "The Tithi prevailing when the Moon rises." },
 
     "festivals.Ugadi": { "name": "Ugadi", "description": "Telugu and Kannada New Year, the first day of the lunar month Chaitra." },
     "kannada/festivals.Ugadi": { "name": "Yugadi" },
@@ -110,6 +111,7 @@
     "marathi/festivals.Holi": { "name": "Dhulivandan" },
 
     "festivals.Ekadashi": { "name": "Ekadashi", "description": "The eleventh lunar day, observed with fasting in honor of Lord Vishnu." },
+    "festivals.VaishnavaEkadashi": { "name": "Vaishnava Ekadashi", "description": "The Ekadashi fast by the Vaishnava rule (Ekadashi present at dawn, untouched by Dashami). Listed when it falls on a different day from the Smarta Ekadashi." },
     "festivals.Pradosham": { "name": "Pradosham", "description": "Trayodashi at dusk, dedicated to Lord Shiva." },
     "north-indian/festivals.Pradosham": { "name": "Pradosh Vrat" },
     "festivals.SankashtiChaturthi": { "name": "Sankashti Chaturthi", "description": "Krishna Chaturthi, a fast for Lord Ganesha broken after moonrise." },

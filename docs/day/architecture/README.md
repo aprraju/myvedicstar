@@ -131,7 +131,7 @@ IPanchangTraditionStrategy      Rahu/Yama/Gulika, Muhurtas, Varjyam, Amrit Kalam
 
 | Quantity | Method | Accuracy |
 |----------|--------|----------|
-| Solar longitude, RA/Dec | Meeus ch. 25 + nutation (ch. 22) | ~0.01° |
+| Solar longitude, RA/Dec | VSOP87, truncated (Meeus ch. 32, app. III) + nutation (ch. 22) | ~1″ |
 | Lunar longitude | Meeus ch. 47 (truncated ELP-2000/82, 59 terms) | ~10″ |
 | ΔT (TT − UT) | Espenak–Meeus polynomials | a few seconds, 1900–2100 |
 | Sidereal time | Meeus 12.4 | < 0.1 s |
@@ -428,7 +428,7 @@ Response (abridged):
                 "place": { "city": "Hyderabad", "state": "Telangana", "country": "India", "countryCode": "IN",
                            "displayName": "Hyderabad, Telangana, India" } },
   "tradition": { "key": "telugu", "name": "Telugu", "display": [ "Varjyam", "DurMuhurtam", "RahuKalam", "…" ] },
-  "calculationMethod": "drik", "calculationVersion": "1.1.0",
+  "calculationMethod": "drik", "calculationVersion": "1.2.0",
   "localToday": "2026-09-29", "generatedAt": "2026-09-29T01:11:03Z",
   "days": [{
     "date": "2026-09-29", "weekday": "Tuesday",
@@ -527,7 +527,7 @@ continues to the centralized handler.
 
 | Project | Scope |
 |---------|-------|
-| `Tests.Calculation` | Meeus worked examples (Sun, Moon, sidereal time), Lahiri at J2000, published sunrise/sunset for London, New York, Sydney and Austin (±2 min), the 2024-04-08 new moon and 2024-04-23 full moon (±2 min), contiguity and duration invariants, weekday rules, polar day |
+| `Tests.Calculation` | Meeus worked examples (Sun, Moon, sidereal time), 2025–2026 equinoxes and solstices (±1.5 min), Lahiri at J2000, published sunrise/sunset for London, New York, Sydney and Austin (±2 min), the 2024-04-08 new moon and 2024-04-23 full moon (±2 min), contiguity and duration invariants, weekday rules, polar day |
 | `Tests.Unit` | cache key format and normalization, local-midnight expiry incl. DST, coalescing, location/time zone resolution, facade date logic, cache reuse for overlapping ranges, layer-dependency rules |
 | `Tests.Integration` | API → Business → Calculation → cache through `WebApplicationFactory`: every endpoint, DST offsets, client time zone override, validation (400), polar day (422), correlation and security headers, health |
 

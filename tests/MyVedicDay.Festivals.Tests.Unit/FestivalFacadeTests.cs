@@ -111,6 +111,28 @@ public sealed class FestivalFacadeTests
         Assert.Contains(northIndian.Festivals, festival => festival.Date == vaikuntha.Date && festival.Key is "Ekadashi" or "GitaJayanti");
     }
 
+    /// <summary>
+    /// The Vaishnava Ekadashi is listed only when it falls on a different day from the Smarta one, and then on the
+    /// following day.
+    /// </summary>
+    [Fact]
+    public async Task VaishnavaEkadashi_IsListedOnlyWhenItDiffersFromTheSmartaDay()
+    {
+        using var host = new FestivalTestHost(GaneshChaturthiMorning);
+        string[] smartaKeys = ["Ekadashi", "DevshayaniEkadashi", "PrabodhiniEkadashi", "GitaJayanti", "VaikunthaEkadashi"];
+
+        var result = await host.Facade.GetRangeAsync(new FestivalQuery(Hyderabad, "all"), new DateOnly(2026, 1, 1), 366, CancellationToken.None);
+
+        var smarta = result.Festivals.Where(festival => smartaKeys.Contains(festival.Key)).Select(festival => festival.Date).ToHashSet();
+        var vaishnava = result.Festivals.Where(festival => festival.Key == "VaishnavaEkadashi").Select(festival => festival.Date).ToArray();
+        Assert.NotEmpty(vaishnava);
+        Assert.All(vaishnava, date =>
+        {
+            Assert.DoesNotContain(date, smarta);
+            Assert.Contains(date.AddDays(-1), smarta);
+        });
+    }
+
     [Fact]
     public async Task Observances_AreCategorized_AndListedAfterFestivals()
     {

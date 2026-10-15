@@ -31,6 +31,8 @@ public static class AngleMath
 
     public static double Cos(double degrees) => Math.Cos(degrees * DegreesToRadians);
 
+    public static double Tan(double degrees) => Math.Tan(degrees * DegreesToRadians);
+
     public static double Asin(double value) => Math.Asin(value) * RadiansToDegrees;
 
     public static double Acos(double value) => Math.Acos(value) * RadiansToDegrees;

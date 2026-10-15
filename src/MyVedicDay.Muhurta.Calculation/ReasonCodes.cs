@@ -12,6 +12,9 @@ public static class ReasonCodes
     public const string AdhikaMasa = "ADHIKA_MASA";
     public const string ExcludedLunarMonth = "EXCLUDED_LUNAR_MONTH";
 
+    /// <summary>A planet the activity needs is combust (too close to the Sun), e.g. Guru or Shukra Asta; the subject is the planet.</summary>
+    public const string CombustPlanet = "COMBUST_PLANET";
+
     /// <summary><c>FAVORABLE_NAKSHATRA</c>, <c>ADVERSE_TITHI</c>, <c>EXCLUDED_KARANA</c>…</summary>
     public static string ForLimb(FactorEffect effect, Limb limb) => effect switch
     {

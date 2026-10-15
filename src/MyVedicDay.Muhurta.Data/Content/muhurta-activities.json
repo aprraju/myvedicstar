@@ -1,6 +1,6 @@
 {
-  "$comment": "MyVedicDay Muhurta rules (ADR-0011). Profile = defaults, then the activity's rules, then the tradition's '*' rules, then the tradition's rules for the activity. Within one layer of 'factors', '*' applies first, then group names (see 'groups'), then value keys. Effects: Supportive, Neutral, Adverse, Excluded (rules the activity out). Unfavorable periods: the best status a segment may have while the period is active, alone or when it overlaps a favorable period (the conflict matrix). Defaults exclude, while in force, the values the daily guidance rates Avoid (Amavasya, Krishna Chaturdashi, Tikshna Nakshatras, Vyatipata, Vaidhriti, Vishti), so the General day status never contradicts the day factors. Provisional: review with the reference astrologer and bump 'version' on every change.",
-  "version": "2026.2-provisional",
+  "$comment": "MyVedicDay Muhurta rules (ADR-0011). Profile = defaults, then the activity's rules, then the tradition's '*' rules, then the tradition's rules for the activity. Within one layer of 'factors', '*' applies first, then group names (see 'groups'), then value keys. Effects: Supportive, Neutral, Adverse, Excluded (rules the activity out). Unfavorable periods: the best status a segment may have while the period is active, alone or when it overlaps a favorable period (the conflict matrix). Defaults exclude, while in force, the values the daily guidance rates Avoid (Amavasya, Krishna Chaturdashi, Tikshna Nakshatras, Vyatipata, Vaidhriti, Vishti), so the General day status never contradicts the day factors. 'combustion' rules the activity out while a planet is within its orb of the Sun at sunrise (Guru and Shukra Asta for weddings and housewarmings: Jupiter 11°, Venus 10°, 8° when retrograde), using the orb in longitude rather than heliacal visibility. Provisional: review with the reference astrologer and bump 'version' on every change.",
+  "version": "2026.3-provisional",
   "groups": {
     "tithi": {
       "nanda": [ "ShuklaPratipada", "ShuklaShashthi", "ShuklaEkadashi", "KrishnaPratipada", "KrishnaShashthi", "KrishnaEkadashi" ],
@@ -183,7 +183,8 @@
           "GulikaKalam": { "alone": "Caution", "withFavorable": "Caution" }
         },
         "excludedLunarMonths": [ "Ashadha", "Shravana", "Bhadrapada", "Ashwin", "Pausha" ],
-        "excludeAdhikaMonth": true
+        "excludeAdhikaMonth": true,
+        "combustion": { "Jupiter": { "orb": 11 }, "Venus": { "orb": 10, "retrogradeOrb": 8 } }
       }
     },
     {
@@ -205,7 +206,8 @@
           "Varjyam": { "alone": "Avoid", "withFavorable": "Avoid" }
         },
         "excludedLunarMonths": [ "Ashadha", "Shravana", "Bhadrapada", "Ashwin", "Pausha" ],
-        "excludeAdhikaMonth": true
+        "excludeAdhikaMonth": true,
+        "combustion": { "Jupiter": { "orb": 11 }, "Venus": { "orb": 10, "retrogradeOrb": 8 } }
       }
     },
     { "key": "general", "icon": "sun", "completeness": "full", "keywords": [], "rules": {} },

@@ -222,7 +222,7 @@ internal sealed class ResponseExampleTransformer : IOpenApiOperationTransformer
             "display": [ "RahuKalam", "Yamagandam", "GulikaKalam", "DurMuhurtam", "Varjyam", "AmritKalam", "AbhijitMuhurta", "BrahmaMuhurta", "Choghadiya" ]
           },
           "calculationMethod": "drik",
-          "calculationVersion": "1.1.0",
+          "calculationVersion": "1.2.0",
           "localToday": "2026-09-29",
           "localTodayDisplay": "29/09/2026",
           "displayFormat": { "datePattern": "dd/MM/yyyy", "timePattern": "HH:mm:ss", "countryCode": "IN", "example": "29/09/2026 06:05:58 IST" },

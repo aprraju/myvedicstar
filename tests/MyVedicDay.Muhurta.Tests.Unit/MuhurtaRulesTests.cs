@@ -76,6 +76,7 @@ public sealed class MuhurtaRulesTests
             Assert.False(string.IsNullOrWhiteSpace(English.Entries[$"muhurtaNoGoodTime.{code}"].Message)));
         AssertLabel($"muhurtaReasons.{ReasonCodes.AdhikaMasa}");
         AssertLabel($"muhurtaReasons.{ReasonCodes.ExcludedLunarMonth}");
+        AssertLabel($"muhurtaReasons.{ReasonCodes.CombustPlanet}");
         Assert.Contains("consult a qualified astrologer", English.Entries["muhurtaText.disclaimer"].Message, StringComparison.Ordinal);
     }
 
@@ -98,6 +99,22 @@ public sealed class MuhurtaRulesTests
         Assert.True(wedding.ExcludeAdhikaMonth);
         Assert.Equal(FactorEffect.Supportive, wedding.Factors[Limb.Nakshatra]["Rohini"]);
         Assert.Equal(FactorEffect.Excluded, wedding.Factors[Limb.Nakshatra]["Ardra"]); // '*' then values
+    }
+
+    [Fact]
+    public async Task WeddingAndHousewarming_AreRuledOutByGuruAndShukraAsta_OtherActivitiesAreNot()
+    {
+        var provider = Host.GetRequiredService<MuhurtaRulesProvider>();
+
+        foreach (var activity in new[] { "wedding", "housewarming" })
+        {
+            var profile = await provider.GetProfileAsync(activity, "all", CancellationToken.None);
+            Assert.Equal(new CombustionRule(11, 11), profile.Combustion![Astronomy.Planet.Jupiter]);
+            Assert.Equal(new CombustionRule(10, 8), profile.Combustion[Astronomy.Planet.Venus]);
+        }
+
+        var business = await provider.GetProfileAsync("business", "all", CancellationToken.None);
+        Assert.Empty(business.Combustion!);
     }
 
     private static void AssertLabel(string key)

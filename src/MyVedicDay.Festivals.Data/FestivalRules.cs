@@ -30,6 +30,13 @@ public sealed record FestivalRuleEntry(
 /// <param name="SolarMonth">Solar month as a sign, e.g. <c>Simha</c> (Chingam / Avani).</param>
 /// <param name="Sign">Sign entered at the Sankranti, e.g. <c>Makara</c>; omit for every Sankranti.</param>
 /// <param name="OffsetDays">Days after (positive) or before (negative) the day the rule finds.</param>
+/// <param name="AvoidBhadra">Count the observance window only where Bhadra (Vishti Karana) does not prevail.</param>
+/// <param name="SunriseDayMinimumFraction">
+/// When no day's window is fully covered: choose the day at whose sunrise the element prevails if it lasts at least
+/// this fraction (0–1] of that day's daytime, e.g. <c>0.2</c> (three Muhurtas) or <c>0.75</c> (three Praharas).
+/// </param>
+/// <param name="Occurrence">With <c>solarMonth</c>: <c>All</c> (default) or <c>Last</c> (only the month's last occurrence).</param>
+/// <param name="Ekadashi">For an Ekadashi Tithi: the fasting convention, <c>Smarta</c> or <c>Vaishnava</c>.</param>
 public sealed record FestivalRuleData(
     string Basis,
     string Time,
@@ -38,7 +45,11 @@ public sealed record FestivalRuleData(
     string? LunarMonth = null,
     string? SolarMonth = null,
     string? Sign = null,
-    int OffsetDays = 0);
+    int OffsetDays = 0,
+    bool AvoidBhadra = false,
+    double? SunriseDayMinimumFraction = null,
+    string? Occurrence = null,
+    string? Ekadashi = null);
 
 /// <summary>
 /// Source of the festival rules. The embedded file can be replaced as a whole by <c>festival-rules.json</c> in the

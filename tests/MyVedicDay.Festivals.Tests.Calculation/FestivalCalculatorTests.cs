@@ -22,21 +22,49 @@ public sealed class FestivalCalculatorTests
     private static readonly IFestivalCalculator Calculator = Services.GetRequiredService<IFestivalCalculator>();
     private static readonly ILunisolarCalendar Calendar = Services.GetRequiredService<ILunisolarCalendar>();
 
+    private static readonly FestivalRule HolikaDahan = Tithi(LunarMonth.Phalguna, Panchang.Calculation.Models.Tithi.Purnima, ObservanceTime.Pradosha)
+        with { AvoidBhadra = true, SunriseDayMinimumFraction = 0.75 };
+
+    private static readonly FestivalRule RakshaBandhan = Tithi(LunarMonth.Shravana, Panchang.Calculation.Models.Tithi.Purnima, ObservanceTime.Aparahna)
+        with { AvoidBhadra = true, SunriseDayMinimumFraction = 0.2 };
+
+    private static readonly FestivalRule Vijayadashami = Tithi(LunarMonth.Ashwin, Panchang.Calculation.Models.Tithi.ShuklaDashami, ObservanceTime.Aparahna)
+        with { SunriseDayMinimumFraction = 0.2 };
+
     public static TheoryData<string, FestivalRule, string> LunarFestivals() => new()
     {
         { "Ugadi", Tithi(LunarMonth.Chaitra, Panchang.Calculation.Models.Tithi.ShuklaPratipada, ObservanceTime.Sunrise), "2025-03-30" },
         { "Rama Navami", Tithi(LunarMonth.Chaitra, Panchang.Calculation.Models.Tithi.ShuklaNavami, ObservanceTime.Madhyahna), "2025-04-06" },
-        { "Raksha Bandhan", Tithi(LunarMonth.Shravana, Panchang.Calculation.Models.Tithi.Purnima, ObservanceTime.Sunrise), "2025-08-09" },
+        { "Raksha Bandhan", RakshaBandhan, "2025-08-09" },
         { "Ganesh Chaturthi", Tithi(LunarMonth.Bhadrapada, Panchang.Calculation.Models.Tithi.ShuklaChaturthi, ObservanceTime.Madhyahna), "2025-08-27" },
         { "Navaratri", Tithi(LunarMonth.Ashwin, Panchang.Calculation.Models.Tithi.ShuklaPratipada, ObservanceTime.Sunrise), "2025-09-22" },
-        { "Vijayadashami", Tithi(LunarMonth.Ashwin, Panchang.Calculation.Models.Tithi.ShuklaDashami, ObservanceTime.Aparahna), "2025-10-02" },
+        { "Vijayadashami", Vijayadashami, "2025-10-02" },
         { "Diwali", Tithi(LunarMonth.Ashwin, Panchang.Calculation.Models.Tithi.Amavasya, ObservanceTime.Pradosha), "2025-10-20" },
         { "Maha Shivaratri", Tithi(LunarMonth.Magha, Panchang.Calculation.Models.Tithi.KrishnaChaturdashi, ObservanceTime.Nishita), "2025-02-26" },
-        { "Holika Dahan", Tithi(LunarMonth.Phalguna, Panchang.Calculation.Models.Tithi.Purnima, ObservanceTime.Pradosha), "2025-03-13" },
-        { "Holi", Tithi(LunarMonth.Phalguna, Panchang.Calculation.Models.Tithi.Purnima, ObservanceTime.Pradosha) with { OffsetDays = 1 }, "2025-03-14" },
+        { "Holika Dahan", HolikaDahan, "2025-03-13" },
+        { "Holi", HolikaDahan with { OffsetDays = 1 }, "2025-03-14" },
+
+        // Bhadra covers the Pradosha of the day Purnima begins, and Purnima lasts three Praharas into the next day.
+        { "Holika Dahan 2023", HolikaDahan, "2023-03-07" },
+        { "Holi 2023", HolikaDahan with { OffsetDays = 1 }, "2023-03-08" },
+        { "Holika Dahan 2026", HolikaDahan, "2026-03-03" },
+        { "Holi 2026", HolikaDahan with { OffsetDays = 1 }, "2026-03-04" },
+
+        // Bhadra covers Purnima's first Aparahna, and Purnima ends within three Muhurtas of the next sunrise.
+        { "Raksha Bandhan 2021", RakshaBandhan, "2021-08-22" },
+        { "Raksha Bandhan 2022", RakshaBandhan, "2022-08-11" },
+        { "Raksha Bandhan 2023", RakshaBandhan, "2023-08-30" },
+        { "Raksha Bandhan 2024", RakshaBandhan, "2024-08-19" },
+
+        // Dashami touches only part of one Aparahna, and lasts three Muhurtas past the next sunrise.
+        { "Vijayadashami 2022", Vijayadashami, "2022-10-05" },
+        { "Vijayadashami 2024", Vijayadashami, "2024-10-12" },
+
+        // Ashtami covers Nishita on both nights: the plain rule keeps the later, longer window (published date).
+        { "Krishna Janmashtami 2021", Tithi(LunarMonth.Shravana, Panchang.Calculation.Models.Tithi.KrishnaAshtami, ObservanceTime.Nishita), "2021-08-30" },
 
         // 2026 has an Adhika Jyeshtha (17 May – 15 June), which moves every later festival by a month.
-        { "Raksha Bandhan 2026", Tithi(LunarMonth.Shravana, Panchang.Calculation.Models.Tithi.Purnima, ObservanceTime.Sunrise), "2026-08-28" },
+        { "Raksha Bandhan 2026", RakshaBandhan, "2026-08-28" },
         { "Ganesh Chaturthi 2026", Tithi(LunarMonth.Bhadrapada, Panchang.Calculation.Models.Tithi.ShuklaChaturthi, ObservanceTime.Madhyahna), "2026-09-14" },
         { "Diwali 2026", Tithi(LunarMonth.Ashwin, Panchang.Calculation.Models.Tithi.Amavasya, ObservanceTime.Pradosha), "2026-11-08" },
     };
@@ -95,6 +123,118 @@ public sealed class FestivalCalculatorTests
         Assert.Equal(new LocalDate(2025, 9, 5), occurrence.Date);
     }
 
+    /// <summary>
+    /// The Nakshatra occurs twice in the solar month; only the last one is the festival. The requested range holds only
+    /// the first, so the engine must look past it to the end of the month.
+    /// </summary>
+    [Theory]
+    [InlineData(Nakshatra.Shravana, Rashi.Simha, ObservanceTime.Sunrise, "2024-08-10", "2024-08-25", null)]
+    [InlineData(Nakshatra.Shravana, Rashi.Simha, ObservanceTime.Sunrise, "2024-08-10", "2024-09-30", "2024-09-15")]
+    [InlineData(Nakshatra.Krittika, Rashi.Vrischika, ObservanceTime.Pradosha, "2024-11-10", "2024-12-31", "2024-12-13")]
+    [InlineData(Nakshatra.Pushya, Rashi.Makara, ObservanceTime.Sunrise, "2025-01-10", "2025-02-28", "2025-02-11")]
+    public void LastOccurrenceRule_KeepsOnlyTheMonthsLastNakshatra(
+        Nakshatra nakshatra, Rashi solarMonth, ObservanceTime time, string from, string to, string? expected)
+    {
+        var rule = new FestivalRule(FestivalBasis.Nakshatra, time, Nakshatra: nakshatra, SolarMonth: solarMonth, Occurrence: SolarMonthOccurrence.Last);
+
+        var occurrences = Calculate(Chennai, Parse(from), Parse(to), rule);
+
+        Assert.Equal(expected is null ? [] : [Parse(expected)], occurrences.Select(occurrence => occurrence.Date));
+    }
+
+    [Fact]
+    public void AllOccurrencesRule_ListsBothNakshatrasInTheMonth()
+    {
+        var rule = new FestivalRule(FestivalBasis.Nakshatra, ObservanceTime.Sunrise, Nakshatra: Nakshatra.Shravana, SolarMonth: Rashi.Simha);
+
+        var occurrences = Calculate(Kochi, new LocalDate(2024, 8, 10), new LocalDate(2024, 9, 30), rule);
+
+        Assert.Equal(2, occurrences.Count);
+    }
+
+    [Fact]
+    public void AvoidBhadra_ReportsTheWindowOfTheChosenDay()
+    {
+        var holika = Assert.Single(Calculate(NewDelhi, new LocalDate(2026, 2, 20), new LocalDate(2026, 3, 20), HolikaDahan));
+
+        Assert.Equal(new LocalDate(2026, 3, 3), holika.Date);
+        Assert.NotNull(holika.WindowStart);
+        Assert.True(holika.WindowStart > holika.BasisEnd, "Purnima has ended before this Pradosha: the sunrise-day rule chose it.");
+    }
+
+    /// <summary>
+    /// Sankashti Chaturthi is the day Krishna Chaturthi prevails at moonrise. In March 2025 Chaturthi begins at 19:33 on
+    /// the 17th, before that night's moonrise, and ends before the moonrise of the 18th: Pradosha would wrongly pick the 18th.
+    /// In October 2025 Chaturthi (9th 22:54 – 10th 19:38) misses both moonrises, so the day it covers most is kept.
+    /// </summary>
+    [Theory]
+    [InlineData("2021-01-31", true)]
+    [InlineData("2024-10-20", true)]
+    [InlineData("2025-01-17", true)]
+    [InlineData("2025-03-17", true)]
+    [InlineData("2025-10-10", false)]
+    public void SankashtiChaturthi_IsTheDayChaturthiPrevailsAtMoonrise(string expected, bool prevailsAtMoonrise)
+    {
+        var date = Parse(expected);
+        var rule = new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Moonrise, Tithi: Panchang.Calculation.Models.Tithi.KrishnaChaturthi);
+
+        var occurrence = Assert.Single(Calculate(NewDelhi, date.PlusDays(-10), date.PlusDays(10), rule));
+
+        Assert.Equal(date, occurrence.Date);
+        Assert.NotNull(occurrence.WindowStart);
+        Assert.Equal(occurrence.WindowStart, occurrence.WindowEnd);
+        Assert.Equal(prevailsAtMoonrise, occurrence.BasisStart <= occurrence.WindowStart && occurrence.WindowStart < occurrence.BasisEnd);
+    }
+
+    /// <summary>
+    /// Smarta and Vaishnava (Gauna) Ekadashi in New Delhi, 2025: Nirjala (Ekadashi at both Arunodayas), Devshayani
+    /// (one day for both), Prabodhini (Dwadashi ends before the next sunrise, so Smarta moves back a day) and Mokshada
+    /// (Ekadashi touches no sunrise; Dashami at the first Arunodaya, so Vaishnava fasts on Dwadashi).
+    /// </summary>
+    [Theory]
+    [InlineData("2025-06-01", "2025-06-06", "2025-06-07")]
+    [InlineData("2025-07-01", "2025-07-06", "2025-07-06")]
+    [InlineData("2025-10-28", "2025-11-01", "2025-11-02")]
+    [InlineData("2025-12-26", "2025-12-30", "2025-12-31")]
+    public void Ekadashi_FollowsTheSmartaAndVaishnavaConventions(string from, string smarta, string vaishnava)
+    {
+        var start = Parse(from);
+        var rule = new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Sunrise, Tithi: Panchang.Calculation.Models.Tithi.ShuklaEkadashi);
+
+        var smartaDay = Assert.Single(Calculate(NewDelhi, start, start.PlusDays(8), rule with { Ekadashi = EkadashiConvention.Smarta })).Date;
+        var vaishnavaDay = Assert.Single(Calculate(NewDelhi, start, start.PlusDays(8), rule with { Ekadashi = EkadashiConvention.Vaishnava, Time = ObservanceTime.Arunodaya })).Date;
+
+        Assert.Equal((Parse(smarta), Parse(vaishnava)), (smartaDay, vaishnavaDay));
+    }
+
+    /// <summary>
+    /// Vaikuntha Ekadashi follows the South Indian temple calendars (Tirumala, Srirangam): the plain sunrise rule,
+    /// without the Smarta Parana shift (which would give 22 December 2023).
+    /// </summary>
+    [Theory]
+    [InlineData("2023-12-10", "2023-12-23")]
+    [InlineData("2025-12-20", "2025-12-30")]
+    public void VaikunthaEkadashi_FollowsTheTempleCalendars(string from, string expected)
+    {
+        var rule = new FestivalRule(FestivalBasis.Tithi, ObservanceTime.Sunrise, Tithi: Panchang.Calculation.Models.Tithi.ShuklaEkadashi, SolarMonth: Rashi.Dhanu);
+
+        Assert.Equal(Parse(expected), Assert.Single(Calculate(Chennai, Parse(from), Parse(from).PlusDays(20), rule)).Date);
+    }
+
+    [Theory]
+    [InlineData("2021-10-24")]
+    [InlineData("2022-10-13")]
+    [InlineData("2023-11-01")]
+    [InlineData("2024-10-20")]
+    [InlineData("2025-10-10")]
+    public void KarwaChauth_FallsOnThePublishedDate(string expected)
+    {
+        var date = Parse(expected);
+        var rule = Tithi(LunarMonth.Ashwin, Panchang.Calculation.Models.Tithi.KrishnaChaturthi, ObservanceTime.Moonrise);
+
+        Assert.Equal(date, Assert.Single(Calculate(NewDelhi, date.PlusDays(-20), date.PlusDays(20), rule)).Date);
+    }
+
     [Fact]
     public void MonthlyRule_FindsEveryOccurrence_IncludingInAdhikaMonths()
     {
@@ -148,6 +288,9 @@ public sealed class FestivalCalculatorTests
         Assert.Equal(Rashi.Dhanu, sankrantis[^1].Sign);
         Assert.True(sankrantis.Zip(sankrantis.Skip(1)).All(pair => pair.First.At < pair.Second.At));
     }
+
+    private static LocalDate Parse(string date) =>
+        LocalDate.FromDateTime(DateTime.Parse(date, System.Globalization.CultureInfo.InvariantCulture));
 
     private static FestivalRule Tithi(LunarMonth month, Panchang.Calculation.Models.Tithi tithi, ObservanceTime time) =>
         new(FestivalBasis.Tithi, time, Tithi: tithi, LunarMonth: month);

@@ -59,6 +59,7 @@
     "muhurtaReasons.CHOGHADIYA_CHAL": { "name": "Chal Choghadiya" },
     "muhurtaReasons.ADHIKA_MASA": { "name": "Adhika (intercalary) month" },
     "muhurtaReasons.EXCLUDED_LUNAR_MONTH": { "name": "Month traditionally avoided for this activity" },
+    "muhurtaReasons.COMBUST_PLANET": { "name": "Planet combust (too close to the Sun): Guru or Shukra Asta" },
     "muhurtaReasons.NO_RAHU_KALAM_CONFLICT": { "name": "No Rahu Kalam conflict" },
     "muhurtaReasons.NO_YAMAGANDAM_CONFLICT": { "name": "No Yamagandam conflict" },
     "muhurtaReasons.NO_DUR_MUHURTAM_CONFLICT": { "name": "No Dur Muhurtam conflict" },

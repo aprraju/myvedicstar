@@ -37,6 +37,29 @@ ADR-0008 lists festivals as a future feature domain.
    A festival falls on the day the element covers most of the observance window. The earlier day wins a tie (a Tithi
    that prevails at two sunrises). When the element touches no window, the day it covers most wins. A Sankranti
    falls on the first day whose observance time is at or after it.
+
+   Three options express the classical tie-breaks:
+   - `avoidBhadra`: the window counts only where Bhadra (Vishti Karana, the first half of Purnima) does not prevail.
+   - `sunriseDayMinimumFraction`: when no day's window is fully covered (Bhadra-free), the day at whose sunrise the
+     element prevails is chosen if the element lasts at least this fraction of that daytime. Examples: three Muhurtas
+     (0.2) for Raksha Bandhan and Vijayadashami, three Praharas (0.75) for Holika Dahan.
+   - `occurrence: Last`: a solar-month rule keeps only the month's last occurrence. Onam, Karthigai Deepam and Thai
+     Pusam fall on the later Nakshatra when it occurs twice in Chingam, Karthigai or Thai. To decide this, the engine
+     calculates the rest of the solar month only when such a festival falls in the requested range.
+
+   Two further options:
+   - the observance time `Moonrise`: the moonrise between the day's sunrise and the next (Sankashti Chaturthi, Karwa
+     Chauth). A day without a moonrise has no window. Moonrise is searched only for the days a matching Tithi touches.
+   - `ekadashi: Smarta | Vaishnava` replaces the day choice for Ekadashi fasts. Smarta: the Ekadashi at sunrise, moved
+     a day earlier when Dwadashi ends before the next sunrise (Parana must fall within Dwadashi). Vaishnava: the last
+     day whose Arunodaya (96 minutes before sunrise) lies within the Ekadashi, or else the following day. The
+     `VaishnavaEkadashi` observance is hidden when it falls on a Smarta Ekadashi day. Vaikuntha Ekadashi keeps the
+     plain sunrise rule, which matches the Tirumala and Srirangam dates (23 December 2023, 30 December 2025).
+
+   Rules with `avoidBhadra` or `sunriseDayMinimumFraction` first take the first day whose whole window the element
+   covers. Other rules keep the plain "most of the window" choice. Applying the full-coverage step everywhere would
+   move Janmashtami 2021 off the published date: Ashtami covers Nishita on both nights, and the real tie-break, Rohini,
+   is not modelled.
 3. **Traditions** decide *which* festivals are listed (each festival lists its traditions, or `*`; `all` lists every
    festival). Regional names are content (`{tradition}/festivals.{key}`). A festival may *supersede* others on the
    same date, so a named festival hides the generic observance (Vaikuntha Ekadashi hides Ekadashi).
@@ -57,12 +80,16 @@ ADR-0008 lists festivals as a future feature domain.
   calculation cache can be introduced behind `IPanchangCalculator`.
 - Verified against published dates (2025: Ugadi, Rama Navami, Raksha Bandhan, Ganesh Chaturthi, Navaratri,
   Vijayadashami, Diwali, Maha Shivaratri, Holika Dahan, Holi, Onam, Puthandu; 2026: Raksha Bandhan, Ganesh Chaturthi
-  and Diwali after the Adhika month; Makar Sankranti 2026).
-- Known simplifications, to review with the reference astrologer (rules version `2026.1-provisional`):
-  - Bhadra (Vishti) avoidance is approximated: Raksha Bandhan uses the sunrise Purnima. Holika Dahan uses Pradosha
-    without the Bhadra check.
-  - Moonrise-based observances (Karwa Chauth, Sankashti Chaturthi) use Pradosha.
-  - Ekadashi uses the sunrise rule, without the Vaishnava Dashami-viddha rule.
+  and Diwali after the Adhika month; Makar Sankranti 2026). Rules version `2026.2-provisional` adds Holika Dahan and
+  Holi 2023 and 2026, Raksha Bandhan 2021–2024, Vijayadashami 2022 and 2024, Janmashtami 2021, and the last-occurrence
+  cases Onam 2024, Karthigai Deepam 2024 and Thai Pusam 2025.
+- Known simplifications, to review with the reference astrologer (rules version `2026.2-provisional`):
+  - Bhadra is handled through the generic options above, not the full Bhadra Mukha and Bhadra Puchha rules.
+  - Ekadashi conventions follow the classical rules above, checked against four 2025 Ekadashis (Nirjala,
+    Devshayani, Prabodhini, Mokshada). Mahadwadashi cases and regional Vaishnava calendars (ISKCON, Sri Vaishnava)
+    are not modelled separately.
   - Solar months begin at sunset of the Sankranti day (the Tamil convention).
-  - If a Nakshatra occurs twice in one solar month, both days are listed.
+  - A Nakshatra that occurs twice in one solar month gives both days, except for rules marked `occurrence: Last`.
+  - Akshaya Tritiya 2026 comes out as 20 April (Tritiya covers more of that Purvahna). Some almanacs give 19 April,
+    which has not been verified.
   - Kshaya months are not modelled.
