@@ -63,6 +63,9 @@ function az {
         $method = $arguments[[array]::IndexOf($arguments, '--method') + 1]
         $url = $arguments[[array]::IndexOf($arguments, '--url') + 1]
         if ($method -eq 'get') {
+            if ($url -match '/Microsoft.KeyVault/vaults/') {
+                return (@{ properties = @{ vaultUri = 'https://example.vault.azure.net' } } | ConvertTo-Json)
+            }
             if ($url -match '/revisions/') {
                 return (@{ properties = @{ runningState = $global:fakeRunningState; healthState = 'Healthy'; provisioningState = 'Succeeded' } } | ConvertTo-Json -Depth 10)
             }
@@ -77,6 +80,12 @@ function az {
             return
         }
     }
+    if ($arguments[0] -eq 'containerapp' -and $arguments[1] -eq 'secret' -and $arguments[2] -eq 'set') {
+        if ($arguments -notcontains 'microsoft-graph-client-secret=keyvaultref:https://example.vault.azure.net/secrets/microsoft-graph-client-secret,identityref:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-myvedicstar-api-prod') {
+            throw 'Graph credential must reference Key Vault through the existing managed identity.'
+        }
+        return
+    }
     throw "Unexpected Azure command in deployment test: $($arguments -join ' ')"
 }
 function Start-Sleep { param([int] $Seconds) }
@@ -90,6 +99,11 @@ try {
     Assert-Deployment ($global:capturedPatch.properties.PSObject.Properties.Name.Count -eq 1) 'Networking and configuration must not be patched.'
     $template = $global:capturedPatch.properties.template
     $api = @($template.containers | Where-Object name -eq 'api')[0]
+    Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__Enabled')[0].value -eq 'true') 'Production Graph must be enabled.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__CredentialType')[0].value -eq 'ClientSecret') 'Wrong Graph credential type.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__TenantId')[0].value -eq $config.settings.Authentication__EntraExternalId__TenantId) 'Graph tenant mismatch.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__ClientId')[0].value -eq $expectedApiId) 'Graph client mismatch.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__ClientSecret')[0].secretRef -eq 'microsoft-graph-client-secret') 'Graph secret reference missing.'
     Assert-Deployment ($api.image -eq 'testregistry.azurecr.io/myvedicstar-api:test-commit') 'Wrong combined image.'
     Assert-Deployment ($api.resources.cpu -eq 0.5 -and $api.resources.memory -eq '1Gi') 'CPU and memory changed.'
     Assert-Deployment ($template.scale.minReplicas -eq 2 -and $template.scale.maxReplicas -eq 5) 'Scaling changed.'

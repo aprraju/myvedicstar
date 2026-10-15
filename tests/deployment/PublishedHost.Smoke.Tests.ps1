@@ -5,6 +5,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $publishPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
+# Never validate an unrelated local API that is already listening on the requested port.
+$portProbe = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $Port)
+try { $portProbe.Start() }
+catch { throw "Smoke-test port $Port is already in use. Select an unused port with -Port." }
+finally { $portProbe.Stop() }
 foreach ($file in 'MyVedicStar.API.dll', 'MyVedicDay.Api.dll', 'GeoNames.dll', 'apis/day/appsettings.json', 'apis/star/appsettings.json') {
     if (-not (Test-Path -LiteralPath (Join-Path $publishPath $file))) { throw "Combined publish is missing $file" }
 }
@@ -21,6 +26,7 @@ $start.RedirectStandardOutput = $true
 $start.RedirectStandardError = $true
 $start.EnvironmentVariables['ASPNETCORE_ENVIRONMENT'] = 'Production'
 $start.EnvironmentVariables['Caching__L2__Enabled'] = 'false'
+$start.EnvironmentVariables['EmailSettings__Enabled'] = 'false'
 $start.EnvironmentVariables['FeatureFlags__UserPersistence'] = $EnableUserPersistence.IsPresent.ToString().ToLowerInvariant()
 if ($EnableUserPersistence) {
     if ([string]::IsNullOrWhiteSpace($env:MYVEDICSTAR_TEST_POSTGRES)) { throw 'Persistence smoke requires MYVEDICSTAR_TEST_POSTGRES.' }
@@ -50,7 +56,14 @@ try {
         catch { if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode } else { throw } }
         if ($status -ne 401) { throw "Published protected route $($request.Path) returned $status instead of 401." }
     }
-    Write-Host 'Published API smoke checks passed: unified assembly, preserved routes, readiness and shared authentication.'
+    # Public email must route without a token; disabled SMTP prevents real messages during smoke checks.
+    $emailStatus = 0
+    try {
+        $emailStatus = [int](Invoke-WebRequest -Uri ($baseUrl + '/api/v1/email/send') -Method POST -ContentType 'application/json' -Body '{"email":"smoke@example.com","subject":"Smoke check","message":"No message should be sent.","type":"ContactUs","reason":"smoke"}' -UseBasicParsing -TimeoutSec 10).StatusCode
+    }
+    catch { if ($_.Exception.Response) { $emailStatus = [int]$_.Exception.Response.StatusCode } else { throw } }
+    if ($emailStatus -ne 503) { throw "Published public email route returned $emailStatus instead of disabled-delivery 503." }
+    Write-Host 'Published API smoke checks passed: unified assembly, preserved routes, readiness, shared authentication and public email routing.'
 }
 finally {
     if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() }

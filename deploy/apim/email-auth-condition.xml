@@ -1,0 +1,21 @@
+<!-- Replace the existing unconditional JWT gate with this choose at the SAME policy scope.
+     This validator matches the checked-in production Entra configuration. Retain any additional
+     checks from the effective existing validator when integrating it. Keep other policies in place.
+     Paths are matched on OriginalUrl: adapt them if APIM uses a different external base path. -->
+<choose>
+  <when condition='@(context.Request.Method == "POST" &amp;&amp; (context.Request.OriginalUrl.Path.TrimEnd(&apos;/&apos;) == "/api/v1/email/send" || context.Request.OriginalUrl.Path.TrimEnd(&apos;/&apos;) == "/api/email/send") &amp;&amp; !context.Request.Headers.ContainsKey("Authorization"))'>
+    <rate-limit-by-key calls="5" renewal-period="300" counter-key='@("email:" + context.Request.IpAddress)' />
+  </when>
+  <otherwise>
+    <validate-jwt header-name="Authorization" require-scheme="Bearer" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+      <openid-config url="https://cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0/.well-known/openid-configuration" />
+      <audiences>
+        <audience>fdaa908a-4c0b-4d63-a6d1-de637e0edc4e</audience>
+        <audience>api://fdaa908a-4c0b-4d63-a6d1-de637e0edc4e</audience>
+      </audiences>
+      <issuers>
+        <issuer>https://cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0</issuer>
+      </issuers>
+    </validate-jwt>
+  </otherwise>
+</choose>

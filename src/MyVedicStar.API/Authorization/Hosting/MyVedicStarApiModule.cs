@@ -19,6 +19,21 @@ public static class MyVedicStarApiModule
             .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new GeoNamesCompatibilityControllerFilter()));
         services.Configure<HostOptions>(configuration.GetSection(nameof(HostOptions)));
         services.AddAuthorizeBusiness(configuration);
+        MyVedicStar.Email.Business.EmailBusinessRegistration.AddEmailBusiness(services, configuration);
+        services.AddRateLimiter(options => options.AddPolicy("email-communication", context =>
+            System.Threading.RateLimiting.RateLimitPartition.GetSlidingWindowLimiter(
+                context.RequestServices.GetRequiredService<MyVedicStar.ApiProtection.Abstractions.IClientIdentityResolver>().Resolve(context),
+                _ => new System.Threading.RateLimiting.SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = 5, Window = TimeSpan.FromMinutes(5), SegmentsPerWindow = 5, QueueLimit = 0,
+                })));
+        // The combined host supports public email POSTs; the standalone Day host keeps its existing CORS policy.
+        services.PostConfigure<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>(options =>
+        {
+            var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+            if (origins.Length > 0) options.AddDefaultPolicy(policy => policy.WithOrigins(origins)
+                .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE").AllowAnyHeader().WithExposedHeaders("X-Correlation-ID"));
+        });
         MyVedicStar.Settings.Business.SettingsBusinessRegistration.AddSettingsBusiness(services, configuration);
         services.AddOptions<HealthEndpointOptions>()
             .Bind(configuration.GetSection(HealthEndpointOptions.SectionName))

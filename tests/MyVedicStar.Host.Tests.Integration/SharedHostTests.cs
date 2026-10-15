@@ -23,7 +23,7 @@ using HostProgram = SharedHost::Program;
 
 namespace MyVedicStar.Host.Tests.Integration;
 
-public sealed class SharedHostTests
+public sealed partial class SharedHostTests
 {
     [Fact]
     public async Task GeoNames_RejectedAccount_ReturnsActionableProblemDetails()
@@ -61,6 +61,8 @@ public sealed class SharedHostTests
             .ToArray();
         string[] expected =
         [
+            "POST api/email/send",
+            "POST api/v1/email/send",
             "POST api/v1/auth/userinfo",
             "POST api/v1/auth/login",
             "POST api/v1/auth/logout",
@@ -105,11 +107,15 @@ public sealed class SharedHostTests
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
         Assert.All(endpoints.Where(endpoint => !IsStarRoute(endpoint)), endpoint => Assert.Equal("MyVedicDay.Api",
             endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly.GetName().Name));
-        Assert.DoesNotContain(endpoints, endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null);
-        Assert.All(endpoints, endpoint => Assert.NotEmpty(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()));
+        Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/email/send" or "api/v1/email/send"),
+            endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAllowAnonymous>()));
+        var protectedEndpoints = endpoints.Where(endpoint => endpoint.RoutePattern.RawText is not ("api/email/send" or "api/v1/email/send"));
+        Assert.DoesNotContain(protectedEndpoints, endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null);
+        Assert.All(protectedEndpoints, endpoint => Assert.NotEmpty(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()));
     }
 
     private static bool IsStarRoute(RouteEndpoint endpoint) =>
+        endpoint.RoutePattern.RawText is "api/email/send" or "api/v1/email/send" ||
         endpoint.RoutePattern.RawText!.StartsWith("api/v1/auth/", StringComparison.Ordinal) ||
         endpoint.RoutePattern.RawText.StartsWith("api/v1/settings", StringComparison.Ordinal) ||
         (endpoint.RoutePattern.RawText.StartsWith("api/v1/locations/", StringComparison.Ordinal) && endpoint.RoutePattern.RawText != "api/v1/locations/resolve");

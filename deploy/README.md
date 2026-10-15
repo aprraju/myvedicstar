@@ -34,7 +34,7 @@ deploy/
 | `appsettings.json` (in the image) | Defaults that are safe in every environment | app code |
 | Container App environment variables set by Terraform | Infrastructure endpoints (App Insights, Key Vault URI, ...) | Terraform |
 | `deploy/environments/prod.json` → Container App environment variables | Application settings (auth audience, feature flags, ...) | this repo |
-| Key Vault → Container App secret reference | Secrets (none at present; listed under `secrets` in `prod.json`) | a person, via `set-secrets.ps1` or the portal |
+| Key Vault → Container App secret reference | Microsoft Graph client secret, listed under `secrets` in `prod.json` | a person, via `set-secrets.ps1` or the portal |
 
 `deploy-app.ps1` **merges** its settings into the container. A Terraform variable is kept unless
 `prod.json` defines one with the same name. When an application setting is retired, list it under
@@ -45,6 +45,23 @@ and its probes always agree. The Container App reads secrets through its managed
 GitHub, the scripts or source control.
 
 ### GitHub repository variables
+
+Production Graph profile synchronization is enabled by `deploy/environments/prod.json`, which supplies
+the tenant, application client ID and `ClientSecret` credential type. The image defaults remain disabled
+so an undeployed image does not require production credentials.
+
+Before deploying, store the Graph application's secret **value** as `microsoft-graph-client-secret` in
+`kv-myvedicstar-prod-xw4t`. From an allowed network, a Key Vault Secrets Officer can run:
+
+```powershell
+./deploy/scripts/set-secrets.ps1 -Environment prod -Name microsoft-graph-client-secret
+```
+
+The command prompts for the value. Local .NET user secrets are not uploaded to production.
+The Graph application must have the `User.ReadWrite.All` **application** permission with tenant admin
+consent. The deployment script checks for the Key Vault secret before changing the app, then wires
+its reference using the existing Container App identity. Deploy the new release and retry a pending
+profile synchronization to verify a live Graph update; readiness alone does not verify Graph access.
 
 | Variable | Used for |
 |---|---|

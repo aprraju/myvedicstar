@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MyVedicStar.Email.Business/MyVedicStar.Email.Business.csproj" />
+    <Project Path="src/MyVedicStar.Email.Integration/MyVedicStar.Email.Integration.csproj" />
     <Project Path="src/MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
     <Project Path="src/MyVedicStar.Settings.Data/MyVedicStar.Settings.Data.csproj" />
     <Project Path="src/MyVedicStar.Settings.Integration/MyVedicStar.Settings.Integration.csproj" />
