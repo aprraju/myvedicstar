@@ -50,7 +50,14 @@ try {
     }
     if (-not $ready) { throw 'Published host did not become ready.' }
     if ((Invoke-WebRequest -Uri "$baseUrl/health/live" -UseBasicParsing -TimeoutSec 5).StatusCode -ne 200) { throw 'Published host liveness check failed.' }
-    foreach ($request in @(@{ Path = '/openapi/v1.json'; Method = 'GET' }, @{ Path = '/swagger/index.html'; Method = 'GET' }, @{ Path = '/api/v1/panchang/today'; Method = 'GET' }, @{ Path = '/api/v1/locations/resolve'; Method = 'GET' }, @{ Path = '/api/v1/locations/search?text=Austin'; Method = 'GET' }, @{ Path = '/api/v1/locations/postal?text=78701'; Method = 'GET' }, @{ Path = '/api/v1/locations/reverse?latitude=30&longitude=-97'; Method = 'GET' }, @{ Path = '/api/v1/locations/timezone?latitude=30&longitude=-97'; Method = 'GET' }, @{ Path = '/api/v1/locations/countries'; Method = 'GET' }, @{ Path = '/api/v1/locations/regions?country=US'; Method = 'GET' }, @{ Path = '/api/v1/locations/address-cities?text=Austin&country=US'; Method = 'GET' }, @{ Path = '/api/v1/settings'; Method = 'GET' }, @{ Path = '/api/v1/settings/locations'; Method = 'GET' }, @{ Path = '/api/v1/auth/profile'; Method = 'GET' }, @{ Path = '/api/v1/auth/userinfo'; Method = 'POST' }, @{ Path = '/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867'; Method = 'GET' })) {
+    # API documentation is anonymous; the operations it describes stay protected below.
+    foreach ($path in @('/openapi/v1.json', '/swagger/index.html')) {
+        $status = 0
+        try { $status = [int](Invoke-WebRequest -Uri ($baseUrl + $path) -UseBasicParsing -TimeoutSec 30).StatusCode }
+        catch { if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode } else { throw } }
+        if ($status -ne 200) { throw "Published anonymous documentation $path returned $status instead of 200." }
+    }
+    foreach ($request in @(@{ Path = '/api/v1/panchang/today'; Method = 'GET' }, @{ Path = '/api/v1/locations/resolve'; Method = 'GET' }, @{ Path = '/api/v1/locations/search?text=Austin'; Method = 'GET' }, @{ Path = '/api/v1/locations/postal?text=78701'; Method = 'GET' }, @{ Path = '/api/v1/locations/reverse?latitude=30&longitude=-97'; Method = 'GET' }, @{ Path = '/api/v1/locations/timezone?latitude=30&longitude=-97'; Method = 'GET' }, @{ Path = '/api/v1/locations/countries'; Method = 'GET' }, @{ Path = '/api/v1/locations/regions?country=US'; Method = 'GET' }, @{ Path = '/api/v1/locations/address-cities?text=Austin&country=US'; Method = 'GET' }, @{ Path = '/api/v1/settings'; Method = 'GET' }, @{ Path = '/api/v1/settings/locations'; Method = 'GET' }, @{ Path = '/api/v1/auth/profile'; Method = 'GET' }, @{ Path = '/api/v1/auth/userinfo'; Method = 'POST' }, @{ Path = '/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867'; Method = 'GET' })) {
         $status = 0
         try { $status = [int](Invoke-WebRequest -Uri ($baseUrl + $request.Path) -Method $request.Method -UseBasicParsing -TimeoutSec 10).StatusCode }
         catch { if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode } else { throw } }
@@ -63,7 +70,7 @@ try {
     }
     catch { if ($_.Exception.Response) { $emailStatus = [int]$_.Exception.Response.StatusCode } else { throw } }
     if ($emailStatus -ne 503) { throw "Published public email route returned $emailStatus instead of disabled-delivery 503." }
-    Write-Host 'Published API smoke checks passed: unified assembly, preserved routes, readiness, shared authentication and public email routing.'
+    Write-Host 'Published API smoke checks passed: unified assembly, preserved routes, readiness, anonymous documentation, shared authentication and public email routing.'
 }
 finally {
     if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() }
