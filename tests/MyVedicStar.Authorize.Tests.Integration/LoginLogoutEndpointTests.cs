@@ -23,7 +23,8 @@ public sealed class LoginLogoutEndpointTests : IClassFixture<AuthorizeApiFactory
         var response = await Send("login", token);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(["id", "name", "email"], json.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(["id", "name", "email", "firstName", "lastName"], json.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal("Example", json.RootElement.GetProperty("name").GetString());
         await Send("login", token);
         await Send("userinfo", token);
         Assert.Equal(1, Assert.Single(_factory.UserStore.Logins).Type);

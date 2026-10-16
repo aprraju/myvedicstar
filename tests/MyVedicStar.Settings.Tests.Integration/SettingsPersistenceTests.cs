@@ -17,7 +17,7 @@ public sealed class SettingsPersistenceTests(PostgresDatabaseFixture database) :
     private async Task<Guid> Account()
     {
         await using var scope = database.Services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(new(Guid.NewGuid().ToString(), "a@example.com", "First", "Last", "https://test.example"), default);
+        return (await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(new(Guid.NewGuid().ToString(), "a@example.com", "First", "Last", "https://test.example"), default)).Id;
     }
     [SkippableFact]
     public async Task SavedLocations_DuplicateIsIdempotentAndDefaultDeletionIsAtomic()

@@ -129,7 +129,7 @@ public sealed partial class SharedHostTests
         var star = await client.PostAsync("/api/v1/auth/userinfo", null);
         Assert.Equal(HttpStatusCode.OK, star.StatusCode);
         using var body = JsonDocument.Parse(await star.Content.ReadAsStringAsync());
-        Assert.Equal(["id", "name", "email"], body.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(["id", "name", "email", "firstName", "lastName"], body.RootElement.EnumerateObject().Select(property => property.Name));
         Assert.Equal("shared-user", body.RootElement.GetProperty("id").GetString());
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/muhurta/activities")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867")).StatusCode);

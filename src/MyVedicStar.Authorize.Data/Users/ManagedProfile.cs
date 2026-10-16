@@ -1,10 +1,11 @@
 namespace MyVedicStar.Authorize.Data.Users;
 
-public sealed record ManagedProfile(Guid Id, string? FirstName, string? LastName, string? StreetAddress,
+public sealed record ManagedProfile(Guid Id, string? FirstName, string? LastName, string? DisplayName, string? StreetAddress,
     string? StreetAddress2, string? Country, string? State, string? City, string? PostalCode,
     string? Email, string? PhoneNumber, long Revision, bool NameSyncPending);
 
-public sealed record ProfileSyncWork(ManagedProfile Profile, bool FirstNamePending, bool LastNamePending);
+/// <summary>A profile and which name attributes still have to be written to the identity provider.</summary>
+public sealed record ProfileSyncWork(ManagedProfile Profile, bool FirstNamePending, bool LastNamePending, bool DisplayNamePending = false);
 
 public interface IProfileRepository
 {

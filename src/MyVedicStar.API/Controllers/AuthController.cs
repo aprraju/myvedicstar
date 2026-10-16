@@ -26,12 +26,13 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Registers the validated account if necessary, records the session's login once, and returns ID, name and email.
+    /// Registers the validated account if necessary, records the session's login once, and returns ID, display name,
+    /// email, first name and last name.
     /// </summary>
     /// <remarks>
     /// Repeated requests in the same session do not create duplicate accounts or audit events.
     /// </remarks>
-    /// <response code="200">The user's ID, name and email.</response>
+    /// <response code="200">The user's ID, display name, email, first name and last name.</response>
     /// <response code="401">The bearer token is missing, invalid or expired, or does not identify a user.</response>
     /// <response code="403">The token is valid but lacks the API scope (for example an app-only token).</response>
     /// <response code="413">The request body exceeds the allowed size.</response>
@@ -52,7 +53,7 @@ public sealed class AuthController : ControllerBase
     {
         var userInfo = await _authorizeFacade.LoginAsync(User, _clientIpResolver.Resolve(HttpContext), sessionId, cancellationToken);
 
-        return Ok(new UserInfoResponse(userInfo.Id, userInfo.Name, userInfo.Email));
+        return Ok(new UserInfoResponse(userInfo.Id, userInfo.Name, userInfo.Email, userInfo.FirstName, userInfo.LastName));
     }
 
     [HttpGet("profile")]

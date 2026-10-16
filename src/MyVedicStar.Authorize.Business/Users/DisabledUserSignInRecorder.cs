@@ -15,10 +15,10 @@ internal sealed partial class DisabledUserSignInRecorder : IUserSignInRecorder
         _logger = logger;
     }
 
-    public Task RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
+    public Task<SignedInUserNames> RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
     {
         LogPersistenceDisabled(_logger);
-        return Task.CompletedTask;
+        return Task.FromResult(new SignedInUserNames(user.DisplayName, user.GivenName, user.FamilyName));
     }
 
     public Task RecordSignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)

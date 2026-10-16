@@ -1,10 +1,23 @@
 # User registration and session auditing
 
-`POST /api/v1/auth/login` and the existing `POST /api/v1/auth/userinfo` use the same business workflow. Both require the existing bearer authentication and API scope, and return exactly `id`, `name`, and `email`. Identity comes from the validated issuer plus the provider's stable ID: the configured directory ID claim for Entra, and `sub` for Google, Apple, and Facebook. Provider enablement and token validation policies are unchanged.
+`POST /api/v1/auth/login` and the existing `POST /api/v1/auth/userinfo` use the same business workflow. Both require the existing bearer authentication and API scope, and return exactly `id`, `name`, `email`, `firstName`, and `lastName`. `name` is the stored display name; it is never built by joining first and last name. Identity comes from the validated issuer plus the provider's stable ID: the configured directory ID claim for Entra, and `sub` for Google, Apple, and Facebook. Provider enablement and token validation policies are unchanged.
 
-The first request registers an active account with a database-generated UTC creation time. Later requests synchronize name and email from the same resolved claims used by UserInfo, while preserving internal ID, creation time, and active status. Changes update UpdatedUtc; identical profile requests leave it unchanged. Inactive accounts receive 403 and no profile update or login audit event. The response keeps the existing token-derived profile fields. An unavailable real name resolves to null; email can fall back to an email-shaped preferred_username. Existing column length limits still apply when saving unusually long claims.
+The first request registers an active account with a database-generated UTC creation time. Later requests synchronize name and email from the same resolved claims used by UserInfo, while preserving internal ID, creation time, and active status. Changes update UpdatedUtc; identical profile requests leave it unchanged. Inactive accounts receive 403 and no profile update or login audit event. `id` and `email` come from the token; `name`, `firstName`, and `lastName` are the stored values returned by the same upsert, so no extra query is made. An unavailable real name resolves to null; email can fall back to an email-shaped preferred_username. Existing column length limits still apply when saving unusually long claims.
 
 EF Core handles registration and auditing in one PostgreSQL transaction. Unique indexes prevent duplicate accounts under concurrent registration and duplicate audit events across requests or API replicas. `myvedicstar.loginaudit` contains `AuditId`, `UserId`, `Time` (UTC), and `Type` (1 for login, 99 for explicit logout), plus the existing client IP and a session hash. Audit history is preserved, and foreign keys prevent deleting referenced users.
+
+## Display name
+
+The display name comes from the claims listed in `Authorize:UserIdentityClaims:Name` (`name` by default), which Entra External ID now issues. Placeholder (`unknown`) and email-shaped values are ignored. It is stored in `myvedicstar."User"."DisplayName"` (up to 256 characters, Entra's limit) next to `given_name` and `family_name`. Sign-in applies two rules:
+
+- A token without a usable display name never clears a stored one.
+- After the user edits their profile, sign-in only fills a missing display name. An edited display name stays authoritative even while it is waiting to reach Entra.
+
+`PATCH /api/v1/auth/profile` accepts `displayName` with the other fields. It is trimmed, limited to 256 characters, cannot contain control characters, and cannot be blank, because Entra requires one. `GET`/`PATCH profile` return `displayName`.
+
+### Keeping the database and Entra consistent
+
+The database is the source of truth. A save commits the edited values together with per-attribute pending flags (`FirstNameSyncPending`, `LastNameSyncPending`, `DisplayNameSyncPending`) before Microsoft Graph is called. The Graph update then runs under a PostgreSQL row lock, sends only the pending attributes (`givenName`, `surname`, `displayName`), and clears their flags only after Graph succeeds. If Graph fails or times out, the save still succeeds and returns `nameSyncPending: true`. Sign-in never overwrites the edited names. `POST /api/v1/auth/profile/sync`, or the next save, resends the same idempotent PATCH. If Graph succeeds but clearing the flags fails, the retry only repeats a write Graph has already applied.
 
 ## Session identity
 

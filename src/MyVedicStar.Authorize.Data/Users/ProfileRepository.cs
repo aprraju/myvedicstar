@@ -33,6 +33,9 @@ internal sealed class ProfileRepository(AuthorizeDbContext db) : IProfileReposit
                 case "lastName":
                     if (user.FamilyName != value) { user.FamilyName = value; user.LastNameSyncPending = true; }
                     break;
+                case "displayName":
+                    if (user.DisplayName != value) { user.DisplayName = value; user.DisplayNameSyncPending = true; }
+                    break;
                 case "streetAddress": user.StreetAddress = value; break;
                 case "streetAddress2": user.StreetAddress2 = value; break;
                 case "country": user.Country = value; break;
@@ -68,7 +71,7 @@ internal sealed class ProfileRepository(AuthorizeDbContext db) : IProfileReposit
             if (work.Profile.NameSyncPending)
             {
                 await synchronize(work, token);
-                row.FirstNameSyncPending = false; row.LastNameSyncPending = false;
+                row.FirstNameSyncPending = false; row.LastNameSyncPending = false; row.DisplayNameSyncPending = false;
                 await db.SaveChangesAsync(token);
             }
             await tx.CommitAsync(token);
@@ -80,13 +83,15 @@ internal sealed class ProfileRepository(AuthorizeDbContext db) : IProfileReposit
     {
         var count = await db.Users.Where(u => u.Issuer == issuer && u.ExternalId == externalId && u.IsActive && u.ProfileRevision == revision)
             .ExecuteUpdateAsync(setters => setters.SetProperty(u => u.FirstNameSyncPending, false)
-                .SetProperty(u => u.LastNameSyncPending, false), token);
+                .SetProperty(u => u.LastNameSyncPending, false)
+                .SetProperty(u => u.DisplayNameSyncPending, false), token);
         db.ChangeTracker.Clear();
         return count == 1;
     }
 
     private static ProfileSyncWork ToWork(UserEntity user) => new(new ManagedProfile(user.Id,
-        user.GivenName, user.FamilyName, user.StreetAddress, user.StreetAddress2, user.Country, user.State,
+        user.GivenName, user.FamilyName, user.DisplayName, user.StreetAddress, user.StreetAddress2, user.Country, user.State,
         user.City, user.PostalCode, user.Email, user.PhoneNumber, user.ProfileRevision,
-        user.FirstNameSyncPending || user.LastNameSyncPending), user.FirstNameSyncPending, user.LastNameSyncPending);
+        user.FirstNameSyncPending || user.LastNameSyncPending || user.DisplayNameSyncPending),
+        user.FirstNameSyncPending, user.LastNameSyncPending, user.DisplayNameSyncPending);
 }

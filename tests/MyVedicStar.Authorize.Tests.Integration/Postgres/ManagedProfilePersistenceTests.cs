@@ -62,6 +62,32 @@ public sealed class ManagedProfilePersistenceTests(PostgresDatabaseFixture datab
     }
 
     [SkippableFact]
+    public async Task DisplayNameEdit_IsPendingOnlyForDisplayNameUntilSynchronized()
+    {
+        var id = await Account();
+        await using (var scope = database.Services.CreateAsyncScope())
+        {
+            var work = await scope.ServiceProvider.GetRequiredService<IProfileRepository>().UpdateAsync(Issuer, id, 0,
+                new Dictionary<string, string?> { ["displayName"] = "New Display" }, default);
+            Assert.Equal("New Display", work.Profile.DisplayName);
+            Assert.True(work.Profile.NameSyncPending);
+            Assert.True(work.DisplayNamePending);
+            Assert.False(work.FirstNamePending);
+            Assert.False(work.LastNamePending);
+        }
+        await using (var scope = database.Services.CreateAsyncScope())
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<IProfileRepository>().SynchronizeAsync(Issuer, id,
+                (work, _) => { Assert.True(work.DisplayNamePending); return Task.CompletedTask; }, default);
+            Assert.False(result.NameSyncPending);
+        }
+        await using var read = database.Services.CreateAsyncScope();
+        var stored = await read.ServiceProvider.GetRequiredService<IProfileRepository>().ReadAsync(Issuer, id, default);
+        Assert.False(stored.DisplayNamePending);
+        Assert.Equal("New Display", stored.Profile.DisplayName);
+    }
+
+    [SkippableFact]
     public async Task Identity_IsScopedByIssuerAndExternalId()
     {
         var owner = await Account(); var stranger = await Account();

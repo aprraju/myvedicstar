@@ -1,13 +1,20 @@
 using MyVedicStar.Authorize.Data.Persistence;
-using MyVedicStar.Authorize.Data.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
-using MyVedicStar.Authorize.Data.Persistence.Configurations;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace MyVedicStar.Authorize.Data.Users;
 
 internal sealed class UserLoginRepository : IUserLoginRepository
 {
+    // One round trip: the session unique index (UX_loginaudit_User_Session_Type) makes repeats a no-op instead of
+    // a SELECT before every INSERT. A null session key never conflicts, so legacy callers still append each event.
+    private const string InsertOnceSql = """
+        INSERT INTO myvedicstar."loginaudit" ("UserId", "Type", "SessionKey", "IpAddress")
+        VALUES (@userId, @type, @sessionKey, @ipAddress)
+        ON CONFLICT ("UserId", "SessionKey", "Type") DO NOTHING
+        """;
+
     private readonly AuthorizeDbContext _dbContext;
 
     public UserLoginRepository(AuthorizeDbContext dbContext)
@@ -15,20 +22,12 @@ internal sealed class UserLoginRepository : IUserLoginRepository
         _dbContext = dbContext;
     }
 
-    public async Task AddAsync(UserLoginData login, CancellationToken cancellationToken)
-    {
-        if (login.SessionKey is not null && await _dbContext.UserLogins.AnyAsync(entry =>
-            entry.UserId == login.UserId && entry.SessionKey == login.SessionKey && entry.Type == login.Type, cancellationToken)) return;
-        var audit = new UserLoginEntity
-        {
-            UserId = login.UserId, IpAddress = login.IpAddress, SessionKey = login.SessionKey, Type = login.Type,
-        };
-        _dbContext.UserLogins.Add(audit);
-        try { await _dbContext.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateException error) when (error.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: UserLoginEntityConfiguration.SessionUniqueIndexName })
-        {
-            _dbContext.Entry(audit).State = EntityState.Detached;
-        }
-    }
+    public Task AddAsync(UserLoginData login, CancellationToken cancellationToken) =>
+        _dbContext.Database.ExecuteSqlRawAsync(InsertOnceSql,
+        [
+            new NpgsqlParameter("userId", NpgsqlDbType.Uuid) { Value = login.UserId },
+            new NpgsqlParameter("type", NpgsqlDbType.Integer) { Value = login.Type },
+            new NpgsqlParameter("sessionKey", NpgsqlDbType.Varchar) { Value = (object?)login.SessionKey ?? DBNull.Value },
+            new NpgsqlParameter("ipAddress", NpgsqlDbType.Inet) { Value = (object?)login.IpAddress ?? DBNull.Value },
+        ], cancellationToken);
 }

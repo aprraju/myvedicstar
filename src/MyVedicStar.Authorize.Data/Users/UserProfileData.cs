@@ -10,7 +10,8 @@ public sealed record UserProfileData(
     string? Email,
     string? GivenName,
     string? FamilyName,
-    string Issuer = "")
+    string Issuer = "",
+    string? DisplayName = null)
 {
     public const int MaxIssuerLength = 512;
     /// <summary>Longest storable identity provider object ID.</summary>
@@ -19,6 +20,6 @@ public sealed record UserProfileData(
     /// <summary>Longest storable email address (the RFC 5321 limit).</summary>
     public const int MaxEmailLength = 320;
 
-    /// <summary>Longest storable given or family name.</summary>
+    /// <summary>Longest storable given, family or display name (Entra's displayName limit).</summary>
     public const int MaxNameLength = 256;
 }

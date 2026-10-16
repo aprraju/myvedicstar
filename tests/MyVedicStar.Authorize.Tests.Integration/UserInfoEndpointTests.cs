@@ -9,7 +9,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
 {
     private const string UserInfoPath = "/api/v1/auth/userinfo";
     private const string ObjectId = "11111111-2222-3333-4444-555555555555";
-    private const string Name = "John,Smith";
+    private const string Name = "John Smith (Display)";
     private const string Email = "john.smith@example.com";
 
     private readonly AuthorizeApiFactory _factory;
@@ -23,16 +23,29 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     [Fact]
-    public async Task UserInfo_ValidToken_ReturnsOnlyIdNameAndEmailFromToken()
+    public async Task UserInfo_ValidToken_ReturnsDisplayNameAsNameWithSeparateFirstAndLastName()
     {
         var response = await PostUserInfoAsync(ValidToken());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(["id", "name", "email"], body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(["id", "name", "email", "firstName", "lastName"], body.EnumerateObject().Select(property => property.Name));
         Assert.Equal(ObjectId, body.GetProperty("id").GetString());
         Assert.Equal(Name, body.GetProperty("name").GetString());
         Assert.Equal(Email, body.GetProperty("email").GetString());
+        Assert.Equal("John", body.GetProperty("firstName").GetString());
+        Assert.Equal("Smith", body.GetProperty("lastName").GetString());
+    }
+
+    [Fact]
+    public async Task UserInfo_TokenWithoutDisplayName_DoesNotBuildNameFromFirstAndLastName()
+    {
+        var response = await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("given_name", "John"), ("family_name", "Smith")]));
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("name").ValueKind);
+        Assert.Equal("John", body.GetProperty("firstName").GetString());
+        Assert.Equal("Smith", body.GetProperty("lastName").GetString());
     }
 
     [Fact]
@@ -45,14 +58,16 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         Assert.Equal(ObjectId, body.GetProperty("id").GetString());
         Assert.Equal(JsonValueKind.Null, body.GetProperty("name").ValueKind);
         Assert.Equal(JsonValueKind.Null, body.GetProperty("email").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("firstName").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("lastName").ValueKind);
     }
 
     [Theory]
     [InlineData("unknown", null, null, null)]
-    [InlineData("Ignored Display Name", "Jane", "Doe", "Jane,Doe")]
-    [InlineData("Ignored Display Name", "Jane", null, "Jane,")]
-    [InlineData("Ignored Display Name", null, "Doe", ",Doe")]
-    [InlineData("aprraju@gmail.com", "Jane", "Doe", "Jane,Doe")]
+    [InlineData("Jane Display", "Jane", "Doe", "Jane Display")]
+    [InlineData("Jane Display", "Jane", null, "Jane Display")]
+    [InlineData("Jane Display", null, "Doe", "Jane Display")]
+    [InlineData("aprraju@gmail.com", "Jane", "Doe", null)]
     public async Task UserInfo_PreferredUsernameEmail_ReturnsSeparateEmailAndUsableName(string name, string? given, string? family, string? expectedName)
     {
         var claims = new List<(string, string)> { ("oid", ObjectId), ("name", name), ("preferred_username", "aprraju@gmail.com") };
@@ -61,9 +76,11 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         var response = await PostUserInfoAsync(_factory.CreateToken(claims));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(["id", "name", "email"], body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(["id", "name", "email", "firstName", "lastName"], body.EnumerateObject().Select(property => property.Name));
         Assert.Equal(ObjectId, body.GetProperty("id").GetString());
         Assert.Equal(expectedName, body.GetProperty("name").GetString());
+        Assert.Equal(given, body.GetProperty("firstName").GetString());
+        Assert.Equal(family, body.GetProperty("lastName").GetString());
         Assert.Equal("aprraju@gmail.com", body.GetProperty("email").GetString());
         Assert.Equal("aprraju@gmail.com", _factory.UserStore.FindUser(ObjectId)?.Email);
     }
@@ -74,7 +91,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
         await PostUserInfoAsync(ValidToken());
 
         Assert.Equal(
-            new Data.Users.UserProfileData(ObjectId, Email, "John", "Smith", AuthorizeApiFactory.Issuer),
+            new Data.Users.UserProfileData(ObjectId, Email, "John", "Smith", AuthorizeApiFactory.Issuer, Name),
             _factory.UserStore.FindUser(ObjectId));
 
         var login = Assert.Single(_factory.UserStore.Logins);
@@ -105,16 +122,18 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     [Fact]
-    public async Task UserInfo_ExistingUser_SynchronizesFallbackEmailAndNullNameWithoutAnotherSessionAudit()
+    public async Task UserInfo_ExistingUser_SynchronizesFallbackEmailAndNullNamesButKeepsDisplayNameWithoutAnotherSessionAudit()
     {
-        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"), ("email", Email), ("sid", "profile-session")]));
+        await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", Name), ("given_name", "John"), ("family_name", "Smith"), ("email", Email), ("sid", "profile-session")]));
         var id = _factory.UserStore.FindUserId(ObjectId);
         var response = await PostUserInfoAsync(_factory.CreateToken([("oid", ObjectId), ("name", "unknown"), ("preferred_username", "aprraju@gmail.com"), ("sid", "profile-session")]));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var stored = _factory.UserStore.FindUser(ObjectId);
-        Assert.Equal(body.GetProperty("name").GetString(), stored!.GivenName);
+        Assert.Equal(Name, body.GetProperty("name").GetString());
+        Assert.Equal(Name, stored!.DisplayName);
         Assert.Equal(body.GetProperty("email").GetString(), stored.Email);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("firstName").ValueKind);
         Assert.Null(stored.GivenName);
         Assert.Null(stored.FamilyName);
         Assert.Equal("aprraju@gmail.com", stored.Email);
@@ -187,7 +206,7 @@ public sealed class UserInfoEndpointTests : IClassFixture<AuthorizeApiFactory>
     }
 
     private string ValidToken() =>
-        _factory.CreateToken([("oid", ObjectId), ("sub", "pairwise-subject"), ("name", "Ignored Display Name"), ("given_name", "John"), ("family_name", "Smith"), ("email", Email)]);
+        _factory.CreateToken([("oid", ObjectId), ("sub", "pairwise-subject"), ("name", Name), ("given_name", "John"), ("family_name", "Smith"), ("email", Email)]);
 
     private Task<HttpResponseMessage> PostUserInfoAsync(string token, string? remoteIp = null, string? forwardedFor = null)
     {

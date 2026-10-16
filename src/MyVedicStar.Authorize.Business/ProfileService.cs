@@ -59,6 +59,8 @@ internal sealed partial class ProfileService(IProfileRepository repository, Sign
                 var changes = new Dictionary<string, string?>();
                 if (latest.FirstNamePending) changes["givenName"] = latest.Profile.FirstName;
                 if (latest.LastNamePending) changes["surname"] = latest.Profile.LastName;
+                // Entra requires a display name, so it is only ever replaced, never cleared.
+                if (latest.DisplayNamePending && latest.Profile.DisplayName is not null) changes["displayName"] = latest.Profile.DisplayName;
                 await graph.UpdateNamesAsync(account.Issuer, oid, changes, cancellation);
             }, token);
         }
@@ -71,6 +73,11 @@ internal sealed partial class ProfileService(IProfileRepository repository, Sign
         }
     }
 
+    // Partial-failure strategy: the database is the source of truth. UpdateAsync commits the edited values with
+    // per-attribute pending flags before Graph is called; SynchronizeAsync sends only pending attributes under a row
+    // lock and clears the flags after Graph succeeds. A failure leaves the flags set, the save still succeeds with
+    // NameSyncPending = true, sign-in never overwrites the edited names, and POST profile/sync (or the next save)
+    // resends the same idempotent PATCH.
     [LoggerMessage(Level = LogLevel.Warning, Message = "Profile name synchronization remains pending ({ErrorType})")]
     private static partial void LogSyncPending(ILogger logger, string errorType);
 
@@ -80,6 +87,7 @@ internal sealed partial class ProfileService(IProfileRepository repository, Sign
         {
             ["firstName"] = 256,
             ["lastName"] = 256,
+            ["displayName"] = 256,
             ["streetAddress"] = 256,
             ["streetAddress2"] = 256,
             ["country"] = 256,
@@ -95,6 +103,7 @@ internal sealed partial class ProfileService(IProfileRepository repository, Sign
             if (!limits.TryGetValue(field, out var max)) throw new ValidationException("Unknown profile field.");
             var value = string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
             if (value?.Length > max || value?.Any(char.IsControl) == true) throw new ValidationException($"{field} contains invalid or excessive text.");
+            if (field == "displayName" && value is null) throw new ValidationException("Enter a display name.");
             if (field == "email" && value is not null && (!MailAddress.TryCreate(value, out var address) || address.Address != value || !value.Contains('@')))
                 throw new ValidationException("Enter a valid email address.");
             if (field == "phoneNumber" && value is not null && (!Regex.IsMatch(value, @"^\+?[0-9 ()\-.]+$", RegexOptions.None, TimeSpan.FromMilliseconds(100)) || value.Count(char.IsDigit) is < 7 or > 15))

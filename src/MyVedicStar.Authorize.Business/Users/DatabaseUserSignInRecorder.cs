@@ -24,18 +24,19 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
         _unitOfWork = unitOfWork;
     }
 
-    public Task RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
+    public async Task<SignedInUserNames> RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
     {
         var profile = ToUserProfileData(user);
 
-        return _unitOfWork.ExecuteInTransactionAsync(
+        var registered = await _unitOfWork.ExecuteInTransactionAsync(
             async token =>
             {
-                var userId = await _userRepository.UpsertAsync(profile, token);
-                await _userLoginRepository.AddAsync(new UserLoginData(userId, clientIpAddress, user.SessionKey), token);
-                return userId;
+                var stored = await _userRepository.UpsertAsync(profile, token);
+                await _userLoginRepository.AddAsync(new UserLoginData(stored.Id, clientIpAddress, user.SessionKey), token);
+                return stored;
             },
             cancellationToken);
+        return new SignedInUserNames(registered.DisplayName, registered.GivenName, registered.FamilyName);
     }
 
     public Task RecordSignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>
@@ -64,7 +65,7 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
 
         var email = user.Email?.Length <= UserProfileData.MaxEmailLength ? user.Email : null;
         return new UserProfileData(user.ExternalUserId, email, Truncate(user.GivenName, UserProfileData.MaxNameLength),
-            Truncate(user.FamilyName, UserProfileData.MaxNameLength), user.Issuer);
+            Truncate(user.FamilyName, UserProfileData.MaxNameLength), user.Issuer, Truncate(user.DisplayName, UserProfileData.MaxNameLength));
     }
 
     /// <summary>Shortens <paramref name="value"/> to at most <paramref name="maxLength"/> characters without splitting a surrogate pair.</summary>

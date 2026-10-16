@@ -7,4 +7,6 @@ namespace MyVedicStar.Authorize.Business.Users;
 /// <param name="Email">Email address.</param>
 /// <param name="Issuer">Validated token issuer.</param>
 /// <param name="SessionKey">Hash of the session identifier; never a token.</param>
-internal sealed record SignedInUser(string ExternalUserId, string? GivenName, string? FamilyName, string? Email, string Issuer = "", string? SessionKey = null);
+/// <param name="DisplayName">Display name (the configured name claim, normally <c>name</c>).</param>
+internal sealed record SignedInUser(string ExternalUserId, string? GivenName, string? FamilyName, string? Email, string Issuer = "",
+    string? SessionKey = null, string? DisplayName = null);

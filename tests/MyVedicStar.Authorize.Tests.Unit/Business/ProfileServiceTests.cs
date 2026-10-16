@@ -17,7 +17,7 @@ public sealed class ProfileServiceTests
     private readonly IProfileRepository repository = Substitute.For<IProfileRepository>();
     private readonly IGraphProfileClient graph = Substitute.For<IGraphProfileClient>();
     private ClaimsPrincipal User() => new(new ClaimsIdentity([new("iss", Issuer), new("oid", oid)], "test"));
-    private static ProfileSyncWork Work(bool pending) => new(new ManagedProfile(Guid.NewGuid(), "Raju", "Bhupathi", null, null, "US", null, null, null, "a@example.com", null, 2, pending), pending, false);
+    private static ProfileSyncWork Work(bool pending, bool displayNamePending = false) => new(new ManagedProfile(Guid.NewGuid(), "Raju", "Bhupathi", "Raju B", null, null, "US", null, null, null, "a@example.com", null, 2, pending || displayNamePending), pending, false, displayNamePending);
     private ProfileService Service() => new(repository, new SignedInUserReader(Options.Create(new UserIdentityClaimOptions { ExternalUserId = ["oid"], Email = ["email"] })), graph, NullLogger<ProfileService>.Instance);
     [Fact]
     public async Task Read_DoesNotCreateAnAccountOrSynchronizeNames()
@@ -58,6 +58,45 @@ public sealed class ProfileServiceTests
         var result = await Service().UpdateAsync(User(), new(2, new() { ["firstName"] = "Raju" }), default);
         Assert.True(result.NameSyncPending); Assert.Equal("Raju", result.FirstName);
     }
+    [Fact]
+    public async Task Retry_PendingDisplayName_SendsDisplayNameOnly()
+    {
+        var work = Work(false, displayNamePending: true); repository.ReadAsync(Issuer, oid, default).Returns(work);
+        repository.SynchronizeAsync(Issuer, oid, Arg.Any<Func<ProfileSyncWork, CancellationToken, Task>>(), default).Returns(async info =>
+        {
+            await info.Arg<Func<ProfileSyncWork, CancellationToken, Task>>()(work, default);
+            return work.Profile with { NameSyncPending = false };
+        });
+        await Service().RetrySyncAsync(User(), default);
+        await graph.Received(1).UpdateNamesAsync(Issuer, oid, Arg.Is<IReadOnlyDictionary<string, string?>>(x => x.Count == 1 && x["displayName"] == "Raju B"), default);
+    }
+
+    [Fact]
+    public async Task Update_DisplayNameIsTrimmedAndPassedToTheRepository()
+    {
+        var work = Work(false, displayNamePending: true); repository.ReadAsync(Issuer, oid, default).Returns(work);
+        repository.UpdateAsync(Issuer, oid, 2, Arg.Any<IReadOnlyDictionary<string, string?>>(), default).Returns(work);
+        await Service().UpdateAsync(User(), new(2, new() { ["firstName"] = "Raju", ["lastName"] = "Bhupathi", ["displayName"] = "  Raju B  " }), default);
+        await repository.Received(1).UpdateAsync(Issuer, oid, 2, Arg.Is<IReadOnlyDictionary<string, string?>>(x =>
+            x["displayName"] == "Raju B" && x["firstName"] == "Raju" && x["lastName"] == "Bhupathi"), default);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Validate_RejectsClearingDisplayName(string? value) =>
+        Assert.Throws<ValidationException>(() => ProfileService.Validate(new Dictionary<string, string?> { ["displayName"] = value }));
+
+    [Theory]
+    [InlineData("displayName", "Line\nBreak")]
+    public void Validate_RejectsControlCharacters(string field, string escaped) =>
+        Assert.Throws<ValidationException>(() => ProfileService.Validate(new Dictionary<string, string?> { [field] = System.Text.RegularExpressions.Regex.Unescape(escaped) }));
+
+    [Fact]
+    public void Validate_RejectsOverlongDisplayName() =>
+        Assert.Throws<ValidationException>(() => ProfileService.Validate(new Dictionary<string, string?> { ["displayName"] = new string('d', 257) }));
+
     [Theory]
     [InlineData("userId", "other-account")]
     [InlineData("email", "invalid")]

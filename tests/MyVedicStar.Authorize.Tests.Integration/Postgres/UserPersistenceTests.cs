@@ -91,13 +91,56 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     }
 
     [SkippableFact]
+    public async Task Upsert_DisplayName_IsStoredReturnedAndNeverErasedByATokenWithoutOne()
+    {
+        SkipIfUnavailable();
+        var original = CreateProfile() with { DisplayName = "John S." };
+        await using (var scope = _database.Services.CreateAsyncScope())
+        {
+            var created = await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(original, default);
+            Assert.Equal(new RegisteredUser(created.Id, "John S.", "John", "Smith"), created);
+        }
+        await UpsertInNewScopeAsync(original with { DisplayName = null });
+        Assert.Equal("John S.", (await FindUserAsync(original.ExternalId))!.DisplayName);
+        await UpsertInNewScopeAsync(original with { DisplayName = "Johnny" });
+        Assert.Equal("Johnny", (await FindUserAsync(original.ExternalId))!.DisplayName);
+    }
+
+    [SkippableFact]
+    public async Task Upsert_ManagedProfile_KeepsEditedDisplayNameButFillsAMissingOne()
+    {
+        SkipIfUnavailable();
+        var profile = CreateProfile();
+        await UpsertInNewScopeAsync(profile);
+        await using (var scope = _database.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<IProfileRepository>().UpdateAsync(profile.Issuer, profile.ExternalId, 0,
+                new Dictionary<string, string?> { ["city"] = "Austin" }, default);
+
+        await UpsertInNewScopeAsync(profile with { DisplayName = "From Token" });
+        Assert.Equal("From Token", (await FindUserAsync(profile.ExternalId))!.DisplayName);
+
+        await using (var scope = _database.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<IProfileRepository>().UpdateAsync(profile.Issuer, profile.ExternalId, 1,
+                new Dictionary<string, string?> { ["displayName"] = "Edited" }, default);
+        await using (var scope = _database.Services.CreateAsyncScope())
+        {
+            var registered = await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(profile with { DisplayName = "Stale Token" }, default);
+            Assert.Equal("Edited", registered.DisplayName);
+        }
+        var stored = await FindUserAsync(profile.ExternalId);
+        Assert.Equal("Edited", stored!.DisplayName);
+        Assert.True(stored.DisplayNameSyncPending);
+    }
+
+    [SkippableFact]
     public async Task Upsert_ValuesAtPublishedMaximumLengths_AreStored()
     {
         SkipIfUnavailable();
         var profile = new UserProfileData(
             ExternalId: Guid.NewGuid().ToString().PadRight(UserProfileData.MaxExternalIdLength, 'x'),
             Email: new string('e', UserProfileData.MaxEmailLength),
-            GivenName: new string('n', UserProfileData.MaxNameLength), FamilyName: new string('f', UserProfileData.MaxNameLength));
+            GivenName: new string('n', UserProfileData.MaxNameLength), FamilyName: new string('f', UserProfileData.MaxNameLength),
+            DisplayName: new string('d', UserProfileData.MaxNameLength));
 
         await UpsertInNewScopeAsync(profile);
 
@@ -105,6 +148,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         Assert.Equal(profile.Email, stored?.Email);
         Assert.Equal(profile.GivenName, stored?.GivenName);
         Assert.Equal(profile.FamilyName, stored?.FamilyName);
+        Assert.Equal(profile.DisplayName, stored?.DisplayName);
     }
 
     [SkippableFact]
@@ -219,7 +263,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
             await using var scope = _database.Services.CreateAsyncScope();
             return await scope.ServiceProvider.GetRequiredService<IAuthorizeUnitOfWork>().ExecuteInTransactionAsync(async token =>
             {
-                var id = await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(profile, token);
+                var id = (await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(profile, token)).Id;
                 await scope.ServiceProvider.GetRequiredService<IUserLoginRepository>().AddAsync(new UserLoginData(id, null, session, type), token);
                 return id;
             }, default);
@@ -272,7 +316,8 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
             Assert.Equal(1, audit.Type);
             Assert.Null(audit.SessionKey);
             var repository = new Data.Users.UserRepository(db);
-            Assert.Equal(id, await repository.UpsertAsync(new UserProfileData(user.ExternalId, "changed@example.com", "Changed", null, user.Issuer), default));
+            Assert.Equal(id, (await repository.UpsertAsync(new UserProfileData(user.ExternalId, "changed@example.com", "Changed", null, user.Issuer), default)).Id);
+            Assert.Null(user.DisplayName);
         }
         finally
         {
@@ -293,7 +338,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
     private async Task<Guid> UpsertInNewScopeAsync(UserProfileData profile)
     {
         await using var scope = _database.Services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(profile, CancellationToken.None);
+        return (await scope.ServiceProvider.GetRequiredService<IUserRepository>().UpsertAsync(profile, CancellationToken.None)).Id;
     }
 
     private async Task<Guid> SignInInNewScopeAsync(UserProfileData profile, IPAddress ipAddress)
@@ -306,7 +351,7 @@ public sealed class UserPersistenceTests : IClassFixture<PostgresDatabaseFixture
         return await unitOfWork.ExecuteInTransactionAsync(
             async token =>
             {
-                var userId = await users.UpsertAsync(profile, token);
+                var userId = (await users.UpsertAsync(profile, token)).Id;
                 await logins.AddAsync(new UserLoginData(userId, ipAddress), token);
                 return userId;
             },

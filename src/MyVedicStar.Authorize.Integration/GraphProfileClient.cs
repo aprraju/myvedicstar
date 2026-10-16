@@ -27,7 +27,10 @@ internal sealed partial class GraphProfileClient(HttpClient http, IOptions<Graph
             !(authority.Host.EndsWith(".ciamlogin.com", StringComparison.OrdinalIgnoreCase) || authority.Host == "login.microsoftonline.com") ||
             !authority.AbsolutePath.Split('/').Contains(tenantId.ToString("D"), StringComparer.OrdinalIgnoreCase))
             throw new IntegrationException("Name synchronization is unavailable for this account.");
-        if (changes.Keys.Any(key => key is not ("givenName" or "surname"))) throw new IntegrationException("Unsupported name attribute.");
+        if (changes.Keys.Any(key => key is not ("givenName" or "surname" or "displayName"))) throw new IntegrationException("Unsupported name attribute.");
+        if (changes.TryGetValue("displayName", out var displayName) && string.IsNullOrWhiteSpace(displayName))
+            throw new IntegrationException("A display name cannot be cleared.");
+        if (changes.Count == 0) return;
         var started = Stopwatch.GetTimestamp();
         int? status = null;
         try

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace MyVedicStar.Authorize.Business.Users;
 
 /// <summary>
-/// Records a signed-in user's sign-in and returns their profile as carried by their access token.
+/// Records a signed-in user's sign-in and returns their stored names with the ID and email from their access token.
 /// </summary>
 internal sealed partial class UserSignInService
 {
@@ -19,11 +19,11 @@ internal sealed partial class UserSignInService
 
     public async Task<UserInfo> SignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
     {
-        await _signInRecorder.RecordSignInAsync(user, clientIpAddress, cancellationToken);
+        var names = await _signInRecorder.RecordSignInAsync(user, clientIpAddress, cancellationToken);
 
         LogUserSignedIn(_logger, user.ExternalUserId);
 
-        return new UserInfo(user.ExternalUserId, user.GivenName is null && user.FamilyName is null ? null : user.GivenName + "," + user.FamilyName, user.Email);
+        return new UserInfo(user.ExternalUserId, names.DisplayName, user.Email, names.FirstName, names.LastName);
     }
 
     public Task SignOutAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken) =>

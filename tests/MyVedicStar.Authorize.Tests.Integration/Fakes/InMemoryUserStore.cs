@@ -34,15 +34,16 @@ public sealed class InMemoryUserStore : IUserRepository, IUserLoginRepository, I
         TransactionCount = 0;
     }
 
-    public Task<Guid> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken)
+    public Task<RegisteredUser> UpsertAsync(UserProfileData profile, CancellationToken cancellationToken)
     {
+        // Mirrors the repository rule that a token without a display name never erases the stored one.
         var user = _users.AddOrUpdate(profile.Issuer + "|" + profile.ExternalId,
             _ => (Guid.CreateVersion7(), profile),
             (_, existing) => _inactive.ContainsKey(existing.Id)
                 ? throw new Shared.Exceptions.AccountInactiveException()
-                : (existing.Id, profile));
+                : (existing.Id, profile with { DisplayName = profile.DisplayName ?? existing.Profile.DisplayName }));
 
-        return Task.FromResult(user.Id);
+        return Task.FromResult(new RegisteredUser(user.Id, user.Profile.DisplayName, user.Profile.GivenName, user.Profile.FamilyName));
     }
 
     public Task AddAsync(UserLoginData login, CancellationToken cancellationToken)

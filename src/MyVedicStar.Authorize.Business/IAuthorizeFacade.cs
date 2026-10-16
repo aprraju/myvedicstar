@@ -9,8 +9,8 @@ namespace MyVedicStar.Authorize.Business;
 public interface IAuthorizeFacade
 {
     /// <summary>
-    /// Registers an authenticated account if necessary, audits the session once,
-    /// and returns the existing ID, name and email response from the token.
+    /// Registers an authenticated account if necessary, audits the session once, and returns the token's ID and
+    /// email with the stored display, first and last names.
     /// </summary>
     /// <param name="user">The user whose access token has already been validated by the API.</param>
     /// <param name="clientIpAddress">The client's IP address as resolved by the API, if known.</param>
@@ -23,7 +23,7 @@ public interface IAuthorizeFacade
     /// <summary>Audits explicit logout once per session, without changing provider authentication.</summary>
     /// <summary>Reads the authenticated account without creating a user or audit event.</summary>
     Task<ProfileResult> GetProfileAsync(ClaimsPrincipal user, CancellationToken token);
-    /// <summary>Updates only supplied fields and attempts pending name synchronization.</summary>
+    /// <summary>Updates only supplied fields and attempts pending first, last and display name synchronization with Entra.</summary>
     Task<ProfileResult> UpdateProfileAsync(ClaimsPrincipal user, ProfileUpdateRequest request, CancellationToken token);
     /// <summary>Retries durable pending name synchronization.</summary>
     Task<ProfileResult> RetryProfileSyncAsync(ClaimsPrincipal user, CancellationToken token);

@@ -23,6 +23,7 @@ public sealed class SignedInUserReaderTests
         var result = _reader.GetSignedInUser(user);
         Assert.Equal("object-id", result.ExternalUserId);
         Assert.Equal("John", result.GivenName);
+        Assert.Equal("Ignored Display Name", result.DisplayName);
         Assert.Equal("john.smith@example.com", result.Email);
         Assert.Equal("https://test.ciamlogin.com/test/v2.0", result.Issuer);
     }
@@ -62,6 +63,16 @@ public sealed class SignedInUserReaderTests
         var result = _reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("name", name), ("preferred_username", "aprraju@gmail.com")));
         Assert.Equal("aprraju@gmail.com", result.Email);
         Assert.Null(result.GivenName);
+        Assert.Null(result.DisplayName);
+    }
+
+    [Fact]
+    public void DisplayName_IsTrimmedNameClaimAndIndependentOfGivenAndFamilyName()
+    {
+        var result = _reader.GetSignedInUser(CreateUser(("oid", "object-id"), ("name", "  Raju B  "), ("given_name", "Raju"), ("family_name", "Bhupathi")));
+        Assert.Equal("Raju B", result.DisplayName);
+        Assert.Equal("Raju", result.GivenName);
+        Assert.Equal("Bhupathi", result.FamilyName);
     }
 
     [Fact]

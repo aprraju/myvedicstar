@@ -25,6 +25,7 @@ internal sealed class UserEntityConfiguration : IEntityTypeConfiguration<UserEnt
         builder.Property(user => user.Email).HasMaxLength(UserProfileData.MaxEmailLength);
         builder.Property(user => user.GivenName).HasColumnName("given_name").HasMaxLength(UserProfileData.MaxNameLength);
         builder.Property(user => user.FamilyName).HasColumnName("family_name").HasMaxLength(UserProfileData.MaxNameLength);
+        builder.Property(user => user.DisplayName).HasMaxLength(UserProfileData.MaxNameLength);
 
         builder.Property(user => user.StreetAddress).HasMaxLength(256);
         builder.Property(user => user.StreetAddress2).HasMaxLength(256);
@@ -37,6 +38,7 @@ internal sealed class UserEntityConfiguration : IEntityTypeConfiguration<UserEnt
         builder.Property(user => user.ProfileManaged).HasDefaultValue(false);
         builder.Property(user => user.FirstNameSyncPending).HasDefaultValue(false);
         builder.Property(user => user.LastNameSyncPending).HasDefaultValue(false);
+        builder.Property(user => user.DisplayNameSyncPending).HasDefaultValue(false);
 
         builder.Property(user => user.CreatedUtc).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()");
         builder.Property(user => user.UpdatedUtc).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()");

@@ -46,7 +46,11 @@ public static class MyVedicStarApiModule
         services.Configure<ApiDocumentationOptions>(configuration.GetSection(ApiDocumentationOptions.SectionName));
         services.Configure<Microsoft.AspNetCore.OpenApi.OpenApiOptions>("v1", options =>
             options.AddDocumentTransformer<HttpsServerUrlTransformer>());
-        services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(MyVedicStar.Shared.Caching.CacheMetrics.MeterName, MyVedicStar.Caching.ApplicationCacheMetrics.MeterName, "Npgsql"));
+        // Npgsql's own ActivitySource makes each database command a dependency span, so login time can be split
+        // between PostgreSQL and the rest of the request.
+        services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(MyVedicStar.Shared.Caching.CacheMetrics.MeterName, MyVedicStar.Caching.ApplicationCacheMetrics.MeterName, "Npgsql"))
+            .WithTracing(tracing => tracing.AddSource("Npgsql"));
+        services.AddHostedService<TokenValidationWarmupService>();
         services.AddSingleton<GlobalExceptionHandler>();
         services.AddExceptionHandler<StarDomainExceptionHandler>();
         return services;

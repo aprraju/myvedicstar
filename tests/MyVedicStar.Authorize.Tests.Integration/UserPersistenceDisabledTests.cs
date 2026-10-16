@@ -42,14 +42,16 @@ public sealed class UserPersistenceDisabledTests : IClassFixture<PersistenceDisa
     public async Task UserInfo_PersistenceDisabled_ReturnsTokenProfileWithObjectIdAsId()
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/userinfo");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _factory.CreateToken([("oid", ObjectId), ("given_name", "John"), ("family_name", "Smith"), ("email", "john.smith@example.com")]));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _factory.CreateToken([("oid", ObjectId), ("name", "Johnny"), ("given_name", "John"), ("family_name", "Smith"), ("email", "john.smith@example.com")]));
 
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(ObjectId, body.GetProperty("id").GetString());
-        Assert.Equal("John,Smith", body.GetProperty("name").GetString());
+        Assert.Equal("Johnny", body.GetProperty("name").GetString());
+        Assert.Equal("John", body.GetProperty("firstName").GetString());
+        Assert.Equal("Smith", body.GetProperty("lastName").GetString());
         Assert.Equal("john.smith@example.com", body.GetProperty("email").GetString());
     }
 

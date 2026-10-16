@@ -46,8 +46,10 @@ internal sealed class SignedInUserReader
         var email = _options.Email.Select(type => FindFirstValue(user, [type])).FirstOrDefault(IsEmail);
         var givenName = FindFirstValue(user, ["given_name", ClaimTypes.GivenName]);
         var familyName = FindFirstValue(user, ["family_name", ClaimTypes.Surname]);
+        var displayName = FindFirstValue(user, _options.Name);
         return new SignedInUser(externalUserId, IsUsableName(givenName) ? givenName : null,
-            IsUsableName(familyName) ? familyName : null, email, issuer, sessionKey);
+            IsUsableName(familyName) ? familyName : null, email, issuer, sessionKey,
+            IsUsableName(displayName) ? displayName : null);
     }
 
     private static bool IsEmail(string? value) => value is not null && value.Contains('@')

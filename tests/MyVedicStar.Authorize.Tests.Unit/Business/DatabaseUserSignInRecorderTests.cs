@@ -13,7 +13,7 @@ public sealed class DatabaseUserSignInRecorderTests
     private static readonly Guid InternalUserId = Guid.Parse("0199a3b4-0000-7000-8000-000000000001");
     private static readonly IPAddress ClientIp = IPAddress.Parse("203.0.113.7");
 
-    private static readonly SignedInUser User = new("object-id", "John", "Smith", "john.smith@example.com", "https://accounts.google.com", "session-key");
+    private static readonly SignedInUser User = new("object-id", "John", "Smith", "john.smith@example.com", "https://accounts.google.com", "session-key", "John S.");
 
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly IUserLoginRepository _userLoginRepository = Substitute.For<IUserLoginRepository>();
@@ -22,7 +22,8 @@ public sealed class DatabaseUserSignInRecorderTests
 
     public DatabaseUserSignInRecorderTests()
     {
-        _userRepository.UpsertAsync(Arg.Any<UserProfileData>(), Arg.Any<CancellationToken>()).Returns(InternalUserId);
+        _userRepository.UpsertAsync(Arg.Any<UserProfileData>(), Arg.Any<CancellationToken>())
+            .Returns(new RegisteredUser(InternalUserId, "Stored Display", "Stored First", "Stored Last"));
         _recorder = new DatabaseUserSignInRecorder(_userRepository, _userLoginRepository, _unitOfWork);
     }
 
@@ -32,7 +33,7 @@ public sealed class DatabaseUserSignInRecorderTests
         await _recorder.RecordSignInAsync(User, ClientIp, CancellationToken.None);
 
         await _userRepository.Received(1).UpsertAsync(
-            new UserProfileData("object-id", "john.smith@example.com", "John", "Smith", User.Issuer),
+            new UserProfileData("object-id", "john.smith@example.com", "John", "Smith", User.Issuer, "John S."),
             Arg.Any<CancellationToken>());
     }
 
@@ -42,6 +43,26 @@ public sealed class DatabaseUserSignInRecorderTests
         await _recorder.RecordSignInAsync(User, ClientIp, CancellationToken.None);
 
         await _userLoginRepository.Received(1).AddAsync(new UserLoginData(InternalUserId, ClientIp, User.SessionKey), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RecordSignInAsync_ReturnsStoredNamesNotTokenNames()
+    {
+        var names = await _recorder.RecordSignInAsync(User, ClientIp, CancellationToken.None);
+
+        Assert.Equal(new SignedInUserNames("Stored Display", "Stored First", "Stored Last"), names);
+    }
+
+    [Fact]
+    public async Task RecordSignInAsync_DisplayNameLongerThanColumn_StoresShortenedDisplayName()
+    {
+        var user = User with { DisplayName = new string('d', UserProfileData.MaxNameLength + 10) };
+
+        await _recorder.RecordSignInAsync(user, ClientIp, CancellationToken.None);
+
+        await _userRepository.Received(1).UpsertAsync(
+            Arg.Is<UserProfileData>(profile => profile.DisplayName == new string('d', UserProfileData.MaxNameLength)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

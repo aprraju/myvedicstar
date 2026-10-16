@@ -158,7 +158,7 @@ public sealed partial class SharedHostTests
         public Task<ProfileResult> GetProfileAsync(ClaimsPrincipal user, CancellationToken token)
         {
             ReadAuthenticatedIdentity = user.Identity?.IsAuthenticated == true;
-            return Task.FromResult(new ProfileResult(Id, "Asha", "Rao", null, null, null, null, null, null, "registered@example.com", null, 1, false));
+            return Task.FromResult(new ProfileResult(Id, "Asha", "Rao", "Asha Rao", null, null, null, null, null, null, "registered@example.com", null, 1, false));
         }
         public Task<UserInfo> SignInUserAsync(ClaimsPrincipal user, IPAddress? ip, CancellationToken token) => throw new NotSupportedException();
         public Task<UserInfo> LoginAsync(ClaimsPrincipal user, IPAddress? ip, string? sessionId, CancellationToken token) => throw new NotSupportedException();

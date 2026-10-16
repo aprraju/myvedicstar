@@ -50,6 +50,8 @@ public static class AuthorizeDataServiceCollectionExtensions
         services.AddScoped<IAuthorizeUnitOfWork, AuthorizeUnitOfWork>();
 
         services.AddHostedService<DatabaseMigrationHostedService>();
+        // Registered after migrations, which run to completion first.
+        services.AddHostedService<DatabaseWarmupHostedService>();
 
         services.AddHealthChecks()
             .AddCheck<AuthorizeDatabaseHealthCheck>(DatabaseHealthCheckName, tags: [HealthCheckTags.Readiness]);

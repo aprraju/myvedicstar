@@ -38,6 +38,8 @@ public sealed class DatabaseOptions : IValidatableObject
         new Npgsql.NpgsqlConnectionStringBuilder
         {
             Host = Host, Database = Name, Username = Username, Port = Port, SslMode = SslMode,
+            // Azure Database for PostgreSQL has no GSSAPI; skip probing for it (and the missing native library) on every connection.
+            GssEncryptionMode = Npgsql.GssEncryptionMode.Disable,
         }.ConnectionString;
 
     /// <summary>Maximum time a single database command may run.</summary>
