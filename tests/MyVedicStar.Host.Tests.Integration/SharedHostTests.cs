@@ -149,8 +149,6 @@ public sealed partial class SharedHostTests
     [InlineData("/api/v1/auth/profile", false)]
     [InlineData("/api/v1/settings", false)]
     [InlineData("/api/v1/settings/locations", false)]
-    [InlineData("/openapi/v1.json", false)]
-    [InlineData("/swagger/index.html", false)]
     [InlineData("/api/v1/muhurta/good-times?latitude=17.385&longitude=78.4867", false)]
     public async Task ProtectedRoutes_RejectAnonymousRequests(string path, bool post)
     {
@@ -258,6 +256,8 @@ public sealed partial class SharedHostTests
                 ["ApiProtection:RateLimiting:Global:PermitLimit"] = globalLimit.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["Redis:ConnectionString"] = "",
                 ["Logging:EventLog:LogLevel:Default"] = "None",
+                // Development enables email; tests must never reach a real mailbox through local user secrets.
+                ["EmailSettings:Enabled"] = "false",
             }) builder.UseSetting(setting.Key, setting.Value!);
             builder.ConfigureServices(services =>
             {

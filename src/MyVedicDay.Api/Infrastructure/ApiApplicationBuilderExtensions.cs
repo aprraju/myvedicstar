@@ -38,13 +38,14 @@ internal static class ApiApplicationBuilderExtensions
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseCors();
 
+        // Before authentication and authorization, so the static Swagger UI is anonymous.
+        app.UseApiDocumentationUi();
 
         // Request size (needs endpoint metadata, so after routing) and correlation. The rate limiter comes after
         // authentication so user-based partitions resolve correctly.
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseRateLimiter();
-        // Documentation middleware also runs after authentication and fallback authorization.
         app.MapApiDocumentation();
 
         app.MapControllers().RequireAuthorization(AuthPolicyNames.ApiScope);

@@ -25,24 +25,16 @@ internal static class ApiDocumentationExtensions
     }
 
     /// <summary>
-    /// Exposes the documentation in Development, or elsewhere when <c>ApiDocumentation:Enabled</c> is true.
+    /// Serves the Swagger UI anonymously. Call before authentication and authorization so the fallback policy never
+    /// sees it: the page is static and holds no data.
     /// </summary>
-    public static WebApplication MapApiDocumentation(this WebApplication app)
+    public static WebApplication UseApiDocumentationUi(this WebApplication app)
     {
-        var enabled = app.Environment.IsDevelopment()
-            || app.Configuration.GetSection(ApiDocumentationOptions.SectionName).Get<ApiDocumentationOptions>()?.Enabled == true;
-        if (!enabled)
+        if (!IsEnabled(app))
         {
             return app;
         }
 
-        // Generating the document runs real calculations for its examples: rate-limited like the API everywhere but
-        // Development, so Swagger cannot be used to load the service.
-        var document = app.MapOpenApi().RequireAuthorization(MyVedicStar.ApiProtection.Auth.AuthPolicyNames.ApiScope);
-        if (app.Environment.IsDevelopment())
-        {
-            document.DisableRateLimiting();
-        }
         app.UseSwaggerUI(options =>
         {
             options.RoutePrefix = SwaggerUiPrefix;
@@ -55,4 +47,31 @@ internal static class ApiDocumentationExtensions
 
         return app;
     }
+
+    /// <summary>
+    /// Maps the anonymous OpenAPI document when the documentation is enabled.
+    /// </summary>
+    public static WebApplication MapApiDocumentation(this WebApplication app)
+    {
+        if (!IsEnabled(app))
+        {
+            return app;
+        }
+
+        // Generating the document runs real calculations for its examples: rate-limited like the API everywhere but
+        // Development, so Swagger cannot be used to load the service.
+        // Anonymous so the anonymous Swagger UI can load it; the operations themselves still require the API scope.
+        var document = app.MapOpenApi().AllowAnonymous();
+        if (app.Environment.IsDevelopment())
+        {
+            document.DisableRateLimiting();
+        }
+
+        return app;
+    }
+
+    /// <summary>On in Development, or elsewhere when <c>ApiDocumentation:Enabled</c> is true.</summary>
+    private static bool IsEnabled(WebApplication app) =>
+        app.Environment.IsDevelopment()
+        || app.Configuration.GetSection(ApiDocumentationOptions.SectionName).Get<ApiDocumentationOptions>()?.Enabled == true;
 }

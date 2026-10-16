@@ -63,6 +63,8 @@ public class AuthorizeApiFactory : WebApplicationFactory<StarApiProgram>
         builder.UseSetting("ApiProtection:TrustedProxies:0", TrustedProxyIp);
         builder.UseSetting("ApiProtection:RateLimiting:AuthenticatedStandard:PermitLimit", RateLimitPermitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
         builder.UseSetting("ApiProtection:RateLimiting:Global:PermitLimit", "10000");
+        // Development enables email; tests must never reach a real mailbox through local user secrets.
+        builder.UseSetting("EmailSettings:Enabled", "false");
 
         builder.ConfigureServices(services =>
         {

@@ -59,10 +59,16 @@ Override host, port, security mode, username, sender and timeout as necessary. D
 user-secret entries. Enabled configuration is validated at startup and before sending. Disabled
 email does not prevent unrelated API functionality and returns 503 for submissions.
 
-For production, add `EmailSettings__Password` to `deploy/environments/prod.json`'s `secrets` mapping
-with a Key Vault secret name, populate it using the existing interactive `set-secrets.ps1` mechanism,
-and set `EmailSettings__Enabled=true` in deployment `settings` only once SMTP setup is complete.
-The Container App identity resolves the Key Vault reference. Do not commit credentials.
+Email is enabled in `appsettings.Development.json`, so local startup requires the
+`EmailSettings:Password` user secret above. Integration test hosts set `EmailSettings:Enabled=false`
+so they never reach a real mailbox.
+
+Production sets `EmailSettings__Enabled=true` in `deploy/environments/prod.json` `settings` and maps
+`EmailSettings__Password` to the Key Vault secret `email-settings-password` (Key Vault and Container
+App secret names allow only letters, digits and dashes). Populate it before deploying with
+`./set-secrets.ps1 -Environment prod -Name email-settings-password`; `deploy-app.ps1` fails before
+creating a revision if the secret is missing. The Container App identity resolves the Key Vault
+reference into the environment variable. Do not commit credentials.
 
 ## APIM and clients
 

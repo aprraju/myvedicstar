@@ -26,7 +26,8 @@
     "TransportSecurity__RedirectHttpToHttps": "false",
     "ApiProtection__TrustedProxies__0": "10.2.0.0/23",
     "Observability__ServiceName": "myvedicstar-api",
-    "Caching__L2__Enabled": "false"
+    "Caching__L2__Enabled": "false",
+    "EmailSettings__Enabled": "true"
   },
   "removedSettings": [
     "ApiDocumentation__Enabled",
@@ -34,7 +35,8 @@
     "Authentication__EntraExternalId__Audience"
   ],
   "secrets": {
-    "Integrations__MicrosoftGraph__ClientSecret": "microsoft-graph-client-secret"
+    "Integrations__MicrosoftGraph__ClientSecret": "microsoft-graph-client-secret",
+    "EmailSettings__Password": "email-settings-password"
   },
   "probes": {
     "$comment": "Paths come from HealthChecks in src/MyVedicDay.Api/appsettings.json; port matches ASPNETCORE_HTTP_PORTS.",

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace MyVedicStar.Authorize.Tests.Integration;
 
-/// <summary>The OpenAPI document and Swagger UI are protected by authentication in every environment.</summary>
+/// <summary>The OpenAPI document and Swagger UI are anonymous; the documented operations still require a token.</summary>
 public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApiFactory>
 {
     private readonly PersistenceDisabledApiFactory _factory;
@@ -17,13 +17,21 @@ public sealed class ApiDocumentationTests : IClassFixture<PersistenceDisabledApi
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.CreateToken([("oid", "00000000-0000-0000-0000-000000000001")]));
     }
 
-    [Theory]
-    [InlineData("/openapi/v1.json")]
-    [InlineData("/swagger/index.html")]
-    public async Task Documentation_WithoutToken_IsUnauthorized(string path)
+    [Fact]
+    public async Task OpenApiDocument_WithoutToken_IsServed()
     {
         using var anonymous = _factory.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync("/openapi/v1.json")).StatusCode);
+    }
+
+    [Fact]
+    public async Task SwaggerUi_WithoutToken_IsServed()
+    {
+        using var anonymous = _factory.CreateClient();
+        var response = await anonymous.GetAsync("/swagger/index.html");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
