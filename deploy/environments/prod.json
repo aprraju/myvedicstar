@@ -26,7 +26,7 @@
     "TransportSecurity__RedirectHttpToHttps": "false",
     "ApiProtection__TrustedProxies__0": "10.2.0.0/23",
     "Observability__ServiceName": "myvedicstar-api",
-    "Caching__L2__Enabled": "false",
+    "Caching__L2__Enabled": "true",
     "EmailSettings__Enabled": "true"
   },
   "removedSettings": [
