@@ -65,6 +65,8 @@ public class AuthorizeApiFactory : WebApplicationFactory<StarApiProgram>
         builder.UseSetting("ApiProtection:RateLimiting:Global:PermitLimit", "10000");
         // Development enables email; tests must never reach a real mailbox through local user secrets.
         builder.UseSetting("EmailSettings:Enabled", "false");
+        // Development enables the PostgreSQL (L2) cache; these tests have no cache database.
+        builder.UseSetting("Caching:L2:Enabled", "false");
 
         builder.ConfigureServices(services =>
         {

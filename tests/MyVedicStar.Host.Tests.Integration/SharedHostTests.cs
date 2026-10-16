@@ -258,6 +258,8 @@ public sealed partial class SharedHostTests
                 ["Logging:EventLog:LogLevel:Default"] = "None",
                 // Development enables email; tests must never reach a real mailbox through local user secrets.
                 ["EmailSettings:Enabled"] = "false",
+                // Development enables the PostgreSQL (L2) cache; these tests have no cache database.
+                ["Caching:L2:Enabled"] = "false",
             }) builder.UseSetting(setting.Key, setting.Value!);
             builder.ConfigureServices(services =>
             {
