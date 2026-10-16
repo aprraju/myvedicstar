@@ -64,9 +64,9 @@ Email is enabled in `appsettings.Development.json`, so local startup requires th
 so they never reach a real mailbox.
 
 Production sets `EmailSettings__Enabled=true` in `deploy/environments/prod.json` `settings` and maps
-`EmailSettings__Password` to the Key Vault secret `email-settings-password` (Key Vault and Container
-App secret names allow only letters, digits and dashes). Populate it before deploying with
-`./set-secrets.ps1 -Environment prod -Name email-settings-password`; `deploy-app.ps1` fails before
+`EmailSettings__Password` to the Key Vault secret `EmailSettingsPassword`; `deploy-app.ps1` registers it
+as the lower-case Container App secret `emailsettingspassword`. Populate it before deploying with
+`./set-secrets.ps1 -Environment prod -Name EmailSettingsPassword`; `deploy-app.ps1` fails before
 creating a revision if the secret is missing. The Container App identity resolves the Key Vault
 reference into the environment variable. Do not commit credentials.
 

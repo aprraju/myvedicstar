@@ -36,7 +36,7 @@
   ],
   "secrets": {
     "Integrations__MicrosoftGraph__ClientSecret": "microsoft-graph-client-secret",
-    "EmailSettings__Password": "email-settings-password"
+    "EmailSettings__Password": "EmailSettingsPassword"
   },
   "probes": {
     "$comment": "Paths come from HealthChecks in src/MyVedicDay.Api/appsettings.json; port matches ASPNETCORE_HTTP_PORTS.",

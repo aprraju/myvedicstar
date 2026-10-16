@@ -98,7 +98,14 @@ if (-not ($assignedIdentities | Where-Object { $_ -ieq $identityId })) {
 
 $secretMappings = @()
 if ($config.secrets) {
-    $secretMappings = @($config.secrets.PSObject.Properties | ForEach-Object { [pscustomobject]@{ EnvironmentVariable = $_.Name; SecretName = $_.Value } })
+    # Key Vault names allow upper case; Container App secret names must be lower-case alphanumerics and dashes.
+    $secretMappings = @($config.secrets.PSObject.Properties | ForEach-Object {
+            [pscustomobject]@{
+                EnvironmentVariable = $_.Name
+                SecretName          = $_.Value
+                AppSecretName       = ([string]$_.Value).ToLowerInvariant() -replace '[^a-z0-9-]', '-'
+            }
+        })
 }
 
 # Validate persistence configuration before creating a revision or updating secret references.
@@ -155,9 +162,9 @@ if ($secretMappings.Count -gt 0) {
 
 if ($secretMappings.Count -gt 0) {
     $secretArguments = @($secretMappings | ForEach-Object {
-            "$($_.SecretName)=keyvaultref:$keyVaultUri/secrets/$($_.SecretName),identityref:$identityId"
+            "$($_.AppSecretName)=keyvaultref:$keyVaultUri/secrets/$($_.SecretName),identityref:$identityId"
         })
-    Write-Host "Setting Key Vault references: $(($secretMappings | ForEach-Object { $_.SecretName }) -join ', ')"
+    Write-Host "Setting Key Vault references: $(($secretMappings | ForEach-Object { $_.AppSecretName }) -join ', ')"
     Invoke-Az containerapp secret set --name $ContainerAppName --resource-group $ResourceGroup --secrets @secretArguments --output none
 }
 
@@ -178,7 +185,7 @@ foreach ($setting in $config.settings.PSObject.Properties) {
     $owned[$setting.Name] = [pscustomobject]@{ name = $setting.Name; value = [string] $setting.Value }
 }
 foreach ($mapping in $secretMappings) {
-    $owned[$mapping.EnvironmentVariable] = [pscustomobject]@{ name = $mapping.EnvironmentVariable; secretRef = $mapping.SecretName }
+    $owned[$mapping.EnvironmentVariable] = [pscustomobject]@{ name = $mapping.EnvironmentVariable; secretRef = $mapping.AppSecretName }
 }
 $removed = @(if ($config.PSObject.Properties.Name -contains 'removedSettings') { $config.removedSettings })
 $environmentVariables = @(@($container.env) | Where-Object { $_ -and -not $owned.ContainsKey($_.name) -and $removed -notcontains $_.name }) + @($owned.Values | Sort-Object name)

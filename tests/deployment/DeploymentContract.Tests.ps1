@@ -84,6 +84,10 @@ function az {
         if ($arguments -notcontains 'microsoft-graph-client-secret=keyvaultref:https://example.vault.azure.net/secrets/microsoft-graph-client-secret,identityref:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-myvedicstar-api-prod') {
             throw 'Graph credential must reference Key Vault through the existing managed identity.'
         }
+        # Mixed-case Key Vault names keep their vault URL but get a valid lower-case Container App secret name.
+        if ($arguments -notcontains 'emailsettingspassword=keyvaultref:https://example.vault.azure.net/secrets/EmailSettingsPassword,identityref:/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-myvedicstar-api-prod') {
+            throw 'Email password must reference Key Vault under a valid Container App secret name.'
+        }
         return
     }
     throw "Unexpected Azure command in deployment test: $($arguments -join ' ')"
@@ -104,6 +108,8 @@ try {
     Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__TenantId')[0].value -eq $config.settings.Authentication__EntraExternalId__TenantId) 'Graph tenant mismatch.'
     Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__ClientId')[0].value -eq $expectedApiId) 'Graph client mismatch.'
     Assert-Deployment (@($api.env | Where-Object name -eq 'Integrations__MicrosoftGraph__ClientSecret')[0].secretRef -eq 'microsoft-graph-client-secret') 'Graph secret reference missing.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'EmailSettings__Password')[0].secretRef -eq 'emailsettingspassword') 'Email password secret reference missing.'
+    Assert-Deployment (@($api.env | Where-Object name -eq 'EmailSettings__Enabled')[0].value -eq 'true') 'Email must be enabled in production.'
     Assert-Deployment ($api.image -eq 'testregistry.azurecr.io/myvedicstar-api:test-commit') 'Wrong combined image.'
     Assert-Deployment ($api.resources.cpu -eq 0.5 -and $api.resources.memory -eq '1Gi') 'CPU and memory changed.'
     Assert-Deployment ($template.scale.minReplicas -eq 2 -and $template.scale.maxReplicas -eq 5) 'Scaling changed.'
