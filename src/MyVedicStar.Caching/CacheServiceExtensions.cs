@@ -26,7 +26,7 @@ public static class CacheServiceExtensions
         var settings = configuration.GetSection("Caching").Get<ApplicationCacheOptions>() ?? new();
         if (settings.Enabled && settings.L2.Enabled)
         {
-            var database = CacheDatabaseSettings.From(configuration.GetSection("Database"));
+            var database = CacheDatabaseSettings.From(configuration);
             services.AddSingleton<CacheDataSource>(_ => new CacheDataSource(database, settings));
             services.AddSingleton<PostgresCache>(sp => new PostgresCache(Options.Create(new PostgresCacheOptions
             {
@@ -52,9 +52,11 @@ public static class CacheServiceExtensions
     /// </summary>
     internal sealed record CacheDatabaseSettings(string ConnectionString, bool UseManagedIdentity, string? ManagedIdentityClientId)
     {
-        internal static CacheDatabaseSettings From(IConfiguration database)
+        internal static CacheDatabaseSettings From(IConfiguration configuration)
         {
-            var clientId = database["ManagedIdentityClientId"];
+            var database = configuration.GetSection("Database");
+            // Like the business data source: the container's user-assigned identity (AZURE_CLIENT_ID) unless configured.
+            var clientId = database["ManagedIdentityClientId"] ?? configuration["AZURE_CLIENT_ID"];
             if (!database.GetValue<bool>("UseManagedIdentity"))
             {
                 var connection = database["ConnectionString"];
