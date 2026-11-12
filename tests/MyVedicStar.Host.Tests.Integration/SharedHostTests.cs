@@ -103,22 +103,31 @@ public sealed partial class SharedHostTests
         var actual = endpoints.SelectMany(endpoint => endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods
             .Select(method => $"{method} {endpoint.RoutePattern.RawText}"));
         Assert.Equal(expected.Order(), actual.Order());
-        Assert.All(endpoints.Where(endpoint => IsStarRoute(endpoint)), endpoint => Assert.Equal(typeof(HostProgram).Assembly,
-            endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly));
-        Assert.All(endpoints.Where(endpoint => !IsStarRoute(endpoint)), endpoint => Assert.Equal("MyVedicDay.Api",
-            endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo.Assembly.GetName().Name));
+        var controllerAssemblies = new Dictionary<string, string>
+        {
+            ["AuthController"] = "MyVedicStar.Authorize.Api",
+            ["GeoNamesLocationsController"] = "MyVedicStar.Authorize.Api",
+            ["SettingsController"] = "MyVedicStar.Settings.Api",
+            ["EmailController"] = "MyVedicStar.Email.Api",
+            ["LocationsController"] = "MyVedicDay.Location.Api",
+            ["TraditionsController"] = "MyVedicDay.Traditions.Api",
+            ["PanchangController"] = "MyVedicDay.Panchang.Api",
+            ["PanchangTraditionsController"] = "MyVedicDay.Panchang.Api",
+            ["GlossaryController"] = "MyVedicDay.Panchang.Api",
+            ["FestivalsController"] = "MyVedicDay.Festivals.Api",
+            ["MuhurtaController"] = "MyVedicDay.Muhurta.Api",
+        };
+        Assert.All(endpoints, endpoint =>
+        {
+            var controller = endpoint.Metadata.GetRequiredMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>().ControllerTypeInfo;
+            Assert.Equal(controllerAssemblies[controller.Name], controller.Assembly.GetName().Name);
+        });
         Assert.All(endpoints.Where(endpoint => endpoint.RoutePattern.RawText is "api/email/send" or "api/v1/email/send"),
             endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAllowAnonymous>()));
         var protectedEndpoints = endpoints.Where(endpoint => endpoint.RoutePattern.RawText is not ("api/email/send" or "api/v1/email/send"));
         Assert.DoesNotContain(protectedEndpoints, endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null);
         Assert.All(protectedEndpoints, endpoint => Assert.NotEmpty(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()));
     }
-
-    private static bool IsStarRoute(RouteEndpoint endpoint) =>
-        endpoint.RoutePattern.RawText is "api/email/send" or "api/v1/email/send" ||
-        endpoint.RoutePattern.RawText!.StartsWith("api/v1/auth/", StringComparison.Ordinal) ||
-        endpoint.RoutePattern.RawText.StartsWith("api/v1/settings", StringComparison.Ordinal) ||
-        (endpoint.RoutePattern.RawText.StartsWith("api/v1/locations/", StringComparison.Ordinal) && endpoint.RoutePattern.RawText != "api/v1/locations/resolve");
 
     [Fact]
     public async Task BothApis_AcceptTheSameAudienceAndPreserveTheirRoutes()

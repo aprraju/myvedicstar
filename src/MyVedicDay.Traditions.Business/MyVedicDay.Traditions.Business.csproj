@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
-    <ProjectReference Include="..\MyVedicDay.Localization.Data\MyVedicDay.Localization.Data.csproj" />
     <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
   </ItemGroup>
 
@@ -17,4 +16,5 @@
     <EmbeddedResource Include="Content\*-content.*.json" LogicalName="MyVedicDay.Content.%(Filename)%(Extension)" WithCulture="false" />
   </ItemGroup>
 
-</Project>
+  <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Infrastructure.DependencyInjection" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../MyVedicDay.Localization.Shared/MyVedicDay.Localization.Shared.csproj" /></ItemGroup><ItemGroup><ProjectReference Include="../MyVedicDay.Caching/MyVedicDay.Caching.csproj" /></ItemGroup></Project>

@@ -6,7 +6,6 @@
     <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Panchang.Calculation\MyVedicDay.Panchang.Calculation.csproj" />
-    <ProjectReference Include="..\MyVedicDay.Panchang.Data\MyVedicDay.Panchang.Data.csproj" />
     <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
     <ProjectReference Include="..\MyVedicDay.Traditions.Business\MyVedicDay.Traditions.Business.csproj" />
   </ItemGroup>
@@ -24,4 +23,6 @@
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Panchang.Shared/MyVedicDay.Panchang.Shared.csproj" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Infrastructure.DependencyInjection" /></ItemGroup>
 </Project>

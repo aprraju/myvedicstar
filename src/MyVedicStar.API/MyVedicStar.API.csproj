@@ -9,6 +9,7 @@
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../MyVedicStar.Infrastructure.DependencyInjection/MyVedicStar.Infrastructure.DependencyInjection.csproj" />
     <ProjectReference Include="../MyVedicStar.Email.Business/MyVedicStar.Email.Business.csproj" />
     <ProjectReference Include="../MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
@@ -40,4 +41,4 @@
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'appsettings.json' Or '%(ResolvedFileToPublish.RelativePath)' == 'appsettings.Production.json' Or '%(ResolvedFileToPublish.RelativePath)' == 'appsettings.Development.json'" />
     </ItemGroup>
   </Target>
-</Project>
+<ItemGroup><ProjectReference Include="../MyVedicStar.Authorize.Api/MyVedicStar.Authorize.Api.csproj" /><ProjectReference Include="../MyVedicStar.Settings.Api/MyVedicStar.Settings.Api.csproj" /><ProjectReference Include="../MyVedicStar.Email.Api/MyVedicStar.Email.Api.csproj" /></ItemGroup></Project>

@@ -10,10 +10,10 @@ $portProbe = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::L
 try { $portProbe.Start() }
 catch { throw "Smoke-test port $Port is already in use. Select an unused port with -Port." }
 finally { $portProbe.Stop() }
-foreach ($file in 'MyVedicStar.API.dll', 'MyVedicDay.Api.dll', 'GeoNames.dll', 'apis/day/appsettings.json', 'apis/star/appsettings.json') {
+foreach ($file in 'MyVedicStar.API.dll', 'MyVedicDay.Api.dll', 'GeoNames.dll', 'GeoNames.Api.dll', 'GeoNames.Business.dll', 'GeoNames.Shared.dll', 'MyVedicDay.Location.Api.dll', 'MyVedicDay.Traditions.Api.dll', 'MyVedicDay.Panchang.Api.dll', 'MyVedicDay.Festivals.Api.dll', 'MyVedicDay.Muhurta.Api.dll', 'MyVedicDay.Api.Common.dll', 'MyVedicStar.Authorize.Api.dll', 'MyVedicStar.Settings.Api.dll', 'MyVedicStar.Email.Api.dll', 'apis/day/appsettings.json', 'apis/star/appsettings.json') {
     if (-not (Test-Path -LiteralPath (Join-Path $publishPath $file))) { throw "Combined publish is missing $file" }
 }
-foreach ($file in 'appsettings.Development.json', 'apis/day/appsettings.Development.json', 'apis/star/appsettings.Development.json', 'MyVedicStar.Authorize.Api.dll', 'MyVedicStar.Host.dll') {
+foreach ($file in 'appsettings.Development.json', 'apis/day/appsettings.Development.json', 'apis/star/appsettings.Development.json', 'MyVedicStar.Host.dll') {
     if (Test-Path -LiteralPath (Join-Path $publishPath $file)) { throw "Development settings were published: $file" }
 }
 $start = New-Object System.Diagnostics.ProcessStartInfo

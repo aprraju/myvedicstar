@@ -1,3 +1,5 @@
+using MyVedicDay.Caching;
+using MyVedicStar.Caching;
 using System.Globalization;
 using Microsoft.Extensions.Options;
 using MyVedicDay.Astronomy;
@@ -30,10 +32,13 @@ internal sealed class MuhurtaFacade(
     IDateTimeDisplayFormatter displayFormatter,
     GoodTimeExplainer explainer,
     IOptions<MuhurtaOptions> options,
-    IClock clock) : IMuhurtaFacade
+    IClock clock, IApplicationCache? referenceCache = null) : IMuhurtaFacade
 {
 
-    public async Task<MuhurtaNakshatrasResult> GetNakshatrasAsync(
+    public Task<MuhurtaNakshatrasResult> GetNakshatrasAsync(string? tradition, IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken) =>
+        ReferenceCache.GetAsync(referenceCache, "birth-stars", preferredLanguages ?? [], tradition, token => GetNakshatrasAsyncCore(tradition, preferredLanguages, token), cancellationToken);
+
+    private async Task<MuhurtaNakshatrasResult> GetNakshatrasAsyncCore(
         string? tradition, IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken)
     {
         var traditionKey = await traditions.ResolveAsync(tradition, cancellationToken);

@@ -16,10 +16,13 @@ public static class MyVedicStarApiModule
     public static IServiceCollection AddMyVedicStarModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddControllers().AddApplicationPart(typeof(MyVedicStarApiModule).Assembly)
+            .AddApplicationPart(typeof(MyVedicStar.API.Controllers.AuthController).Assembly)
+            .AddApplicationPart(typeof(MyVedicStar.API.Controllers.SettingsController).Assembly)
+            .AddApplicationPart(typeof(MyVedicStar.API.Controllers.EmailController).Assembly)
             .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new GeoNamesCompatibilityControllerFilter()));
         services.Configure<HostOptions>(configuration.GetSection(nameof(HostOptions)));
         services.AddAuthorizeBusiness(configuration);
-        MyVedicStar.Email.Business.EmailBusinessRegistration.AddEmailBusiness(services, configuration);
+        MyVedicStar.Infrastructure.DependencyInjection.EmailModuleRegistration.AddEmailModule(services, configuration);
         services.AddRateLimiter(options => options.AddPolicy("email-communication", context =>
             System.Threading.RateLimiting.RateLimitPartition.GetSlidingWindowLimiter(
                 context.RequestServices.GetRequiredService<MyVedicStar.ApiProtection.Abstractions.IClientIdentityResolver>().Resolve(context),
@@ -69,7 +72,7 @@ public static class MyVedicStarApiModule
         public void PopulateFeature(IEnumerable<ApplicationPart> parts, ControllerFeature feature)
         {
             var compatibilityController = feature.Controllers.FirstOrDefault(type =>
-                type.Assembly == typeof(GeoNames.ILocationSearchProvider).Assembly && type.Name == "GeoNamesLocationsController");
+                type.Assembly == typeof(GeoNames.GeoNamesLocationsController).Assembly && type.Name == "GeoNamesLocationsController");
             if (compatibilityController is not null) feature.Controllers.Remove(compatibilityController);
         }
     }

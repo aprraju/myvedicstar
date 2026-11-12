@@ -1,6 +1,6 @@
 # ADR-0001: The Business layer composes Calculation, Data and Integration
 
-- Status: Accepted (layout superseded by ADR-0008; the composition principle still applies)
+- Status: Superseded by ADR-0015 (layout previously superseded by ADR-0008)
 - Date: 2026-09-28
 
 ## Context

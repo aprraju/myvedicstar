@@ -16,4 +16,5 @@
     <InternalsVisibleTo Include="MyVedicDay.Festivals.Tests.Calculation" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Festivals.Shared/MyVedicDay.Festivals.Shared.csproj" /></ItemGroup>
 </Project>

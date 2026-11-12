@@ -19,4 +19,4 @@
     <EmbeddedResource Include="Content\muhurta-ai-prompts.json" LogicalName="MyVedicDay.Muhurta.AiPrompts.json" WithCulture="false" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../MyVedicDay.Muhurta.Shared/MyVedicDay.Muhurta.Shared.csproj" /></ItemGroup></Project>

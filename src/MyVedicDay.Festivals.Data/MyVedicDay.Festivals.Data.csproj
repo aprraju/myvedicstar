@@ -18,4 +18,5 @@
     <EmbeddedResource Include="Content\festival-rules.json" LogicalName="MyVedicDay.Festivals.Rules.json" WithCulture="false" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Festivals.Shared/MyVedicDay.Festivals.Shared.csproj" /></ItemGroup>
 </Project>

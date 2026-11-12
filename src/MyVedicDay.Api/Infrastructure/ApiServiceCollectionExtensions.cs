@@ -29,6 +29,12 @@ internal static class ApiServiceCollectionExtensions
         // Strict number handling keeps numbers as JSON numbers (and documents them as such in OpenAPI).
         services.AddControllers()
             .AddApplicationPart(typeof(ApiServiceCollectionExtensions).Assembly)
+            .AddApplicationPart(typeof(MyVedicDay.Api.Controllers.Locations.LocationsController).Assembly)
+            .AddApplicationPart(typeof(MyVedicDay.Api.Controllers.Traditions.TraditionsController).Assembly)
+            .AddApplicationPart(typeof(MyVedicDay.Api.Controllers.Panchang.PanchangController).Assembly)
+            .AddApplicationPart(typeof(MyVedicDay.Api.Controllers.Festivals.FestivalsController).Assembly)
+            .AddApplicationPart(typeof(MyVedicDay.Api.Controllers.Muhurta.MuhurtaController).Assembly)
+            .AddApplicationPart(typeof(GeoNames.GeoNamesLocationsController).Assembly)
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());

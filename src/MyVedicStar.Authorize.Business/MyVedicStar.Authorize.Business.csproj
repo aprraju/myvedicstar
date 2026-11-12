@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="../GeoNames/GeoNames.csproj" />
+    <ProjectReference Include="../GeoNames.Shared/GeoNames.Shared.csproj" />
     <ProjectReference Include="..\MyVedicStar.Shared\MyVedicStar.Shared.csproj" />
-    <ProjectReference Include="..\MyVedicStar.Authorize.Data\MyVedicStar.Authorize.Data.csproj" />
-    <ProjectReference Include="..\MyVedicStar.Authorize.Integration\MyVedicStar.Authorize.Integration.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,4 +22,6 @@
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicStar.Authorize.Shared/MyVedicStar.Authorize.Shared.csproj" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Infrastructure.DependencyInjection" /></ItemGroup>
 </Project>

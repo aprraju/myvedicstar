@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\MyVedicDay.Location.Integration\MyVedicDay.Location.Integration.csproj" />
     <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
   </ItemGroup>
 
@@ -16,4 +15,6 @@
     <InternalsVisibleTo Include="MyVedicDay.Location.Tests.Unit" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Location.Shared/MyVedicDay.Location.Shared.csproj" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Infrastructure.DependencyInjection" /></ItemGroup>
 </Project>

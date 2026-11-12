@@ -1,10 +1,7 @@
 using System.Security.Claims;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Authorize.Business;
 using MyVedicStar.Settings.Data;
 using MyVedicStar.Settings.Integration;
-using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Shared.Exceptions;
 using MyVedicDay.Traditions;
 namespace MyVedicStar.Settings.Business;
@@ -64,14 +61,4 @@ internal sealed class DisabledSettingsFacade : ISettingsFacade
     public Task<IReadOnlyList<SavedLocation>> LocationsAsync(ClaimsPrincipal user, CancellationToken token) => throw Disabled();
     public Task<SavedLocation> AddAsync(ClaimsPrincipal user, AddSavedLocation request, CancellationToken token) => throw Disabled();
     public Task<UserSettings> DeleteAsync(ClaimsPrincipal user, Guid id, CancellationToken token) => throw Disabled();
-}
-public static class SettingsBusinessRegistration
-{
-    public static IServiceCollection AddSettingsBusiness(this IServiceCollection services, IConfiguration configuration)
-    {
-        if (!(configuration.GetSection(FeatureFlagOptions.SectionName).Get<FeatureFlagOptions>()?.UserPersistence ?? false))
-        { services.AddScoped<ISettingsFacade, DisabledSettingsFacade>(); return services; }
-        services.AddSettingsData(); services.AddSettingsIntegration(); services.AddTraditionsBusiness(configuration);
-        services.AddScoped<ISettingsFacade, SettingsFacade>(); return services;
-    }
 }

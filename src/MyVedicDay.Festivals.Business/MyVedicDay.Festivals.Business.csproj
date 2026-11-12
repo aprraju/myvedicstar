@@ -4,7 +4,6 @@
     <ProjectReference Include="..\MyVedicDay.Astronomy.Calculation\MyVedicDay.Astronomy.Calculation.csproj" />
     <ProjectReference Include="..\MyVedicDay.Caching\MyVedicDay.Caching.csproj" />
     <ProjectReference Include="..\MyVedicDay.Festivals.Calculation\MyVedicDay.Festivals.Calculation.csproj" />
-    <ProjectReference Include="..\MyVedicDay.Festivals.Data\MyVedicDay.Festivals.Data.csproj" />
     <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
@@ -22,4 +21,6 @@
     <InternalsVisibleTo Include="MyVedicDay.Festivals.Tests.Unit" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Festivals.Shared/MyVedicDay.Festivals.Shared.csproj" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Infrastructure.DependencyInjection" /></ItemGroup>
 </Project>

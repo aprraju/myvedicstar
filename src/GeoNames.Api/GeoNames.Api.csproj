@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+<ItemGroup><ProjectReference Include="../GeoNames.Business/GeoNames.Business.csproj" /></ItemGroup>
+<PropertyGroup><DefineConstants>$(DefineConstants);GEONAMES_COMPATIBILITY</DefineConstants></PropertyGroup><ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><Compile Include="../MyVedicStar.Authorize.Api/Controllers/GeoNamesLocationsController.cs" Link="GeoNamesLocationsController.cs" /></ItemGroup>
+</Project>

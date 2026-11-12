@@ -25,7 +25,7 @@
 
   <!-- The host depends on Business modules, Shared, and the GeoNames API adapter. -->
   <ItemGroup>
-    <ProjectReference Include="..\GeoNames\GeoNames.csproj" />
+    <ProjectReference Include="..\GeoNames.Api\GeoNames.Api.csproj" />
     <ProjectReference Include="..\MyVedicDay.Festivals.Business\MyVedicDay.Festivals.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Localization.Business\MyVedicDay.Localization.Business.csproj" />
     <ProjectReference Include="..\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
@@ -38,4 +38,4 @@
   <ItemGroup>
     <Compile Include="../SharedApi/*.cs" Link="Infrastructure/Shared/%(Filename)%(Extension)" />
   </ItemGroup>
-</Project>
+<ItemGroup><ProjectReference Include="../MyVedicStar.Infrastructure.DependencyInjection/MyVedicStar.Infrastructure.DependencyInjection.csproj" /></ItemGroup><ItemGroup><ProjectReference Include="../MyVedicDay.Location.Api/MyVedicDay.Location.Api.csproj" /><ProjectReference Include="../MyVedicDay.Traditions.Api/MyVedicDay.Traditions.Api.csproj" /><ProjectReference Include="../MyVedicDay.Panchang.Api/MyVedicDay.Panchang.Api.csproj" /><ProjectReference Include="../MyVedicDay.Festivals.Api/MyVedicDay.Festivals.Api.csproj" /><ProjectReference Include="../MyVedicDay.Muhurta.Api/MyVedicDay.Muhurta.Api.csproj" /><ProjectReference Include="../MyVedicDay.Api.Common/MyVedicDay.Api.Common.csproj" /></ItemGroup></Project>

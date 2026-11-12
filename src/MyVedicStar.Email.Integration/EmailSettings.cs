@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using System.Net.Mail;
+using MyVedicStar.Email.Shared;
 
 namespace MyVedicStar.Email.Integration;
 
@@ -34,7 +34,5 @@ public sealed class EmailSettings : IValidatableObject
             yield return new("EmailSettings SMTP credentials are required.");
     }
 
-    public static bool IsAddress(string? value) => !string.IsNullOrWhiteSpace(value)
-        && value.Length <= 254 && !value.Any(char.IsControl) && value.Contains('@')
-        && MailAddress.TryCreate(value, out var address) && address.Address == value;
+    public static bool IsAddress(string? value) => EmailAddressValidation.IsAddress(value);
 }
