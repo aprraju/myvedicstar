@@ -133,7 +133,7 @@ jobs:
         shell: pwsh
         run: |
           $rows = foreach ($file in Get-ChildItem TestResults -Recurse -Filter *.trx) {
-            $counters = ([xml](Get-Content -Raw $file.FullName)).TestRun.ResultSummary.Counters
+            $counters = ([xml](Get-Content -Raw -LiteralPath $file.FullName)).TestRun.ResultSummary.Counters
             $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
             "| $name | $($counters.total) | $($counters.passed) | $($counters.failed) | $([int]$counters.notExecuted) |"
           }
