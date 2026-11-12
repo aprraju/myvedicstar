@@ -49,13 +49,14 @@ The repository currently reflects a concrete implementation baseline centered on
 - user identity, profile, login/logout flows, and session auditing
 - shared hybrid caching with in-memory L1 and optional PostgreSQL L2
 - deployment and configuration support for combined host execution
+- web and mobile clients consuming authenticated API-backed experiences, with informational signed-out landing pages
 
 ## Current API model
 The project preserves existing endpoint contracts and compatibility patterns, including:
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/logout`
 - `POST /api/v1/auth/userinfo`
-- anonymous GeoNames routes under `/api/v1/locations`
+- authenticated GeoNames and location routes under `/api/v1/locations`
 - Panchang and Muhurta endpoints in the Day API contract
 
 The host keeps a single OpenAPI/Swagger surface for the combined API, while the Day API remains as a separate project and run configuration.
@@ -102,10 +103,14 @@ The project now includes module-level business requirements derived from the cur
 - [Festivals business requirements](./business-requirements/festivals.md)
 - [Muhurta business requirements](./business-requirements/muhurta.md)
 - [Location business requirements](./business-requirements/location.md)
+- [Traditions business requirements](./business-requirements/traditions.md)
+- [Localization business requirements](./business-requirements/localization.md)
 - [Authorization business requirements](./business-requirements/authorization.md)
 - [Settings business requirements](./business-requirements/settings.md)
 - [Email business requirements](./business-requirements/email.md)
 - [Caching business requirements](./business-requirements/caching.md)
+
+Requirements now include frontend-consumer behavior cross-checked against the separate `aprraju/myvedicstar-ui` web and mobile project. The signed-out experience is informational; API-backed application flows require authentication except for explicitly documented public operations such as contact submission and health/readiness probes.
 
 ## Important boundary note
 This file reflects the current repository state and implementation baseline. It does not describe the full future product roadmap as a committed requirement set. Several major modules and product visions described in broader SRS-style documents remain future or proposed work rather than supported, implemented, or tested project scope.
