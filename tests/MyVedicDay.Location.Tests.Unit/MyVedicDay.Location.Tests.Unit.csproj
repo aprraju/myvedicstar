@@ -23,4 +23,4 @@
     <ProjectReference Include="..\..\src\MyVedicDay.Location.Business\MyVedicDay.Location.Business.csproj" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../../src/MyVedicStar.Infrastructure.DependencyInjection/MyVedicStar.Infrastructure.DependencyInjection.csproj" /></ItemGroup></Project>

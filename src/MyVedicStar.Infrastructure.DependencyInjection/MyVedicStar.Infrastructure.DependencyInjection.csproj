@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MyVedicStar.Email.Business/MyVedicStar.Email.Business.csproj" />
+    <ProjectReference Include="../MyVedicStar.Email.Integration/MyVedicStar.Email.Integration.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../GeoNames/GeoNames.csproj" />
+    <ProjectReference Include="../MyVedicDay.Ai.Integration/MyVedicDay.Ai.Integration.csproj" />
+    <ProjectReference Include="../MyVedicDay.Ai.Shared/MyVedicDay.Ai.Shared.csproj" />
+    <ProjectReference Include="../MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
+    <ProjectReference Include="../MyVedicDay.Caching/MyVedicDay.Caching.csproj" />
+    <ProjectReference Include="../MyVedicDay.Festivals.Business/MyVedicDay.Festivals.Business.csproj" />
+    <ProjectReference Include="../MyVedicDay.Festivals.Calculation/MyVedicDay.Festivals.Calculation.csproj" />
+    <ProjectReference Include="../MyVedicDay.Festivals.Data/MyVedicDay.Festivals.Data.csproj" />
+    <ProjectReference Include="../MyVedicDay.Festivals.Shared/MyVedicDay.Festivals.Shared.csproj" />
+    <ProjectReference Include="../MyVedicDay.Localization.Business/MyVedicDay.Localization.Business.csproj" />
+    <ProjectReference Include="../MyVedicDay.Localization.Data/MyVedicDay.Localization.Data.csproj" />
+    <ProjectReference Include="../MyVedicDay.Localization.Shared/MyVedicDay.Localization.Shared.csproj" />
+    <ProjectReference Include="../MyVedicDay.Location.Business/MyVedicDay.Location.Business.csproj" />
+    <ProjectReference Include="../MyVedicDay.Location.Integration/MyVedicDay.Location.Integration.csproj" />
+    <ProjectReference Include="../MyVedicDay.Location.Shared/MyVedicDay.Location.Shared.csproj" />
+    <ProjectReference Include="../MyVedicDay.Muhurta.Business/MyVedicDay.Muhurta.Business.csproj" />
+    <ProjectReference Include="../MyVedicDay.Muhurta.Calculation/MyVedicDay.Muhurta.Calculation.csproj" />
+    <ProjectReference Include="../MyVedicDay.Muhurta.Data/MyVedicDay.Muhurta.Data.csproj" />
+    <ProjectReference Include="../MyVedicDay.Panchang.Business/MyVedicDay.Panchang.Business.csproj" />
+    <ProjectReference Include="../MyVedicDay.Panchang.Caching/MyVedicDay.Panchang.Caching.csproj" />
+    <ProjectReference Include="../MyVedicDay.Panchang.Calculation/MyVedicDay.Panchang.Calculation.csproj" />
+    <ProjectReference Include="../MyVedicDay.Panchang.Data/MyVedicDay.Panchang.Data.csproj" />
+    <ProjectReference Include="../MyVedicDay.Panchang.Shared/MyVedicDay.Panchang.Shared.csproj" />
+    <ProjectReference Include="../MyVedicDay.Shared/MyVedicDay.Shared.csproj" />
+    <ProjectReference Include="../MyVedicDay.Traditions.Business/MyVedicDay.Traditions.Business.csproj" />
+    <ProjectReference Include="../MyVedicStar.Authorize.Business/MyVedicStar.Authorize.Business.csproj" />
+    <ProjectReference Include="../MyVedicStar.Authorize.Data/MyVedicStar.Authorize.Data.csproj" />
+    <ProjectReference Include="../MyVedicStar.Authorize.Integration/MyVedicStar.Authorize.Integration.csproj" />
+    <ProjectReference Include="../MyVedicStar.Authorize.Shared/MyVedicStar.Authorize.Shared.csproj" />
+    <ProjectReference Include="../MyVedicStar.Caching/MyVedicStar.Caching.csproj" />
+    <ProjectReference Include="../MyVedicStar.Email.Shared/MyVedicStar.Email.Shared.csproj" />
+    <ProjectReference Include="../MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
+    <ProjectReference Include="../MyVedicStar.Settings.Data/MyVedicStar.Settings.Data.csproj" />
+    <ProjectReference Include="../MyVedicStar.Settings.Integration/MyVedicStar.Settings.Integration.csproj" />
+    <ProjectReference Include="../MyVedicStar.Settings.Shared/MyVedicStar.Settings.Shared.csproj" />
+    <ProjectReference Include="../MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
+  </ItemGroup>
+<ItemGroup><InternalsVisibleTo Include="MyVedicStar.Shared.Tests.Unit" /></ItemGroup></Project>

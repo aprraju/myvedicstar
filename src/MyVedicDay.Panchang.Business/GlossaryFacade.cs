@@ -1,13 +1,18 @@
+using MyVedicDay.Caching;
+using MyVedicStar.Caching;
 using MyVedicDay.Panchang.Business.Localization;
 using MyVedicDay.Panchang.Business.Models;
 using MyVedicDay.Panchang.Business.Traditions;
 
 namespace MyVedicDay.Panchang.Business;
 
-internal sealed class GlossaryFacade(PanchangLocalizer localizer, PanchangTraditionResolver traditions)
+internal sealed class GlossaryFacade(PanchangLocalizer localizer, PanchangTraditionResolver traditions, IApplicationCache? referenceCache = null)
     : IGlossaryFacade, IPanchangTraditionFacade
 {
-    public async Task<GlossaryResult> GetGlossaryAsync(
+    public Task<GlossaryResult> GetGlossaryAsync(IReadOnlyList<string>? preferredLanguages, string? tradition, CancellationToken cancellationToken) =>
+        ReferenceCache.GetAsync(referenceCache, "glossary", preferredLanguages ?? [], tradition, token => GetGlossaryAsyncCore(preferredLanguages, tradition, token), cancellationToken);
+
+    private async Task<GlossaryResult> GetGlossaryAsyncCore(
         IReadOnlyList<string>? preferredLanguages, string? tradition, CancellationToken cancellationToken)
     {
         var profile = await traditions.ResolveAsync(tradition, cancellationToken);
@@ -15,7 +20,10 @@ internal sealed class GlossaryFacade(PanchangLocalizer localizer, PanchangTradit
         return localizer.BuildGlossary(content, profile);
     }
 
-    public async Task<PanchangTraditionsResult> GetTraditionsAsync(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken)
+    public Task<PanchangTraditionsResult> GetTraditionsAsync(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken) =>
+        ReferenceCache.GetAsync(referenceCache, "panchang-traditions", preferredLanguages ?? [], null, token => GetTraditionsAsyncCore(preferredLanguages, token), cancellationToken);
+
+    private async Task<PanchangTraditionsResult> GetTraditionsAsyncCore(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken)
     {
         var content = await localizer.GetContentAsync(preferredLanguages, cancellationToken);
         var profiles = await traditions.GetAllAsync(cancellationToken);

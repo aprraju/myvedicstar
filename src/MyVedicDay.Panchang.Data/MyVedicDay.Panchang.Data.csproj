@@ -19,4 +19,5 @@
     <EmbeddedResource Include="Content\panchang-guidance-rules.json" LogicalName="MyVedicDay.Panchang.GuidanceRules.json" WithCulture="false" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Panchang.Shared/MyVedicDay.Panchang.Shared.csproj" /></ItemGroup>
 </Project>

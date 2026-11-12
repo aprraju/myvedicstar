@@ -23,27 +23,43 @@ public sealed class LayerDependencyTests
             [
                 "MyVedicDay.Panchang.Business", "MyVedicDay.Festivals.Business", "MyVedicDay.Muhurta.Business", "MyVedicDay.Location.Business",
                 "MyVedicDay.Localization.Business", "MyVedicDay.Traditions.Business", Shared,
+                "MyVedicDay.Api.Common", "MyVedicDay.Location.Api", "MyVedicDay.Traditions.Api", "MyVedicDay.Panchang.Api", "MyVedicDay.Festivals.Api", "MyVedicDay.Muhurta.Api",
             ]
         },
+
+        { "MyVedicDay.Api.Common", ["MyVedicDay.Location.Business", "MyVedicDay.Localization.Business", "MyVedicDay.Traditions.Business", "MyVedicDay.Panchang.Business", "MyVedicDay.Festivals.Business", "MyVedicDay.Muhurta.Business", Shared] },
+        { "MyVedicDay.Location.Api", ["MyVedicDay.Location.Business", "MyVedicDay.Api.Common", Shared] },
+        { "MyVedicDay.Traditions.Api", ["MyVedicDay.Traditions.Business", "MyVedicDay.Api.Common", Shared] },
+        { "MyVedicDay.Panchang.Api", ["MyVedicDay.Panchang.Business", "MyVedicDay.Festivals.Business", "MyVedicDay.Muhurta.Business", "MyVedicDay.Api.Common", Shared] },
+        { "MyVedicDay.Festivals.Api", ["MyVedicDay.Festivals.Business", "MyVedicDay.Api.Common", Shared] },
+        { "MyVedicDay.Muhurta.Api", ["MyVedicDay.Muhurta.Business", "MyVedicDay.Api.Common", Shared] },
+
+        // Module-owned ports and transfer records; no implementation dependencies.
+        { "MyVedicDay.Ai.Shared", [Shared] },
+        { "MyVedicDay.Location.Shared", [Shared] },
+        { "MyVedicDay.Localization.Shared", [Shared] },
+        { "MyVedicDay.Panchang.Shared", [Shared] },
+        { "MyVedicDay.Festivals.Shared", [Shared] },
+        { "MyVedicDay.Muhurta.Shared", [Shared] },
 
         // Platform modules.
         { "MyVedicDay.Astronomy.Calculation", [Shared] },
         { "MyVedicDay.Caching", [Shared] },
-        { "MyVedicDay.Ai.Integration", [Shared] },
-        { "MyVedicDay.Localization.Data", [Shared] },
-        { "MyVedicDay.Localization.Business", ["MyVedicDay.Localization.Data", Shared] },
-        { "MyVedicDay.Location.Integration", [Shared] },
-        { "MyVedicDay.Location.Business", ["MyVedicDay.Location.Integration", Shared] },
-        { "MyVedicDay.Traditions.Business", ["MyVedicDay.Localization.Business", "MyVedicDay.Localization.Data", Shared] },
+        { "MyVedicDay.Ai.Integration", ["MyVedicDay.Ai.Shared", Shared] },
+        { "MyVedicDay.Localization.Data", ["MyVedicDay.Localization.Shared", Shared] },
+        { "MyVedicDay.Localization.Business", ["MyVedicDay.Localization.Shared", Shared] },
+        { "MyVedicDay.Location.Integration", ["MyVedicDay.Location.Shared", Shared] },
+        { "MyVedicDay.Location.Business", ["MyVedicDay.Location.Shared", Shared] },
+        { "MyVedicDay.Traditions.Business", ["MyVedicDay.Localization.Business", "MyVedicDay.Localization.Shared", "MyVedicDay.Caching", Shared] },
 
         // Panchang domain.
         { "MyVedicDay.Panchang.Caching", ["MyVedicDay.Caching", "MyVedicDay.Panchang.Calculation", "MyVedicDay.Astronomy.Calculation"] },
         { "MyVedicDay.Panchang.Calculation", ["MyVedicDay.Astronomy.Calculation", Shared] },
-        { "MyVedicDay.Panchang.Data", ["MyVedicDay.Localization.Data", Shared] },
+        { "MyVedicDay.Panchang.Data", ["MyVedicDay.Localization.Shared", "MyVedicDay.Panchang.Shared", "MyVedicDay.Localization.Data", Shared] },
         {
             "MyVedicDay.Panchang.Business",
             [
-                "MyVedicDay.Panchang.Calculation", "MyVedicDay.Panchang.Data", "MyVedicDay.Astronomy.Calculation",
+                "MyVedicDay.Panchang.Calculation", "MyVedicDay.Panchang.Shared", "MyVedicDay.Astronomy.Calculation",
                 "MyVedicDay.Location.Business", "MyVedicDay.Localization.Business", "MyVedicDay.Traditions.Business",
                 "MyVedicDay.Caching", "MyVedicDay.Panchang.Caching", Shared,
             ]
@@ -51,11 +67,11 @@ public sealed class LayerDependencyTests
 
         // Festivals domain: may use Panchang's calculation contract (ADR-0008 rule 3), never Panchang.Business or Data.
         { "MyVedicDay.Festivals.Calculation", ["MyVedicDay.Panchang.Calculation", "MyVedicDay.Astronomy.Calculation", Shared] },
-        { "MyVedicDay.Festivals.Data", ["MyVedicDay.Localization.Data", Shared] },
+        { "MyVedicDay.Festivals.Data", ["MyVedicDay.Localization.Shared", "MyVedicDay.Festivals.Shared", "MyVedicDay.Localization.Data", Shared] },
         {
             "MyVedicDay.Festivals.Business",
             [
-                "MyVedicDay.Festivals.Calculation", "MyVedicDay.Festivals.Data", "MyVedicDay.Panchang.Calculation",
+                "MyVedicDay.Festivals.Calculation", "MyVedicDay.Festivals.Shared", "MyVedicDay.Panchang.Calculation",
                 "MyVedicDay.Astronomy.Calculation", "MyVedicDay.Location.Business", "MyVedicDay.Localization.Business",
                 "MyVedicDay.Traditions.Business", "MyVedicDay.Caching", Shared,
             ]
@@ -63,13 +79,13 @@ public sealed class LayerDependencyTests
 
         // Muhurta domain: may use Panchang's calculation contract (ADR-0008 rule 3), never Panchang.Business or Data.
         { "MyVedicDay.Muhurta.Calculation", ["MyVedicDay.Panchang.Calculation", "MyVedicDay.Astronomy.Calculation", Shared] },
-        { "MyVedicDay.Muhurta.Data", ["MyVedicDay.Localization.Data", Shared] },
+        { "MyVedicDay.Muhurta.Data", ["MyVedicDay.Localization.Shared", "MyVedicDay.Muhurta.Shared", "MyVedicDay.Localization.Data", Shared] },
         {
             "MyVedicDay.Muhurta.Business",
             [
-                "MyVedicDay.Muhurta.Calculation", "MyVedicDay.Muhurta.Data", "MyVedicDay.Panchang.Calculation",
+                "MyVedicDay.Muhurta.Calculation", "MyVedicDay.Muhurta.Shared", "MyVedicDay.Panchang.Calculation",
                 "MyVedicDay.Astronomy.Calculation", "MyVedicDay.Location.Business", "MyVedicDay.Localization.Business",
-                "MyVedicDay.Traditions.Business", "MyVedicDay.Caching", "MyVedicDay.Panchang.Caching", "MyVedicDay.Ai.Integration", Shared,
+                "MyVedicDay.Traditions.Business", "MyVedicDay.Caching", "MyVedicDay.Panchang.Caching", "MyVedicDay.Ai.Shared", Shared,
             ]
         },
     };

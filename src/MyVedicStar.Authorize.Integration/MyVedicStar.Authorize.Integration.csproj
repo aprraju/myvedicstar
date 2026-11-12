@@ -23,4 +23,5 @@
     <InternalsVisibleTo Include="MyVedicStar.Authorize.Tests.Unit" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicStar.Authorize.Shared/MyVedicStar.Authorize.Shared.csproj" /></ItemGroup>
 </Project>

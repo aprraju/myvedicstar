@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\MyVedicDay.Localization.Data\MyVedicDay.Localization.Data.csproj" />
     <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
   </ItemGroup>
 
@@ -12,4 +11,6 @@
     <PackageReference Include="NodaTime" Version="3.3.4" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Localization.Shared/MyVedicDay.Localization.Shared.csproj" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Infrastructure.DependencyInjection" /></ItemGroup>
 </Project>

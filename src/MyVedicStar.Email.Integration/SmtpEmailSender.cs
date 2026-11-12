@@ -7,15 +7,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using MyVedicStar.Shared.Exceptions;
+using MyVedicStar.Email.Shared;
 
 namespace MyVedicStar.Email.Integration;
-
-public sealed record OutgoingEmail(string ReplyTo, string Subject, string Body);
-
-public interface IEmailSender
-{
-    Task SendAsync(OutgoingEmail message, CancellationToken token);
-}
 
 public sealed partial class SmtpEmailSender(IOptions<EmailSettings> settings, ILogger<SmtpEmailSender> logger, Func<ISmtpClient> createClient) : IEmailSender
 {

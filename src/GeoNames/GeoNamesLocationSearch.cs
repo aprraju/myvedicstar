@@ -19,33 +19,6 @@ public sealed class GeoNamesOptions
     [Range(1, 30)] public int CoordinateCacheDays { get; set; } = 7;
 }
 
-public sealed record LocationSuggestion(string Id, string City, string? Region, string Country,
-    string CountryCode, string? PostalCode, double Latitude, double Longitude, string Source);
-public sealed record LocationSearchResponse(IReadOnlyList<LocationSuggestion> Results);
-public sealed record LocationReverseResponse(LocationSuggestion? Place);
-public sealed record LocationTimezoneResponse(string TimeZone);
-
-public sealed record GeographyOption(string Code, string Name);
-public sealed record GeographyOptions(IReadOnlyList<GeographyOption> Results);
-
-public interface ILocationSearchProvider
-{
-    Task<GeographyOptions> CountriesAsync(CancellationToken token) => throw new NotSupportedException();
-    Task<GeographyOptions> RegionsAsync(string country, CancellationToken token) => throw new NotSupportedException();
-    Task<LocationSearchResponse> AddressCitiesAsync(string text, string country, string? region, CancellationToken token) => SearchAsync(text, country, null, 8, token);
-    Task<LocationSearchResponse> SearchAsync(string text, string? country, string? language, int maxRows, CancellationToken cancellationToken);
-    Task<LocationSearchResponse> PostalAsync(string text, string? country, int maxRows, CancellationToken cancellationToken);
-    Task<LocationReverseResponse> ReverseAsync(double latitude, double longitude, string? language, CancellationToken cancellationToken);
-    Task<LocationTimezoneResponse> TimezoneAsync(double latitude, double longitude, CancellationToken cancellationToken);
-}
-
-public sealed class GeoNamesUnavailableException(int statusCode = 503, int? retryAfterSeconds = null, string? detail = null) : Exception("Location lookup is temporarily unavailable.")
-{
-    public int StatusCode { get; } = statusCode;
-    public int? RetryAfterSeconds { get; } = retryAfterSeconds;
-    public string? Detail { get; } = detail;
-}
-
 /// <summary>HTTPS provider adapter. Stores normalized public geography in a bounded in-process cache, never logs input.</summary>
 public sealed class GeoNamesLocationSearchClient(HttpClient http, IOptions<GeoNamesOptions> options) : ILocationSearchProvider, IDisposable
 {
@@ -239,7 +212,6 @@ public static class GeoNamesLocationSearchRegistration
         }).RemoveAllLoggers().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, PooledConnectionLifetime = TimeSpan.FromMinutes(5) });
         services.AddSingleton<ILocationSearchProvider>(provider => new GeoNamesLocationSearchClient(
             provider.GetRequiredService<IHttpClientFactory>().CreateClient("myvedicstar-geonames"), provider.GetRequiredService<IOptions<GeoNamesOptions>>()));
-        services.AddControllers().AddApplicationPart(typeof(GeoNamesLocationsController).Assembly);
         return services;
     }
 }

@@ -2,10 +2,6 @@ using GeoNames;
 using Microsoft.Extensions.DependencyInjection;
 namespace MyVedicStar.Settings.Integration;
 
-public interface ISavedLocationValidator
-{
-    Task<bool> HasMatchingTimeZoneAsync(double latitude, double longitude, string timeZone, CancellationToken token);
-}
 internal sealed class SavedLocationValidator(ILocationSearchProvider provider) : ISavedLocationValidator
 {
     public async Task<bool> HasMatchingTimeZoneAsync(double latitude, double longitude, string timeZone, CancellationToken token)

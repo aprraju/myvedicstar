@@ -6,9 +6,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <IsPackable>false</IsPackable>
-    <DefineConstants>$(DefineConstants);GEONAMES_COMPATIBILITY</DefineConstants>
   </PropertyGroup>
   <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /></ItemGroup>
-  <!-- Source is owned by Star API; compile a compatibility copy for unchanged standalone Day hosting. -->
-  <ItemGroup><Compile Include="../MyVedicStar.API/Controllers/GeoNamesLocationsController.cs" Link="GeoNamesLocationsController.cs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../GeoNames.Shared/GeoNames.Shared.csproj" /></ItemGroup>
 </Project>

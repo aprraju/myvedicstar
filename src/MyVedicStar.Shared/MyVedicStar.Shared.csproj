@@ -17,5 +17,5 @@
     <InternalsVisibleTo Include="MyVedicStar.Shared.Tests.Unit" />
   </ItemGroup>
 
-  <ItemGroup><ProjectReference Include="../MyVedicStar.Caching/MyVedicStar.Caching.csproj" /></ItemGroup>
+
 </Project>

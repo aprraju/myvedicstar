@@ -64,7 +64,7 @@ public sealed class AuthorizationTests : IClassFixture<PersistenceDisabledApiFac
     [Fact]
     public void AuthorizationControllerActions_RequireTheApiScopePolicyAndNoneAllowAnonymous()
     {
-        var actions = typeof(StarApiProgram).Assembly.GetTypes()
+        var actions = typeof(MyVedicStar.API.Controllers.AuthController).Assembly.GetTypes()
             .Where(type => typeof(ControllerBase).IsAssignableFrom(type) && !type.IsAbstract)
             .Where(type => type == typeof(MyVedicStar.API.Controllers.AuthController))
             .SelectMany(controller => controller.GetMethods().Where(method => method.DeclaringType == controller && method.IsPublic)

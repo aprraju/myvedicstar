@@ -11,4 +11,5 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Localization.Shared/MyVedicDay.Localization.Shared.csproj" /></ItemGroup>
 </Project>

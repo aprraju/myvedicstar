@@ -1,5 +1,16 @@
 <Solution>
+  <Folder Name="/contracts/">
+    <Project Path="src/MyVedicDay.Ai.Shared/MyVedicDay.Ai.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Festivals.Shared/MyVedicDay.Festivals.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Localization.Shared/MyVedicDay.Localization.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Location.Shared/MyVedicDay.Location.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Panchang.Shared/MyVedicDay.Panchang.Shared.csproj" />
+    <Project Path="src/MyVedicStar.Authorize.Shared/MyVedicStar.Authorize.Shared.csproj" />
+    <Project Path="src/MyVedicStar.Settings.Shared/MyVedicStar.Settings.Shared.csproj" />
+  </Folder>
   <Folder Name="/src/">
+    <Project Path="src/MyVedicStar.Email.Shared/MyVedicStar.Email.Shared.csproj" />
+    <Project Path="src/MyVedicStar.Infrastructure.DependencyInjection/MyVedicStar.Infrastructure.DependencyInjection.csproj" />
     <Project Path="src/MyVedicStar.Email.Business/MyVedicStar.Email.Business.csproj" />
     <Project Path="src/MyVedicStar.Email.Integration/MyVedicStar.Email.Integration.csproj" />
     <Project Path="src/MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
@@ -15,6 +26,7 @@
     <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MyVedicStar.Email.Tests.Unit/MyVedicStar.Email.Tests.Unit.csproj" />
     <Project Path="tests/MyVedicStar.Settings.Tests.Unit/MyVedicStar.Settings.Tests.Unit.csproj" />
     <Project Path="tests/MyVedicStar.Settings.Tests.Integration/MyVedicStar.Settings.Tests.Integration.csproj" />
 
@@ -23,5 +35,25 @@
     <Project Path="tests/MyVedicStar.Authorize.Tests.Unit/MyVedicStar.Authorize.Tests.Unit.csproj" />
     <Project Path="tests/MyVedicStar.Caching.Tests/MyVedicStar.Caching.Tests.csproj" />
     <Project Path="tests/MyVedicStar.Shared.Tests.Unit/MyVedicStar.Shared.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/architecture/">
+    <Project Path="src/MyVedicStar.Infrastructure.Data/MyVedicStar.Infrastructure.Data.csproj" />
+    <Project Path="src/MyVedicDay.Muhurta.Shared/MyVedicDay.Muhurta.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Shared/MyVedicDay.Shared.csproj" />
+  </Folder>
+  <Folder Name="/module-boundaries/">
+    <Project Path="src/GeoNames.Api/GeoNames.Api.csproj" />
+    <Project Path="src/MyVedicDay.Api.Common/MyVedicDay.Api.Common.csproj" />
+    <Project Path="src/MyVedicDay.Panchang.Api/MyVedicDay.Panchang.Api.csproj" />
+    <Project Path="src/MyVedicDay.Traditions.Api/MyVedicDay.Traditions.Api.csproj" />
+    <Project Path="src/GeoNames.Business/GeoNames.Business.csproj" />
+    <Project Path="src/MyVedicDay.Location.Api/MyVedicDay.Location.Api.csproj" />
+    <Project Path="src/GeoNames.Shared/GeoNames.Shared.csproj" />
+    <Project Path="src/MyVedicDay.Festivals.Api/MyVedicDay.Festivals.Api.csproj" />
+    <Project Path="src/MyVedicStar.Authorize.Api/MyVedicStar.Authorize.Api.csproj" />
+    <Project Path="src/MyVedicDay.Muhurta.Api/MyVedicDay.Muhurta.Api.csproj" />
+    <Project Path="src/MyVedicDay.Api/MyVedicDay.Api.csproj" />
+    <Project Path="src/MyVedicStar.Settings.Api/MyVedicStar.Settings.Api.csproj" />
+    <Project Path="src/MyVedicStar.Email.Api/MyVedicStar.Email.Api.csproj" />
   </Folder>
 </Solution>

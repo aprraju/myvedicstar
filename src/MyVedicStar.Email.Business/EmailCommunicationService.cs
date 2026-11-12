@@ -6,14 +6,14 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Authorize.Business;
-using MyVedicStar.Email.Integration;
+using MyVedicStar.Email.Shared;
 using MyVedicStar.Shared.Exceptions;
 
 namespace MyVedicStar.Email.Business;
 
 public sealed record CommunicationRequest(string Email, string? PhoneNumber, string Subject, string Message, string Type, string? Reason = null);
 
-public sealed class EmailCommunicationService(IAuthorizeFacade accounts, IEmailSender sender, EmailSubmissionGuard guard)
+internal sealed class EmailCommunicationService(IAuthorizeFacade accounts, IEmailSender sender, EmailSubmissionGuard guard)
 {
     public async Task SendAsync(CommunicationRequest request, ClaimsPrincipal user, string anonymousKey, CancellationToken token)
     {
@@ -48,7 +48,7 @@ public sealed class EmailCommunicationService(IAuthorizeFacade accounts, IEmailS
 
     public static void Validate(CommunicationRequest request)
     {
-        if (!EmailSettings.IsAddress(request.Email?.Trim())) throw new ValidationException("Enter a valid email address.");
+        if (!EmailAddressValidation.IsAddress(request.Email?.Trim())) throw new ValidationException("Enter a valid email address.");
         if (request.Type is not ("Feedback" or "ReportIssue" or "ContactUs")) throw new ValidationException("Choose Feedback, ReportIssue, or ContactUs.");
         if (request.Reason is { } reason && (reason.Length > 200 || reason.Any(char.IsControl)))
             throw new ValidationException("Reason must be at most 200 characters without control characters.");
@@ -62,7 +62,7 @@ public sealed class EmailCommunicationService(IAuthorizeFacade accounts, IEmailS
 }
 
 /// <summary>Coalesces repeated identical submissions for one minute per caller, on this API instance.</summary>
-public sealed class EmailSubmissionGuard : IDisposable
+internal sealed class EmailSubmissionGuard : IDisposable
 {
     private readonly MemoryCache cache = new(new MemoryCacheOptions { SizeLimit = 1024 });
     private readonly object gate = new();
@@ -97,9 +97,9 @@ public static class EmailBusinessRegistration
 {
     public static IServiceCollection AddEmailBusiness(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddEmailIntegration(configuration);
         services.AddSingleton<EmailSubmissionGuard>();
         services.AddScoped<EmailCommunicationService>();
+        services.AddScoped<IEmailFacade, EmailFacade>();
         return services;
     }
 }

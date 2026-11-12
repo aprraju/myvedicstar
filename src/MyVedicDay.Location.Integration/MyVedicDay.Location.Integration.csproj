@@ -16,4 +16,5 @@
     <EmbeddedResource Include="GeoNames\Data\geonames-places.tsv.gz" LogicalName="MyVedicDay.GeoNames.Places" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../MyVedicDay.Location.Shared/MyVedicDay.Location.Shared.csproj" /></ItemGroup>
 </Project>

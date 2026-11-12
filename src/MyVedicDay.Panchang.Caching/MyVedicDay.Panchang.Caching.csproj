@@ -1,1 +1,2 @@
-<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../MyVedicDay.Caching/MyVedicDay.Caching.csproj"/><ProjectReference Include="../MyVedicDay.Panchang.Calculation/MyVedicDay.Panchang.Calculation.csproj"/></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../MyVedicDay.Caching/MyVedicDay.Caching.csproj"/><ProjectReference Include="../MyVedicDay.Panchang.Calculation/MyVedicDay.Panchang.Calculation.csproj"/></ItemGroup>  <ItemGroup><ProjectReference Include="../MyVedicDay.Panchang.Shared/MyVedicDay.Panchang.Shared.csproj" /></ItemGroup>
+</Project>

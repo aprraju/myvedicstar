@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../MyVedicStar.Email.Shared/MyVedicStar.Email.Shared.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
     <PackageReference Include="MailKit" Version="4.18.1" />

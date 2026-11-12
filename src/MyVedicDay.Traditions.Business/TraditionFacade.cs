@@ -1,3 +1,5 @@
+using MyVedicDay.Caching;
+using MyVedicStar.Caching;
 using MyVedicDay.Localization;
 
 namespace MyVedicDay.Traditions;
@@ -18,11 +20,14 @@ public interface ITraditionFacade
     Task<TraditionsResult> GetTraditionsAsync(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken);
 }
 
-internal sealed class TraditionFacade(ITraditionRegistry registry, ILocalizedContentProvider contentProvider) : ITraditionFacade
+internal sealed class TraditionFacade(ITraditionRegistry registry, ILocalizedContentProvider contentProvider, IApplicationCache? referenceCache = null) : ITraditionFacade
 {
     public const string ContentCategory = "traditions";
 
-    public async Task<TraditionsResult> GetTraditionsAsync(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken)
+    public Task<TraditionsResult> GetTraditionsAsync(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken) =>
+        ReferenceCache.GetAsync(referenceCache, "traditions", preferredLanguages ?? [], null, token => GetTraditionsAsyncCore(preferredLanguages, token), cancellationToken);
+
+    private async Task<TraditionsResult> GetTraditionsAsyncCore(IReadOnlyList<string>? preferredLanguages, CancellationToken cancellationToken)
     {
         var content = await contentProvider.GetContentAsync(preferredLanguages, tradition: null, cancellationToken);
         var keys = await registry.GetKeysAsync(cancellationToken);

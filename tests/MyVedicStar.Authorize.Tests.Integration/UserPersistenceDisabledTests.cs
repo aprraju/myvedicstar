@@ -65,6 +65,6 @@ public sealed class UserPersistenceDisabledTests : IClassFixture<PersistenceDisa
         Assert.Null(services.GetService<IAuthorizeUnitOfWork>());
         Assert.DoesNotContain(
             services.GetServices<IHostedService>(),
-            hostedService => hostedService.GetType().Assembly == typeof(IAuthorizeUnitOfWork).Assembly);
+            hostedService => hostedService.GetType().Assembly == System.Reflection.Assembly.Load("MyVedicStar.Authorize.Data"));
     }
 }
