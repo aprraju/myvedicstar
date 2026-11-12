@@ -36,3 +36,10 @@ The system shall provide users with upcoming festivals, observances, and cultura
 - Panchang calculation base data
 - tradition/localization content catalogs
 - shared cache and metadata services
+
+## UI consumer requirements
+1. The authenticated Festivals experience shall request the selected location and tradition and offer upcoming ranges of 30, 60, and 90 days. The API remains responsible for its supported range limits and local-date semantics.
+2. The client shall display events in date order, grouped by month, and may filter the returned set by `all`, `festival`, or `observance` without changing the source event data or recalculating dates.
+3. Event presentation shall preserve the API's observed date, description, category, observation moment, and underlying Panchang basis where supplied. It shall not derive a different observance date from the device timezone.
+4. Empty results, loading, and provider or calculation errors shall be distinguishable. Errors shall offer retry where appropriate; an empty list shall not be represented as an API failure.
+5. Location/tradition changes shall load results for the new context rather than briefly displaying results from the previous context as if they applied.

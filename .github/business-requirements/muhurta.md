@@ -44,3 +44,14 @@ The system shall help users identify favorable time windows for planned activiti
 - tradition-rule data and activity rule catalogs
 - localization and explanation text resources
 - shared caching and result invalidation services
+
+## UI consumer requirements
+1. The authenticated Find a Good Time experience shall obtain its activity list and birth-Nakshatra choices from the API rather than maintaining a second hard-coded catalog. It shall request a day evaluation for the selected local date, activity, location, and tradition.
+2. The client shall offer day and month planning views. Month/calendar tiles shall use the API day-summary statuses; selecting a date shall load that date's full evaluation before showing detailed periods.
+3. Recommended-time cards shall show only segments the API marks as qualifying Good Times. Favorable periods excluded because of a conflict, and Mixed/Caution/Avoid periods, shall remain visible with the API's reasons and conflict information; the client shall never infer or override status from translated labels.
+4. The "next best times" view shall display the API-ranked future options and their dates. Empty results shall display the API's no-good-time reason/message rather than substitute a recommendation.
+5. A "why this time" explanation is a separate, optional request. It shall not delay or alter the structured recommendation and shall be rendered with its source/fallback state when provided.
+6. When the user supplies a supported birth Nakshatra, the client shall pass it as evaluation context. Omission shall leave generic results; the client shall not invent or infer birth information.
+7. Date, activity, optional custom activity text, view, and relevant selection state should be linkable through the UI route where supported. The server remains authoritative for validation, statuses, ranking, and calculation.
+8. Mobile layouts may use a selection-then-results flow, but must preserve the same request inputs, result meaning, and access requirements as web.
+9. Loading, throttling, calculation timeout, dependency failure, and no-qualifying-time outcomes shall remain distinct and actionable. Optional explanation or AI-service failure shall not hide a successful evaluation.

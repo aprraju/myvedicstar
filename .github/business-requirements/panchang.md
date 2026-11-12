@@ -58,3 +58,12 @@ The system shall provide location-aware Panchang data for a user-selected date a
 - location resolution and GeoNames data
 - timezone and locale resolution services
 - shared caching infrastructure
+
+## UI consumer requirements
+1. Authenticated Today and dashboard experiences shall use the selected location's timezone and the API's local-date fields. The client shall refresh Today when that location crosses local midnight; it shall not use the device or server date as a substitute.
+2. Calendar views shall support loading daily and month data for the selected location and tradition. A selected calendar date shall remain a local calendar date when sent to the API.
+3. Dashboard timelines shall render the Panchang day from sunrise to the next sunrise, including midnight and daylight-saving transitions. They shall preserve overlapping intervals and conflicts, and expose the underlying event details when expanded.
+4. Summary cards, ratings, Panchang limbs, event transitions, and favorable/unfavorable periods shall be derived from the API response. The UI shall not independently calculate a Panchang, infer a Tithi transition, or promote a period to a favorable recommendation.
+5. Calendar cells may use API-provided compact or short Tithi names where available, but detail views shall retain the full name and older responses shall have a safe full-name fallback.
+6. API loading, validation, unavailable-location, and dependency failures shall be shown as unavailable/error states with appropriate retry behavior. The UI shall not fabricate calendar values or return a success-shaped empty day.
+7. Guest home screens are informational. API-backed Panchang views require the authenticated application access described in `authorization.md`.

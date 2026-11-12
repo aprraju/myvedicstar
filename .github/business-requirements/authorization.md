@@ -51,3 +51,13 @@ The system shall securely authenticate users, maintain user identity records, an
 - PostgreSQL database for user and audit tables
 - managed identity or secret-backed database connectivity
 - security middleware and token-validation services
+
+## UI consumer requirements
+1. Every application API request shall carry a valid bearer token with the required API scope, except explicitly anonymous operations such as the documented contact-submission endpoint and operational health/readiness probes. A client shall not treat a rate-limit policy name as anonymous access.
+2. Signed-out web and mobile users may view informational landing/content pages but shall not receive API-backed Today, location, settings, profile, calendar, festival, or Muhurta data. Protected-route navigation shall preserve only a validated same-origin return path through the hosted identity-provider sign-in flow.
+3. Sign-in shall use the configured hosted identity provider and established OIDC/OAuth flow; the client shall never collect or persist provider passwords or client secrets. Registration, when offered, is an identity-provider flow rather than a caller-supplied account-creation API.
+4. The frontend shall use the login endpoint as the account-registration/profile synchronization and session-audit entry point. It shall not make a second UserInfo call solely to retrieve the same login payload. Opening Profile must be read-only and must not create an account or login audit.
+5. The Profile experience shall read and edit the supported fields: first name, last name, display name, street address lines, country, state/province, city, postal code, email, and phone number. It shall submit only changed, validated fields with the current revision; it shall preserve the user's edits on validation, network, or concurrency failure.
+6. A profile save is successful when the database update succeeds even if external name synchronization is pending. The UI shall clearly distinguish saved-with-sync-pending from failed-save and provide a safe retry for pending synchronization.
+7. Account identity and private data shall be isolated by the validated authenticated account. No client-supplied user ID may select which profile is read or changed. Inactive-account and scope errors shall be presented as access failures, not silently converted to guest mode.
+8. Login, session restoration, profile, and logout states shall remain consistent across web/mobile. Logout shall clear account-scoped client state and credentials after the explicit audit request, while explaining that provider sign-out is a separate client operation.

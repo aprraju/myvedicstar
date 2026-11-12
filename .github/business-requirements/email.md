@@ -35,3 +35,11 @@ The system shall support user communication flows such as contact requests, issu
 - email integration service or SMTP configuration
 - authenticated user context
 - configuration providers and secrets management
+
+## UI consumer requirements
+1. Provide Contact Us, Feedback, and Report an Issue entry points that select the corresponding reason/type and submit through the single configured contact API. Do not reveal the support recipient as a client-controlled field.
+2. The form shall collect a reply email, subject, message, and reason/type, with optional phone number. It may prefill a signed-in user's name and email from trusted session/profile data, but the caller's submitted name/email must not establish or override account identity.
+3. Anonymous contact submission is a deliberate API exception to the protected application surface. If a caller supplies an Authorization header, an invalid token must fail rather than silently downgrade to anonymous; authenticated callers must also satisfy the API scope.
+4. Validate fields before sending and keep entered values available after a failed submission. Disable duplicate submits while pending; show confirmation only after API/provider acceptance.
+5. On success, expose a clear confirmation and allow a fresh submission. On validation, throttling, size, authentication, or delivery errors, show a safe actionable error without exposing SMTP/provider details.
+6. Web and mobile clients shall use the same supported reason/type mapping and compatible field limits. The client shall not automatically retry the send mutation because delivery may already have been accepted.

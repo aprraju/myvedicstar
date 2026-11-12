@@ -42,3 +42,13 @@ The system shall resolve a user's location accurately enough for time-sensitive 
 - timezone libraries
 - geolocation inputs and saved user preferences
 - shared cache and validation services
+
+## UI consumer requirements
+1. API-backed location lookup and calculation routes require the authenticated application access described in `authorization.md`; visitors may see informational content but shall not issue protected location requests.
+2. The user shall explicitly choose the current-location action before the UI requests device geolocation. Permission denial or lookup failure shall leave manual place search and coordinate entry available; late geolocation results shall not overwrite a newer manual selection.
+3. Location choices shall retain their source (such as current/device, place search, or coordinates) and use the resolved timezone consistently for date-based requests. A nearby-city label shall not silently replace the selected coordinates.
+4. GeoNames lookup shall be performed through the API, not directly from the browser or native application. Search suggestions shall be bounded, debounced, cancellable, deduplicated, and selectable by keyboard or touch as appropriate.
+5. Resolve a timezone after selecting a place when needed. Do not silently substitute a timezone when lookup fails; permit selection only when the location has a usable timezone for downstream calculations.
+6. On GeoNames or quota failure, keep manual entry available and present a safe, retryable error. A failed reverse-geocoded label may be omitted if valid selected coordinates and timezone remain available.
+7. Anonymous recent locations and account-saved locations are different data sets. Recents remain device-local; account-saved locations are retrieved and managed through Settings, are scoped to the signed-in account, and must not be uploaded merely because a user signs in.
+8. Disclose that lookup terms and selected coordinates are sent through the API to the location provider when that feature is enabled. Do not include precise location or search text in telemetry or ordinary logs.

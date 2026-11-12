@@ -2,7 +2,7 @@
 
 `src/MyVedicStar.API/MyVedicStar.API.csproj` replaces the authorization API and shared host as the production entry point. It owns authorization and GeoNames controllers. `MyVedicDay.Api` remains a separate referenced project with its own controllers and standalone entry point. Business, calculation, data, caching and provider libraries retain their separate responsibilities.
 
-Existing routes, request parameters, response bodies and access requirements are preserved, including `POST /api/v1/auth/userinfo`, Panchang and Muhurta endpoints, and anonymous GeoNames routes under `/api/v1/locations`. Authentication, protection, serialization and middleware are registered once. One `/openapi/v1.json` document and `/swagger` UI describe every endpoint.
+Existing routes, request parameters, response bodies and access requirements are preserved, including `POST /api/v1/auth/userinfo`, Panchang and Muhurta endpoints, and authenticated GeoNames routes under `/api/v1/locations`. Contact submission is the documented anonymous application operation; health/readiness probes also remain anonymous. Authentication, protection, serialization and middleware are registered once. One `/openapi/v1.json` document and `/swagger` UI describe every endpoint.
 
 Authenticated `POST /api/v1/auth/login` and `POST /api/v1/auth/logout` add session auditing through Entity Framework and PostgreSQL. User persistence is enabled; configure the database connection and apply the migration before deployment. See [registration and audit configuration](docs/auth-auditing.md).
 
