@@ -18,9 +18,9 @@ public sealed class SettingsController(ISettingsFacade facade) : ControllerBase
     /// <summary>Reads saved defaults; never creates a settings record.</summary>
     [HttpGet, ProducesResponseType<SettingsResponse>(200)]
     public async Task<ActionResult<SettingsResponse>> Get(CancellationToken token) => Ok(SettingsResponse.From(await facade.GetAsync(User, token)));
-    /// <summary>Explicitly saves defaults after validating tradition and account-owned location.</summary>
+    /// <summary>Explicitly saves defaults after validating tradition, chart style, ayanamsa and account-owned location.</summary>
     [HttpPut, ProducesResponseType<SettingsResponse>(200)]
-    public async Task<ActionResult<SettingsResponse>> Save(SaveSettingsRequest request, CancellationToken token) => Ok(SettingsResponse.From(await facade.SaveAsync(User, new(request.DefaultTradition, request.DefaultLocationId, request.Revision), token)));
+    public async Task<ActionResult<SettingsResponse>> Save(SaveSettingsRequest request, CancellationToken token) => Ok(SettingsResponse.From(await facade.SaveAsync(User, new(request.DefaultTradition, request.DefaultLocationId, request.Revision, request.ChartStyle, request.Ayanamsa), token)));
     /// <summary>Lists only this account's saved locations.</summary>
     [HttpGet("locations"), ProducesResponseType<SavedLocationResponse[]>(200)]
     public async Task<ActionResult<SavedLocationResponse[]>> Locations(CancellationToken token) => Ok((await facade.LocationsAsync(User, token)).Select(SavedLocationResponse.From).ToArray());

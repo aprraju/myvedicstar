@@ -8,8 +8,8 @@ namespace MyVedicStar.Settings.Business;
 
 public sealed record SavedLocation(Guid LocationId, string? City, string? State, string? Country,
     string? CountryCode, string? PostalCode, double Latitude, double Longitude, string TimeZone);
-public sealed record UserSettings(string? DefaultTradition, Guid? DefaultLocationId, long Revision, SavedLocation? DefaultLocation);
-public sealed record SaveSettings(string? DefaultTradition, Guid? DefaultLocationId, long Revision);
+public sealed record UserSettings(string? DefaultTradition, Guid? DefaultLocationId, long Revision, SavedLocation? DefaultLocation, string ChartStyle = PreferenceCodes.DefaultChartStyle, string Ayanamsa = PreferenceCodes.DefaultAyanamsa);
+public sealed record SaveSettings(string? DefaultTradition, Guid? DefaultLocationId, long Revision, string? ChartStyle = null, string? Ayanamsa = null);
 public sealed record AddSavedLocation(string? City, string? State, string? Country, string? CountryCode,
     string? PostalCode, double Latitude, double Longitude, string TimeZone);
 /// <summary>Only entry point into settings and saved-location business operations.</summary>
@@ -28,12 +28,14 @@ internal sealed class SettingsFacade(IAuthorizeFacade accounts, ISettingsReposit
     public async Task<UserSettings> SaveAsync(ClaimsPrincipal user, SaveSettings request, CancellationToken token)
     {
         if (request.Revision < 0) throw new ValidationException("Invalid settings revision.");
+        var chartStyle = Canonicalize(request.ChartStyle, PreferenceCodes.ChartStyles, PreferenceCodes.InvalidChartStyle);
+        var ayanamsa = Canonicalize(request.Ayanamsa, PreferenceCodes.Ayanamsas, PreferenceCodes.InvalidAyanamsa);
         var id = await accounts.GetRegisteredAccountIdAsync(user, token);
         var tradition = string.IsNullOrWhiteSpace(request.DefaultTradition) ? null : request.DefaultTradition.Trim();
         if (tradition is not null)
             tradition = (await traditions.GetKeysAsync(token)).FirstOrDefault(key => key.Equals(tradition, StringComparison.OrdinalIgnoreCase))
                 ?? throw new ValidationException("Choose a supported tradition.");
-        return Map(await repository.SaveAsync(id, tradition, request.DefaultLocationId, request.Revision, token));
+        return Map(await repository.SaveAsync(id, tradition, request.DefaultLocationId, request.Revision, token, chartStyle, ayanamsa));
     }
     public async Task<IReadOnlyList<SavedLocation>> LocationsAsync(ClaimsPrincipal user, CancellationToken token) =>
         (await repository.LocationsAsync(await accounts.GetRegisteredAccountIdAsync(user, token), token)).Select(Map).ToArray();
@@ -50,7 +52,10 @@ internal sealed class SettingsFacade(IAuthorizeFacade accounts, ISettingsReposit
         return Map(await repository.AddAsync(new(Guid.Empty, id, Text(request.City, 256), Text(request.State, 256), Text(request.Country, 256), Text(request.CountryCode, 2), Text(request.PostalCode, 20), request.Latitude, request.Longitude, request.TimeZone), token));
     }
     public async Task<UserSettings> DeleteAsync(ClaimsPrincipal user, Guid locationId, CancellationToken token) => Map(await repository.DeleteAsync(await accounts.GetRegisteredAccountIdAsync(user, token), locationId, token));
-    private static UserSettings Map(SettingsData row) => new(row.DefaultTradition, row.DefaultLocationId, row.Revision, row.DefaultLocation is null ? null : Map(row.DefaultLocation));
+    private static string? Canonicalize(string? value, IReadOnlyList<string> supported, string message) =>
+        value is null ? null : supported.FirstOrDefault(code => code.Equals(value, StringComparison.OrdinalIgnoreCase))
+            ?? throw new ValidationException(message);
+    private static UserSettings Map(SettingsData row) => new(row.DefaultTradition, row.DefaultLocationId, row.Revision, row.DefaultLocation is null ? null : Map(row.DefaultLocation), row.ChartStyle, row.Ayanamsa);
     private static SavedLocation Map(SavedLocationData row) => new(row.LocationId, row.City, row.State, row.Country, row.CountryCode, row.PostalCode, row.Latitude, row.Longitude, row.TimeZone);
 }
 internal sealed class DisabledSettingsFacade : ISettingsFacade

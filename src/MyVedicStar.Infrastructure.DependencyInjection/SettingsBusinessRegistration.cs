@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using MyVedicStar.Authorize.Business.Users;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Settings.Data;
 using MyVedicStar.Settings.Integration;
@@ -13,6 +14,7 @@ public static class SettingsBusinessRegistration
         if (!(configuration.GetSection(FeatureFlagOptions.SectionName).Get<FeatureFlagOptions>()?.UserPersistence ?? false))
         { services.AddScoped<ISettingsFacade, DisabledSettingsFacade>(); return services; }
         services.AddSettingsData(); services.AddSettingsIntegration(); services.AddTraditionsBusiness(configuration);
+        services.AddScoped<IAccountSignInHandler, AccountSettingsSignInHandler>();
         services.AddScoped<ISettingsFacade, SettingsFacade>(); return services;
     }
 }

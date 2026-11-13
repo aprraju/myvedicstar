@@ -6,18 +6,27 @@ namespace MyVedicStar.Settings.Data;
 
 internal sealed class SettingsRepository(SettingsDbContext db) : ISettingsRepository
 {
+    // One duplicate-safe statement; never accesses the identity module at runtime.
+    public async Task EnsureAsync(Guid userId, CancellationToken token) =>
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO myvedicstarsettings."UserSettings" ("UserId", "Revision", "ChartStyle", "Ayanamsa")
+            VALUES ({userId}, 0, {PreferenceCodes.DefaultChartStyle}, {PreferenceCodes.DefaultAyanamsa})
+            ON CONFLICT ("UserId") DO NOTHING
+            """, token);
+
     public async Task<SettingsData> ReadAsync(Guid userId, CancellationToken token)
     {
         var row = await db.Settings.AsNoTracking().Include(x => x.DefaultLocation).SingleOrDefaultAsync(x => x.UserId == userId, token);
         return row is null ? new(userId, null, null, 0, null) : ToSettings(row);
     }
-    public async Task<SettingsData> SaveAsync(Guid userId, string? tradition, Guid? locationId, long revision, CancellationToken token)
+    public async Task<SettingsData> SaveAsync(Guid userId, string? tradition, Guid? locationId, long revision, CancellationToken token, string? chartStyle = null, string? ayanamsa = null)
     {
         if (locationId is not null && !await db.Locations.AnyAsync(x => x.UserId == userId && x.LocationId == locationId, token))
             throw new ResourceNotFoundException("Choose one of your saved locations.");
         var row = await db.Settings.SingleOrDefaultAsync(x => x.UserId == userId, token);
         if (revision != (row?.Revision ?? 0)) throw Conflict();
         if (row is null) { row = new() { UserId = userId }; db.Settings.Add(row); }
+        row.ChartStyle = chartStyle ?? row.ChartStyle; row.Ayanamsa = ayanamsa ?? row.Ayanamsa;
         row.DefaultTradition = tradition; row.DefaultLocationId = locationId; row.Revision++;
         try { await db.SaveChangesAsync(token); }
         catch (DbUpdateConcurrencyException) { throw Conflict(); }
@@ -72,6 +81,6 @@ internal sealed class SettingsRepository(SettingsDbContext db) : ISettingsReposi
         return await ReadAsync(userId, token);
     }
     private static ValidationException Conflict() => new("Settings changed in another session. Reload before saving.");
-    private static SettingsData ToSettings(SettingsEntity row) => new(row.UserId, row.DefaultTradition, row.DefaultLocationId, row.Revision, row.DefaultLocation is null ? null : ToLocation(row.DefaultLocation));
+    private static SettingsData ToSettings(SettingsEntity row) => new(row.UserId, row.DefaultTradition, row.DefaultLocationId, row.Revision, row.DefaultLocation is null ? null : ToLocation(row.DefaultLocation), row.ChartStyle, row.Ayanamsa);
     private static SavedLocationData ToLocation(SavedLocationEntity row) => new(row.LocationId, row.UserId, row.City, row.State, row.Country, row.CountryCode, row.PostalCode, row.Latitude, row.Longitude, row.TimeZone);
 }
