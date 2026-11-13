@@ -49,6 +49,17 @@ public sealed class SettingsFacadeTests
         Assert.Empty(repository.ReceivedCalls());
     }
     [Theory]
+    [InlineData(null, "raman")] [InlineData("north-indian", "true-chitra")] [InlineData("east-indian", "krishnamurti")]
+    public async Task Save_ChangesOneOrBothWithoutTouchingOtherAccounts(string? chart, string? ayanamsa)
+    {
+        var facade = Facade(); var other = Guid.NewGuid();
+        repository.SaveAsync(userId, "telugu", null, 1, default, chart, ayanamsa)
+            .Returns(new SettingsData(userId, "telugu", null, 2, null, chart ?? "south-indian", ayanamsa ?? "lahiri"));
+        await facade.SaveAsync(user, new("telugu", null, 1, chart, ayanamsa), default);
+        await repository.Received(1).SaveAsync(userId, "telugu", null, 1, default, chart, ayanamsa);
+        await repository.DidNotReceiveWithAnyArgs().SaveAsync(other, default, default, default, default);
+    }
+    [Theory]
     [InlineData(null, null)] [InlineData("east-indian", null)] [InlineData(null, "raman")]
     public async Task Save_OmittedCounterpartIsPassedAsUnchanged(string? chart, string? ayanamsa)
     {
