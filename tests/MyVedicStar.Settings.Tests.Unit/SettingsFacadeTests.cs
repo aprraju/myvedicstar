@@ -52,12 +52,12 @@ public sealed class SettingsFacadeTests
     [InlineData(null, "raman")] [InlineData("north-indian", "true-chitra")] [InlineData("east-indian", "krishnamurti")]
     public async Task Save_ChangesOneOrBothWithoutTouchingOtherAccounts(string? chart, string? ayanamsa)
     {
-        var facade = Facade(); var other = Guid.NewGuid();
+        var facade = Facade();
         repository.SaveAsync(userId, "telugu", null, 1, default, chart, ayanamsa)
             .Returns(new SettingsData(userId, "telugu", null, 2, null, chart ?? "south-indian", ayanamsa ?? "lahiri"));
         await facade.SaveAsync(user, new("telugu", null, 1, chart, ayanamsa), default);
         await repository.Received(1).SaveAsync(userId, "telugu", null, 1, default, chart, ayanamsa);
-        await repository.DidNotReceiveWithAnyArgs().SaveAsync(other, default, default, default, default);
+        await repository.DidNotReceive().SaveAsync(Arg.Is<Guid>(id => id != userId), Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
     [Theory]
     [InlineData(null, null)] [InlineData("east-indian", null)] [InlineData(null, "raman")]
