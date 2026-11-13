@@ -94,6 +94,20 @@ namespace MyVedicStar.Settings.Data.Persistence.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Ayanamsa")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("lahiri");
+
+                    b.Property<string>("ChartStyle")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("south-indian");
+
                     b.Property<Guid?>("DefaultLocationId")
                         .HasColumnType("uuid");
 
@@ -109,7 +123,12 @@ namespace MyVedicStar.Settings.Data.Persistence.Migrations
 
                     b.HasIndex("UserId", "DefaultLocationId");
 
-                    b.ToTable("UserSettings", "myvedicstarsettings");
+                    b.ToTable("UserSettings", "myvedicstarsettings", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserSettings_Ayanamsa", "\"Ayanamsa\" IN ('lahiri','raman','krishnamurti','true-chitra')");
+
+                            t.HasCheckConstraint("CK_UserSettings_ChartStyle", "\"ChartStyle\" IN ('north-indian','south-indian','east-indian')");
+                        });
                 });
 
             modelBuilder.Entity("MyVedicStar.Settings.Data.SavedLocationEntity", b =>

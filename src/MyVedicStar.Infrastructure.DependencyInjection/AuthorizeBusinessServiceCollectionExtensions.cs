@@ -26,6 +26,9 @@ public static class AuthorizeBusinessServiceCollectionExtensions
         var featureFlags = configuration.GetSection(FeatureFlagOptions.SectionName).Get<FeatureFlagOptions>() ?? new FeatureFlagOptions();
         if (featureFlags.UserPersistence)
         {
+            services.AddOptions<AccountInitializationOptions>()
+                .Bind(configuration.GetSection(AccountInitializationOptions.SectionName))
+                .ValidateDataAnnotations().ValidateOnStart();
             services.AddAuthorizeData(configuration);
             services.AddScoped<IUserSignInRecorder, DatabaseUserSignInRecorder>();
         }

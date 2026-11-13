@@ -8,6 +8,8 @@ internal sealed class SettingsEntity
     public string? DefaultTradition { get; set; }
     public Guid? DefaultLocationId { get; set; }
     public long Revision { get; set; }
+    public string ChartStyle { get; set; } = PreferenceCodes.DefaultChartStyle;
+    public string Ayanamsa { get; set; } = PreferenceCodes.DefaultAyanamsa;
     public SavedLocationEntity? DefaultLocation { get; set; }
 }
 internal sealed class SavedLocationEntity
@@ -45,7 +47,13 @@ internal sealed class SettingsDbContext(DbContextOptions<SettingsDbContext> opti
         });
         model.Entity<SettingsEntity>(b =>
         {
-            b.ToTable("UserSettings"); b.HasKey(x => x.UserId); b.Property(x => x.UserId).ValueGeneratedNever();
+            b.ToTable("UserSettings", table =>
+            {
+                table.HasCheckConstraint("CK_UserSettings_ChartStyle", "\"ChartStyle\" IN ('north-indian','south-indian','east-indian')");
+                table.HasCheckConstraint("CK_UserSettings_Ayanamsa", "\"Ayanamsa\" IN ('lahiri','raman','krishnamurti','true-chitra')");
+            }); b.HasKey(x => x.UserId); b.Property(x => x.UserId).ValueGeneratedNever();
+            b.Property(x => x.ChartStyle).HasMaxLength(32).HasDefaultValue(PreferenceCodes.DefaultChartStyle).IsRequired();
+            b.Property(x => x.Ayanamsa).HasMaxLength(32).HasDefaultValue(PreferenceCodes.DefaultAyanamsa).IsRequired();
             b.Property(x => x.DefaultTradition).HasMaxLength(80); b.Property(x => x.Revision).IsConcurrencyToken();
             b.HasOne<AccountReference>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(x => x.DefaultLocation).WithMany().HasForeignKey(x => new { x.UserId, x.DefaultLocationId })

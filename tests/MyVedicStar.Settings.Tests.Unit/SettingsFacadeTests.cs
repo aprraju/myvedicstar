@@ -23,6 +23,47 @@ public sealed class SettingsFacadeTests
         traditions.GetKeysAsync(Arg.Any<CancellationToken>()).Returns(TraditionKeys);
         return new(accounts, repository, traditions, validator);
     }
+    public static IEnumerable<object[]> Combinations() =>
+        from chart in PreferenceCodes.ChartStyles from ayanamsa in PreferenceCodes.Ayanamsas select new object[] { chart, ayanamsa };
+
+    [Theory]
+    [MemberData(nameof(Combinations))]
+    public async Task Save_AllTwelveCombinationsAreCanonicalAndAtomic(string chart, string ayanamsa)
+    {
+        var facade = Facade();
+        repository.SaveAsync(userId, "telugu", null, 4, default, chart, ayanamsa)
+            .Returns(new SettingsData(userId, "telugu", null, 5, null, chart, ayanamsa));
+        var result = await facade.SaveAsync(user, new("telugu", null, 4, chart.ToUpperInvariant(), ayanamsa.ToUpperInvariant()), default);
+        Assert.Equal(chart, result.ChartStyle); Assert.Equal(ayanamsa, result.Ayanamsa); Assert.Equal(5, result.Revision);
+        await repository.Received(1).SaveAsync(userId, "telugu", null, 4, default, chart, ayanamsa);
+    }
+    [Theory]
+    [InlineData("")] [InlineData(" ")] [InlineData("north indian")] [InlineData("south-indian ")] [InlineData("unknown")]
+    public async Task Save_InvalidPreferenceRejectsBeforeAnyPersistence(string invalid)
+    {
+        var facade = Facade();
+        var chartError = await Assert.ThrowsAsync<ValidationException>(() => facade.SaveAsync(user, new("tamil", null, 0, invalid, "lahiri"), default));
+        Assert.Equal(PreferenceCodes.InvalidChartStyle, chartError.PublicMessage);
+        var ayanamsaError = await Assert.ThrowsAsync<ValidationException>(() => facade.SaveAsync(user, new("tamil", null, 0, "south-indian", invalid), default));
+        Assert.Equal(PreferenceCodes.InvalidAyanamsa, ayanamsaError.PublicMessage);
+        Assert.Empty(repository.ReceivedCalls());
+    }
+    [Theory]
+    [InlineData(null, null)] [InlineData("east-indian", null)] [InlineData(null, "raman")]
+    public async Task Save_OmittedCounterpartIsPassedAsUnchanged(string? chart, string? ayanamsa)
+    {
+        var facade = Facade();
+        repository.SaveAsync(userId, null, null, 3, default, chart, ayanamsa)
+            .Returns(new SettingsData(userId, null, null, 4, null, chart ?? "north-indian", ayanamsa ?? "true-chitra"));
+        var result = await facade.SaveAsync(user, new(null, null, 3, chart, ayanamsa), default);
+        Assert.Equal(chart ?? "north-indian", result.ChartStyle); Assert.Equal(ayanamsa ?? "true-chitra", result.Ayanamsa);
+    }
+    [Fact]
+    public async Task LifecycleHandlerDelegatesToSettingsOwnedIdempotentPort()
+    {
+        await new AccountSettingsSignInHandler(repository).EnsureAccountDefaultsAsync(userId, default);
+        await repository.Received(1).EnsureAsync(userId, default);
+    }
     [Fact]
     public async Task Read_UsesVerifiedAccountAndDoesNotWrite()
     {
@@ -30,6 +71,16 @@ public sealed class SettingsFacadeTests
         var result = await facade.GetAsync(user, default);
         Assert.Null(result.DefaultTradition); Assert.Null(result.DefaultLocationId);
         await repository.DidNotReceiveWithAnyArgs().SaveAsync(default, default, default, default, default);
+    }
+    [Fact]
+    public async Task Get_NoRowReturnsDefaultsAtRevisionZeroAndNeverCreatesOne()
+    {
+        var facade = Facade();
+        repository.ReadAsync(userId, default).Returns(new SettingsData(userId, null, null, 0, null));
+        var result = await facade.GetAsync(user, default);
+        Assert.Equal("south-indian", result.ChartStyle); Assert.Equal("lahiri", result.Ayanamsa); Assert.Equal(0, result.Revision);
+        await repository.Received(1).ReadAsync(userId, default);
+        Assert.Single(repository.ReceivedCalls());
     }
     [Theory]
     [InlineData("unsupported")]

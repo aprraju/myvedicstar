@@ -32,6 +32,15 @@ public sealed class SettingsPersistenceTests(PostgresDatabaseFixture database) :
         Assert.Null(deleted.DefaultLocationId); Assert.Equal("telugu", deleted.DefaultTradition); Assert.Empty(await repo.LocationsAsync(user, default));
     }
     [SkippableFact]
+    public async Task Read_NoRowReturnsStoredDefaultsAtRevisionZeroWithoutWriting()
+    {
+        await using var db = await Context(); var user = await Account(); var repo = new SettingsRepository(db);
+        var settings = await repo.ReadAsync(user, default);
+        Assert.Equal(PreferenceCodes.DefaultChartStyle, settings.ChartStyle); Assert.Equal(PreferenceCodes.DefaultAyanamsa, settings.Ayanamsa);
+        Assert.Equal(0, settings.Revision); Assert.Equal(user, settings.UserId); Assert.Null(settings.DefaultTradition);
+        db.ChangeTracker.Clear(); Assert.False(await db.Settings.AsNoTracking().AnyAsync(x => x.UserId == user));
+    }
+    [SkippableFact]
     public async Task SavedLocations_OtherAccountCannotUseOrDeleteLocation()
     {
         await using var db = await Context(); var owner = await Account(); var stranger = await Account(); var repo = new SettingsRepository(db);

@@ -1,4 +1,7 @@
 using System.Net;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Authorize.Business.Users;
 using MyVedicStar.Authorize.Data;
 using MyVedicStar.Authorize.Data.Users;
@@ -24,9 +27,48 @@ public sealed class DatabaseUserSignInRecorderTests
     {
         _userRepository.UpsertAsync(Arg.Any<UserProfileData>(), Arg.Any<CancellationToken>())
             .Returns(new RegisteredUser(InternalUserId, "Stored Display", "Stored First", "Stored Last"));
-        _recorder = new DatabaseUserSignInRecorder(_userRepository, _userLoginRepository, _unitOfWork);
+        _recorder = new DatabaseUserSignInRecorder(_userRepository, _userLoginRepository, _unitOfWork, [], NullLogger<DatabaseUserSignInRecorder>.Instance, Options.Create(new AccountInitializationOptions()));
     }
 
+    [Fact]
+    public async Task Lifecycle_RunsOnlyAfterCommitAndRetriesNextLoginWithoutFailingSignIn()
+    {
+        var handler = Substitute.For<IAccountSignInHandler>();
+        var calls = 0;
+        handler.EnsureAccountDefaultsAsync(InternalUserId, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            Assert.True(_unitOfWork.Committed);
+            if (++calls == 1) throw new DataAccessException("private dependency detail");
+            return Task.CompletedTask;
+        });
+        var recorder = new DatabaseUserSignInRecorder(_userRepository, _userLoginRepository, _unitOfWork,
+            [handler], NullLogger<DatabaseUserSignInRecorder>.Instance, Options.Create(new AccountInitializationOptions()));
+        await recorder.RecordSignInAsync(User, null, default);
+        await recorder.RecordSignInAsync(User, null, default);
+        Assert.Equal(2, calls);
+    }
+    [Fact]
+    public async Task Lifecycle_RequestCancellationIsNotSwallowed()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var handler = Substitute.For<IAccountSignInHandler>();
+        handler.EnsureAccountDefaultsAsync(InternalUserId, Arg.Any<CancellationToken>()).Returns(_ =>
+        { cancellation.Cancel(); return Task.FromCanceled(cancellation.Token); });
+        var recorder = new DatabaseUserSignInRecorder(_userRepository, _userLoginRepository, _unitOfWork,
+            [handler], NullLogger<DatabaseUserSignInRecorder>.Instance, Options.Create(new AccountInitializationOptions()));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => recorder.RecordSignInAsync(User, null, cancellation.Token));
+        Assert.True(_unitOfWork.Committed);
+    }
+    [Fact]
+    public async Task Lifecycle_FailedIdentityTransactionNeverInvokesHandler()
+    {
+        var handler = Substitute.For<IAccountSignInHandler>();
+        _userRepository.UpsertAsync(Arg.Any<UserProfileData>(), Arg.Any<CancellationToken>()).ThrowsAsync(new DataAccessException("failed"));
+        var recorder = new DatabaseUserSignInRecorder(_userRepository, _userLoginRepository, _unitOfWork,
+            [handler], NullLogger<DatabaseUserSignInRecorder>.Instance, Options.Create(new AccountInitializationOptions()));
+        await Assert.ThrowsAsync<DataAccessException>(() => recorder.RecordSignInAsync(User, null, default));
+        Assert.Empty(handler.ReceivedCalls());
+    }
     [Fact]
     public async Task RecordSignInAsync_UpsertsTokenProfileKeyedByObjectId()
     {
@@ -155,11 +197,15 @@ public sealed class DatabaseUserSignInRecorderTests
     private sealed class InlineUnitOfWork : IAuthorizeUnitOfWork
     {
         public int TransactionCount { get; private set; }
+        public bool Committed { get; private set; }
 
-        public Task<TResult> ExecuteInTransactionAsync<TResult>(Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken)
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken)
         {
             TransactionCount++;
-            return operation(cancellationToken);
+            Committed = false;
+            var result = await operation(cancellationToken);
+            Committed = true;
+            return result;
         }
     }
 }

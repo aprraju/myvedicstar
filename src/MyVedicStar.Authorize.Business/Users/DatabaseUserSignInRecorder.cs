@@ -1,4 +1,7 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using MyVedicStar.Authorize.Business.Options;
 using MyVedicStar.Authorize.Data;
 using MyVedicStar.Authorize.Data.Users;
 using MyVedicStar.Shared.Exceptions;
@@ -8,20 +11,29 @@ namespace MyVedicStar.Authorize.Business.Users;
 /// <summary>
 /// Registers the account if needed and appends its session event in one database transaction.
 /// </summary>
-internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
+internal sealed partial class DatabaseUserSignInRecorder : IUserSignInRecorder
 {
     private readonly IUserRepository _userRepository;
     private readonly IUserLoginRepository _userLoginRepository;
     private readonly IAuthorizeUnitOfWork _unitOfWork;
+    private readonly IEnumerable<IAccountSignInHandler> _handlers;
+    private readonly ILogger<DatabaseUserSignInRecorder> _logger;
+    private readonly AccountInitializationOptions _initialization;
 
     public DatabaseUserSignInRecorder(
         IUserRepository userRepository,
         IUserLoginRepository userLoginRepository,
-        IAuthorizeUnitOfWork unitOfWork)
+        IAuthorizeUnitOfWork unitOfWork,
+        IEnumerable<IAccountSignInHandler> handlers,
+        ILogger<DatabaseUserSignInRecorder> logger,
+        IOptions<AccountInitializationOptions> initialization)
     {
         _userRepository = userRepository;
         _userLoginRepository = userLoginRepository;
         _unitOfWork = unitOfWork;
+        _handlers = handlers;
+        _logger = logger;
+        _initialization = initialization.Value;
     }
 
     public async Task<SignedInUserNames> RecordSignInAsync(SignedInUser user, IPAddress? clientIpAddress, CancellationToken cancellationToken)
@@ -36,6 +48,24 @@ internal sealed class DatabaseUserSignInRecorder : IUserSignInRecorder
                 return stored;
             },
             cancellationToken);
+        // The identity transaction has committed. Settings failures must not undo successful sign-in.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(_initialization.TimeoutSeconds));
+        foreach (var handler in _handlers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await handler.EnsureAccountDefaultsAsync(registered.Id, timeout.Token);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception exception)
+            {
+                // Deliberately omit exception contents and identity/profile values from this boundary log.
+                LogAccountInitializationFailure(_logger, exception.GetType().Name);
+            }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         return new SignedInUserNames(registered.DisplayName, registered.GivenName, registered.FamilyName);
     }
 
