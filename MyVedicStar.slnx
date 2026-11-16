@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/contracts/">
+    <Project Path="src/MyVedicStar.VedicProfiles.Shared/MyVedicStar.VedicProfiles.Shared.csproj" />
     <Project Path="src/MyVedicDay.Ai.Shared/MyVedicDay.Ai.Shared.csproj" />
     <Project Path="src/MyVedicDay.Festivals.Shared/MyVedicDay.Festivals.Shared.csproj" />
     <Project Path="src/MyVedicDay.Localization.Shared/MyVedicDay.Localization.Shared.csproj" />
@@ -14,6 +15,10 @@
     <Project Path="src/MyVedicStar.Email.Business/MyVedicStar.Email.Business.csproj" />
     <Project Path="src/MyVedicStar.Email.Integration/MyVedicStar.Email.Integration.csproj" />
     <Project Path="src/MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
+    <Project Path="src/MyVedicStar.VedicProfiles.Business/MyVedicStar.VedicProfiles.Business.csproj" />
+    <Project Path="src/MyVedicStar.VedicProfiles.Data/MyVedicStar.VedicProfiles.Data.csproj" />
+    <Project Path="src/MyVedicStar.VedicProfiles.Integration/MyVedicStar.VedicProfiles.Integration.csproj" />
+    <Project Path="src/MyVedicStar.VedicProfiles.Api/MyVedicStar.VedicProfiles.Api.csproj" />
     <Project Path="src/MyVedicStar.Settings.Data/MyVedicStar.Settings.Data.csproj" />
     <Project Path="src/MyVedicStar.Settings.Integration/MyVedicStar.Settings.Integration.csproj" />
 
@@ -28,6 +33,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/MyVedicStar.Email.Tests.Unit/MyVedicStar.Email.Tests.Unit.csproj" />
     <Project Path="tests/MyVedicStar.Settings.Tests.Unit/MyVedicStar.Settings.Tests.Unit.csproj" />
+    <Project Path="tests/MyVedicStar.VedicProfiles.UnitTests/MyVedicStar.VedicProfiles.UnitTests.csproj" />
     <Project Path="tests/MyVedicStar.Settings.Tests.Integration/MyVedicStar.Settings.Tests.Integration.csproj" />
 
     <Project Path="tests/GeoNames.Tests/GeoNames.Tests.csproj" />

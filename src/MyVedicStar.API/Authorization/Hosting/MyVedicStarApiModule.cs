@@ -19,6 +19,7 @@ public static class MyVedicStarApiModule
             .AddApplicationPart(typeof(MyVedicStar.API.Controllers.AuthController).Assembly)
             .AddApplicationPart(typeof(MyVedicStar.API.Controllers.SettingsController).Assembly)
             .AddApplicationPart(typeof(MyVedicStar.API.Controllers.EmailController).Assembly)
+            .AddApplicationPart(typeof(MyVedicStar.API.Controllers.VedicProfilesController).Assembly)
             .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new GeoNamesCompatibilityControllerFilter()));
         services.Configure<HostOptions>(configuration.GetSection(nameof(HostOptions)));
         services.AddAuthorizeBusiness(configuration);
@@ -38,6 +39,7 @@ public static class MyVedicStarApiModule
                 .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE").AllowAnyHeader().WithExposedHeaders("X-Correlation-ID"));
         });
         MyVedicStar.Settings.Business.SettingsBusinessRegistration.AddSettingsBusiness(services, configuration);
+        MyVedicStar.Infrastructure.DependencyInjection.VedicProfilesModuleRegistration.AddVedicProfilesModule(services, configuration);
         services.AddOptions<HealthEndpointOptions>()
             .Bind(configuration.GetSection(HealthEndpointOptions.SectionName))
             .ValidateDataAnnotations()

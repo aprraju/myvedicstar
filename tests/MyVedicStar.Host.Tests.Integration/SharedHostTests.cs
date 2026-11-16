@@ -99,6 +99,11 @@ public sealed partial class SharedHostTests
             "GET api/v1/panchang/glossary",
             "GET api/v1/panchang/traditions",
             "GET api/v1/traditions",
+            "GET api/v1/vedic-profiles",
+            "POST api/v1/vedic-profiles",
+            "GET api/v1/vedic-profiles/{id:guid}",
+            "PUT api/v1/vedic-profiles/{id:guid}",
+            "DELETE api/v1/vedic-profiles/{id:guid}",
         ];
         var actual = endpoints.SelectMany(endpoint => endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods
             .Select(method => $"{method} {endpoint.RoutePattern.RawText}"));
@@ -116,6 +121,7 @@ public sealed partial class SharedHostTests
             ["GlossaryController"] = "MyVedicDay.Panchang.Api",
             ["FestivalsController"] = "MyVedicDay.Festivals.Api",
             ["MuhurtaController"] = "MyVedicDay.Muhurta.Api",
+            ["VedicProfilesController"] = "MyVedicStar.VedicProfiles.Api",
         };
         Assert.All(endpoints, endpoint =>
         {

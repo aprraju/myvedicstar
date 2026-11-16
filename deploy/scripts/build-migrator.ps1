@@ -11,7 +11,7 @@ if (-not (Test-Path (Join-Path $tools 'dotnet-ef')) -and -not (Test-Path (Join-P
     if ($LASTEXITCODE) { throw 'EF tool installation failed.' }
 }
 $scripts = [Collections.Generic.List[string]]::new()
-foreach ($domain in 'Authorize', 'Settings') {
+foreach ($domain in 'Authorize', 'Settings', 'VedicProfiles') {
     $project = Join-Path $RepositoryRoot "src/MyVedicStar.$domain.Data/MyVedicStar.$domain.Data.csproj"
     & dotnet restore $project
     if ($LASTEXITCODE) { throw "$domain migration project restore failed." }
@@ -22,7 +22,7 @@ foreach ($domain in 'Authorize', 'Settings') {
     if ($LASTEXITCODE) { throw "$domain migration SQL generation failed." }
     $scripts.Add((Get-Content -LiteralPath $output -Raw))
 }
-# Authorize must run first: Settings foreign keys reference its existing user table.
+# Authorize must run first: Settings and VedicProfiles foreign keys reference its existing user table.
 [IO.File]::WriteAllText((Join-Path $context 'migrations.sql'), ($scripts -join "`n"), [Text.UTF8Encoding]::new($false))
 Copy-Item "$RepositoryRoot/deploy/database/*" $context
 Copy-Item "$RepositoryRoot/deploy/docker/Migrator.Dockerfile" "$context/Dockerfile"
