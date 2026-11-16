@@ -37,5 +37,5 @@ public sealed record VedicProfileResponse(
             value.Details.TimezoneId, value.Details.Gender, value.Details.Occupation,
             value.Details.Relationship.ToString(), value.Details.CustomRelationship, value.Revision);
 
-    private static string? Format(TimeOnly? value) => value?.ToString("HH:mm:ss");
+    private static string? Format(TimeOnly? value) => value?.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
 }
