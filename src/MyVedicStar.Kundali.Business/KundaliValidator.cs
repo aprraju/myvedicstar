@@ -1,5 +1,6 @@
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.Shared.Exceptions;
+using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Business;
 

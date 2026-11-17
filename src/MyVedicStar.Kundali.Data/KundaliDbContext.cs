@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using MyVedicStar.Kundali.Shared;
+using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Data;
 

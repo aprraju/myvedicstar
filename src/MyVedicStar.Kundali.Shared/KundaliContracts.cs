@@ -1,3 +1,5 @@
+using MyVedicStar.VedicProfiles.Shared;
+
 namespace MyVedicStar.Kundali.Shared;
 
 /// <summary>Lifecycle of a generation. A partial result is never `Succeeded`: sections fill in as the engine
