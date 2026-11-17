@@ -54,3 +54,4 @@ covers the 1800-01-01..2200-12-31 promise.
 | Any .se1 data file | **None in this solution.** |
 
 A test asserts this absence mechanically; see `DependencyInspectionTests`.
+<!-- CI path-filter proof for #86: this astronomy-only edit must trigger MyVedicDay API CI and MyVedicStar API CI. -->
