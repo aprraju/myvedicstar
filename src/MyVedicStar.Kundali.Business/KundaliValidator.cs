@@ -64,10 +64,8 @@ public sealed record KundaliEngineVersions(
     string Engine, string Ephemeris, string RuleSet, string TimezoneData)
 {
     /// <summary>Placeholder versions until the KUN-20 engine lands; deliberately explicit so a preview build cannot
-    /// be mistaken for a released calculation.</summary>
-    public sealed class Defaults : KundaliEngineVersions
-    {
-        public static readonly Defaults Value = new();
-        private Defaults() : base("kundali-foundation-0", "none", "foundation-0", "host") { }
-    }
+    /// be mistaken for a released calculation. A static factory rather than a derived type keeps the record sealed
+    /// and the provenance value comparable by equality.</summary>
+    public static KundaliEngineVersions Foundation { get; } =
+        new("kundali-foundation-0", "none", "foundation-0", "host");
 }

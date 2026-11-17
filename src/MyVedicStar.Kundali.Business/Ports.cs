@@ -18,3 +18,32 @@ public interface IKundaliProfileReader
     /// There is no Kundali-specific settings store.</summary>
     Task<string> GetAyanamsaAsync(ClaimsPrincipal user, CancellationToken token);
 }
+
+/// <summary>Persistence boundary for the Kundali module. Every keyed operation filters by accountId AND profileId.
+/// Implementations must enforce the one-aggregate-per-profile rule atomically and raise
+/// <see cref="KundaliConflictException"/> for the loser of a concurrent first generation.</summary>
+public interface IKundaliRepository
+{
+    Task<KundaliView?> GetAsync(Guid accountId, Guid profileId, CancellationToken token);
+
+    /// <summary>Creates the aggregate and its first revision atomically, or returns the existing aggregate when one
+    /// already exists for this owner+profile. Idempotent per owner+profile+input hash+config version.</summary>
+    Task<KundaliView> EnsureAggregateWithRevisionAsync(Guid accountId, Guid profileId,
+        KundaliInputSnapshot snapshot, KundaliProvenance provenance, CancellationToken token);
+
+    /// <summary>Adds a revision to an existing aggregate with an owner-scoped compare-and-swap on the aggregate
+    /// revision. A stale revision is a safe conflict, never an overwrite.</summary>
+    Task<KundaliView> AddRevisionAsync(Guid accountId, Guid profileId, long aggregateRevision,
+        KundaliInputSnapshot snapshot, KundaliProvenance provenance, CancellationToken token);
+
+    /// <summary>Persists one section payload onto a revision and advances the status. A terminal status is never
+    /// downgraded by a later intermediate write.</summary>
+    Task<KundaliRevisionSummary> SaveSectionAsync(Guid accountId, Guid profileId, Guid revisionId, string section,
+        string payloadJson, bool isFinal, string? failureReasonCode, CancellationToken token);
+
+    Task<KundaliPreferences?> GetPreferencesAsync(Guid accountId, Guid profileId, CancellationToken token);
+
+    /// <summary>Upserts display preferences. Presentation-only: never touches revisions or provenance.</summary>
+    Task<KundaliPreferences> SavePreferencesAsync(Guid accountId, Guid profileId, string chartStyle,
+        long revision, CancellationToken token);
+}

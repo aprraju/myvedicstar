@@ -10,7 +10,7 @@ public static class KundaliBusinessRegistration
     public static IServiceCollection AddKundaliBusiness(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(KundaliEngineVersions.Defaults.Value);
+        services.TryAddSingleton(KundaliEngineVersions.Foundation);
         services.AddScoped<KundaliValidator>();
         services.AddScoped<IKundaliFacade, KundaliFacade>();
         return services;
