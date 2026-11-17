@@ -18,6 +18,7 @@ using MyVedicDay.Panchang.Business.Traditions;
 using MyVedicDay.Panchang.Calculation;
 using MyVedicDay.Panchang.Data;
 using MyVedicDay.Traditions;
+using MyVedicStar.Astronomy.Core;
 using NodaTime;
 
 namespace MyVedicDay.Panchang.Business;
