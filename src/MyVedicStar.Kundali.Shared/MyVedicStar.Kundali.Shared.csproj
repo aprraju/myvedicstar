@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../MyVedicStar.Shared/MyVedicStar.Shared.csproj" /><ProjectReference Include="../MyVedicStar.VedicProfiles.Shared/MyVedicStar.VedicProfiles.Shared.csproj" /></ItemGroup>
+</Project>

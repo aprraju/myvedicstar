@@ -51,7 +51,7 @@ DECLARE
   app_role      text := current_setting('bootstrap.app_role');
   migrator_role text := current_setting('bootstrap.migrator_role');
 BEGIN
-  FOREACH s IN ARRAY ARRAY['myvedicstar', 'myvedicstarsettings', 'myvedicstarvedicprofiles', 'identity', 'profile', 'astrology', 'matching', 'matrimony'] LOOP
+  FOREACH s IN ARRAY ARRAY['myvedicstar', 'myvedicstarsettings', 'myvedicstarvedicprofiles', 'myvedicstarkundali', 'identity', 'profile', 'astrology', 'matching', 'matrimony'] LOOP
     EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION %I', s, migrator_role);
     EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', s, app_role);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', s, app_role);

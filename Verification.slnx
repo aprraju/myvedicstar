@@ -7,6 +7,7 @@
     <Project Path="src/MyVedicDay.Panchang.Shared/MyVedicDay.Panchang.Shared.csproj" />
     <Project Path="src/MyVedicStar.Authorize.Shared/MyVedicStar.Authorize.Shared.csproj" />
     <Project Path="src/MyVedicStar.Settings.Shared/MyVedicStar.Settings.Shared.csproj" />
+    <Project Path="src/MyVedicStar.Kundali.Shared/MyVedicStar.Kundali.Shared.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/MyVedicStar.Email.Shared/MyVedicStar.Email.Shared.csproj" />
@@ -41,6 +42,10 @@
   <Project Path="src/MyVedicStar.Authorize.Integration/MyVedicStar.Authorize.Integration.csproj" />
   <Project Path="src/MyVedicStar.Caching/MyVedicStar.Caching.csproj" />
   <Project Path="src/MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
+  <Project Path="src/MyVedicStar.Kundali.Business/MyVedicStar.Kundali.Business.csproj" />
+  <Project Path="src/MyVedicStar.Kundali.Data/MyVedicStar.Kundali.Data.csproj" />
+  <Project Path="src/MyVedicStar.Kundali.Integration/MyVedicStar.Kundali.Integration.csproj" />
+  <Project Path="src/MyVedicStar.Kundali.Api/MyVedicStar.Kundali.Api.csproj" />
   <Project Path="src/MyVedicStar.Settings.Data/MyVedicStar.Settings.Data.csproj" />
   <Project Path="src/MyVedicStar.Settings.Integration/MyVedicStar.Settings.Integration.csproj" />
   <Project Path="src/MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
@@ -84,4 +89,5 @@
     <Project Path="src/MyVedicStar.Settings.Api/MyVedicStar.Settings.Api.csproj" />
     <Project Path="src/MyVedicStar.Email.Api/MyVedicStar.Email.Api.csproj" />
   </Folder>
+  <Project Path="tests/MyVedicStar.Kundali.Tests.Unit/MyVedicStar.Kundali.Tests.Unit.csproj" />
 </Solution>

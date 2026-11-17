@@ -43,6 +43,9 @@
     <ProjectReference Include="../MyVedicStar.VedicProfiles.Business/MyVedicStar.VedicProfiles.Business.csproj" />
     <ProjectReference Include="../MyVedicStar.VedicProfiles.Data/MyVedicStar.VedicProfiles.Data.csproj" />
     <ProjectReference Include="../MyVedicStar.VedicProfiles.Integration/MyVedicStar.VedicProfiles.Integration.csproj" />
+    <ProjectReference Include="../MyVedicStar.Kundali.Business/MyVedicStar.Kundali.Business.csproj" />
+    <ProjectReference Include="../MyVedicStar.Kundali.Data/MyVedicStar.Kundali.Data.csproj" />
+    <ProjectReference Include="../MyVedicStar.Kundali.Integration/MyVedicStar.Kundali.Integration.csproj" />
     <ProjectReference Include="../MyVedicStar.Shared/MyVedicStar.Shared.csproj" />
   </ItemGroup>
 <ItemGroup><InternalsVisibleTo Include="MyVedicStar.Shared.Tests.Unit" /></ItemGroup></Project>
