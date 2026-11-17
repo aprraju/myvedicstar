@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicDay.Astronomy;
 using MyVedicStar.Astronomy.Core;
@@ -306,6 +307,38 @@ public sealed class ProviderMigrationTests
 
         Assert.Single(services, d => d.ServiceType == typeof(IEphemeris));
         Assert.IsType<MeeusEphemeris>(provider.GetRequiredService<IEphemeris>());
+    }
+
+    [Fact]
+    public void An_absent_key_resolves_to_the_documented_default_at_composition()
+    {
+        // Absence is a normal state: the Day and Star hosts load their own layered configuration and neither ships an
+        // Astronomy section. Composition must therefore default it explicitly in one named place, NOT fail. An
+        // UNKNOWN value is different and still throws - see the test below.
+        var configuration = new ConfigurationBuilder().Build();
+        var services = new ServiceCollection();
+        services.AddAstronomyProvider(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+        Assert.Equal(ProviderSelection.Analytical, provider.GetRequiredService<SelectedAstronomyProvider>().Selection);
+    }
+
+    [Fact]
+    public void A_present_but_unknown_key_still_fails_at_composition()
+    {
+        // The default applies to absence only. A typo must never degrade to analytical.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [AstronomyProviderRegistration.ConfigurationKey] = "spice-ish"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        var failure = Assert.Throws<ArgumentException>(() => services.AddAstronomyProvider(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey));
+        Assert.Contains("Unknown astronomy provider key", failure.Message, StringComparison.Ordinal);
     }
 
     private static ServiceProvider Build(string key, IEphemerisEngine? engine = null)
