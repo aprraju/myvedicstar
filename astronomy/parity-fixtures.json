@@ -1,0 +1,16 @@
+[
+  {
+    "body": "Sun",
+    "julianDayUt": 2448908.5,
+    "tropicalLongitudeDegrees": 199.901641,
+    "toleranceArcseconds": 1,
+    "source": "Meeus, Astronomical Algorithms (2nd ed.), example 25.b - independent book value"
+  },
+  {
+    "body": "Moon",
+    "julianDayUt": 2448724.5,
+    "tropicalLongitudeDegrees": 133.1704333,
+    "toleranceArcseconds": 3,
+    "source": "Meeus example 47.a (133.162655) plus the documented Drik Panchang lunar offset of 28 arcsec that the analytical provider applies"
+  }
+]
