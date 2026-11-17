@@ -56,8 +56,10 @@ public sealed class ProviderSelectionTests
         // The four port methods reduce to Sun and Moon longitude, so both must appear.
         Assert.Contains(fixtures, f => f.Body == CelestialBody.Sun);
         Assert.Contains(fixtures, f => f.Body == CelestialBody.Moon);
-        Assert.All(fixtures, f => Assert.True(f.ToleranceArcseconds is > 0 and <= 1.0,
-            "Fixtures must hold the arcsecond budget, not a widened tolerance."));
+        // ADR-0016 section 4 sets the planetary budget at 1 arcsecond and the lunar budget at 3, so the ceiling is
+        // body-specific rather than a single number. A fixture may not exceed the budget its own body is allowed.
+        Assert.All(fixtures, f => Assert.True(f.ToleranceArcseconds > 0 && f.ToleranceArcseconds <= (f.Body == CelestialBody.Moon ? 3.0 : 1.0),
+            $"{f.Body} tolerance {f.ToleranceArcseconds} exceeds the ADR-0016 budget for that body."));
     }
 
     private static string FindSolutionRoot()
