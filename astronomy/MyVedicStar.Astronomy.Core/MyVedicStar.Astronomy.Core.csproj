@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Core owns the astronomy contracts and pure value types. It must never reference a provider project:
+       providers depend on Core, never the reverse (see SolutionDependencies.md). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <IsPackable>true</IsPackable>
+    <Description>Provider-neutral astronomy contracts, time scales and value types for MyVedicStar.</Description>
+  </PropertyGroup>
+
+</Project>

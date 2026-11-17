@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- House and ascendant geometry. Depends on Core and Coordinates; never on a provider. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <IsPackable>true</IsPackable>
+    <Description>House cusps and ascendant geometry for MyVedicStar astronomy.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicStar.Astronomy.Core\MyVedicStar.Astronomy.Core.csproj" />
+    <ProjectReference Include="..\MyVedicStar.Astronomy.Coordinates\MyVedicStar.Astronomy.Coordinates.csproj" />
+  </ItemGroup>
+
+</Project>

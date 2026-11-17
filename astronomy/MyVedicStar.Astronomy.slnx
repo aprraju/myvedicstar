@@ -1,0 +1,22 @@
+<Solution>
+  <!-- Standalone solution: builds and tests with no MyVedicStar product project.
+       Dependency direction (enforced by a test in MyVedicStar.Astronomy.Tests):
+         Core  <- Coordinates <- Events
+         Core  <- Coordinates <- Houses
+         Core  <- Jpl.Provider
+       Core references nothing in this solution. Only Tests references a provider. -->
+  <Folder Name="/core/">
+    <Project Path="MyVedicStar.Astronomy.Core/MyVedicStar.Astronomy.Core.csproj" />
+  </Folder>
+  <Folder Name="/calculation/">
+    <Project Path="MyVedicStar.Astronomy.Coordinates/MyVedicStar.Astronomy.Coordinates.csproj" />
+    <Project Path="MyVedicStar.Astronomy.Events/MyVedicStar.Astronomy.Events.csproj" />
+    <Project Path="MyVedicStar.Astronomy.Houses/MyVedicStar.Astronomy.Houses.csproj" />
+  </Folder>
+  <Folder Name="/providers/">
+    <Project Path="MyVedicStar.Astronomy.Jpl.Provider/MyVedicStar.Astronomy.Jpl.Provider.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="MyVedicStar.Astronomy.Tests/MyVedicStar.Astronomy.Tests.csproj" />
+  </Folder>
+</Solution>

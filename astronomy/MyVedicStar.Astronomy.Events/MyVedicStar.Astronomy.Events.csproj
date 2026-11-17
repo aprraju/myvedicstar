@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Rise/set/ingress/eclipse event finding. Depends on Core and Coordinates; never on a provider. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <IsPackable>true</IsPackable>
+    <Description>Astronomical event calculations (rise, set, ingress, eclipse) for MyVedicStar.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicStar.Astronomy.Core\MyVedicStar.Astronomy.Core.csproj" />
+    <ProjectReference Include="..\MyVedicStar.Astronomy.Coordinates\MyVedicStar.Astronomy.Coordinates.csproj" />
+  </ItemGroup>
+
+</Project>
