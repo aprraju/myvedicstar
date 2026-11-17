@@ -2,6 +2,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyVedicDay.Shared\MyVedicDay.Shared.csproj" />
+    <!-- The product adapter depends on the astronomy contracts only. The astronomy solution never references
+         product code, which its dependency test enforces. -->
+    <ProjectReference Include="..\..\astronomy\MyVedicStar.Astronomy.Core\MyVedicStar.Astronomy.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

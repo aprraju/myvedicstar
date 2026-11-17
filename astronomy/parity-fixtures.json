@@ -1,0 +1,16 @@
+[
+  {
+    "body": "Sun",
+    "julianDayUt": 2448908.4993171296,
+    "tropicalLongitudeDegrees": 199.901641,
+    "toleranceArcseconds": 1,
+    "source": "Meeus Astronomical Algorithms (2nd ed.) example 25.b: apparent longitude 199.9016410 at 2448908.5 TT. Julian Day converted to UT by subtracting the Espenak-Meeus Delta T for 1992 (about 59 s), because IEphemeris takes JD UT and applies that correction internally."
+  },
+  {
+    "body": "Moon",
+    "julianDayUt": 2448724.4993171296,
+    "tropicalLongitudeDegrees": 133.1704333,
+    "toleranceArcseconds": 3,
+    "source": "Meeus example 47.a (133.162655 mean-equinox longitude at 2448724.5 TT) plus the documented Drik Panchang lunar offset of 28 arcsec. Instant converted to UT by subtracting the 1992 Delta T (about 59 s), since IEphemeris takes JD UT."
+  }
+]
