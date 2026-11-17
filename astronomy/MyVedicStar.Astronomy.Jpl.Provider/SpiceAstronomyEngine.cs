@@ -1,4 +1,3 @@
-using MyVedicStar.Astronomy.Coordinates;
 using MyVedicStar.Astronomy.Core;
 
 namespace MyVedicStar.Astronomy.Jpl.Provider;
