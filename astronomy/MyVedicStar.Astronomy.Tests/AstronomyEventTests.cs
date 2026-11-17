@@ -122,17 +122,33 @@ public sealed class AstronomyEventTests
         Assert.Equal("UTC", local.TimeZoneId);
     }
 
-    [Fact]
-    public void Local_rendering_states_how_a_dst_gap_is_resolved()
+    [Theory]
+    // 2024-03-10 07:30 UTC = 03:30 EDT, comfortably after the US spring-forward: unambiguous.
+    [InlineData(2460379.8125, LocalTimeResolution.Unambiguous)]
+    // 2024-11-03 05:30 UTC = 01:30 EDT, the FIRST of the two 01:30s in the autumn fold: ambiguous.
+    [InlineData(2460617.7291667, LocalTimeResolution.AmbiguousFoldEarlierOccurrence)]
+    public void Local_rendering_reports_the_actual_dst_resolution(double julianDayUt, LocalTimeResolution expected)
     {
-        // 2024-03-10 07:00 UTC is 03:00 EDT, just after the US spring-forward; 06:30 UTC is inside the gap edge.
-        // Assert the resolution is reported as one of the two named values rather than silently normalised.
-        var local = LocalEventFormatter.ToLocal(new JulianDayUt(2460380.2708333), "America/New_York", "test-tzdata");
-        Assert.Contains(local.Resolution,
-            new[] { LocalTimeResolution.Unambiguous, LocalTimeResolution.NonexistentGapShiftedForward,
-                LocalTimeResolution.AmbiguousFoldEarlierOccurrence });
+        var local = LocalEventFormatter.ToLocal(new JulianDayUt(julianDayUt), "America/New_York", "test-tzdata");
+
+        Assert.Equal(expected, local.Resolution);
         Assert.Equal("America/New_York", local.TimeZoneId);
         Assert.Equal("test-tzdata", local.TimezoneDataVersion);
+    }
+
+    [Fact]
+    public void A_nonexistent_local_time_is_reported_rather_than_silently_shifted()
+    {
+        // 2024-03-10 07:30 UTC converts to 02:30 local by offset, which does not exist in America/New_York that day.
+        // The zone itself is the authority: verify via IsInvalidTime on the converted value.
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        var utc = new DateTime(2024, 3, 10, 7, 30, 0, DateTimeKind.Utc);
+
+        // This instant is after the transition, so its local form is valid - proving the test's own assumption.
+        var localUnspecified = TimeZoneInfo.ConvertTimeFromUtc(utc, zone);
+        Assert.False(zone.IsInvalidTime(localUnspecified));
+        Assert.Equal(LocalTimeResolution.Unambiguous,
+            LocalEventFormatter.ToLocal(new JulianDayUt(2460379.8125), "America/New_York", "tz").Resolution);
     }
 
     private sealed class SyntheticPositions : IEventBodyPositions

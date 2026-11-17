@@ -35,20 +35,19 @@ public static class LocalEventFormatter
         var timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
         var utc = JulianDayToUtc(instant);
 
-        // A nonexistent local time is detected by converting the candidate local value and checking it round trips.
-        var offset = timeZone.GetUtcOffset(utc);
-        var localCandidate = utc + offset;
+        // The instant always exists: only its LOCAL rendering can be ambiguous or nonexistent. Ask the zone about the
+        // local wall-clock value directly rather than inferring from an offset round trip.
+        var localUnspecified = DateTime.SpecifyKind(
+            TimeZoneInfo.ConvertTimeFromUtc(utc.UtcDateTime, timeZone), DateTimeKind.Unspecified);
+
         var resolution = LocalTimeResolution.Unambiguous;
-
-        var roundTrip = TimeZoneInfo.ConvertTimeToUtc(
-            DateTime.SpecifyKind(localCandidate.DateTime, DateTimeKind.Unspecified), timeZone);
-        if (roundTrip != utc.DateTime)
+        if (timeZone.IsInvalidTime(localUnspecified))
             resolution = LocalTimeResolution.NonexistentGapShiftedForward;
-
-        if (timeZone.IsAmbiguousTime(DateTime.SpecifyKind(localCandidate.DateTime, DateTimeKind.Unspecified)))
+        else if (timeZone.IsAmbiguousTime(localUnspecified))
             resolution = LocalTimeResolution.AmbiguousFoldEarlierOccurrence;
 
-        return new LocalEventTime(new DateTimeOffset(localCandidate, offset), timeZoneId, timezoneDataVersion,
+        var offset = timeZone.GetUtcOffset(utc);
+        return new LocalEventTime(new DateTimeOffset(localUnspecified, offset), timeZoneId, timezoneDataVersion,
             resolution);
     }
 
