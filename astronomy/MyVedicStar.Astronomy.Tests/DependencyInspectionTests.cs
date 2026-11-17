@@ -51,7 +51,7 @@ public sealed class DependencyInspectionTests
     [Fact]
     public void No_provider_references_another_provider_or_a_calculation_project()
     {
-        foreach (var project in ProjectFiles().Where(p => p.Parent!.Name.StartsWith("MyVedicStar.Astronomy.Jpl", StringComparison.Ordinal)))
+        foreach (var project in ProjectFiles().Where(p => p.Directory!.Name.StartsWith("MyVedicStar.Astronomy.Jpl", StringComparison.Ordinal)))
         {
             var references = ReferencesOf(project);
             Assert.DoesNotContain(references, r => r.Contains(".Provider", StringComparison.Ordinal));
