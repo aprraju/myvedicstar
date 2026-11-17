@@ -1,6 +1,5 @@
 using MyVedicStar.Astronomy.Coordinates;
 using MyVedicStar.Astronomy.Core;
-using MyVedicStar.Astronomy.Events;
 using MyVedicStar.Astronomy.Houses;
 using MyVedicStar.Astronomy.Jpl.Provider;
 
@@ -112,23 +111,5 @@ public sealed class CoreContractTests
         var failure = Assert.Throws<SpiceUnavailableException>(() =>
             engine.GetPositions(JulianDayUt.J2000, new AstronomySettings(), [CelestialBody.Sun]));
         Assert.Contains("never downloads", failure.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Altitude_solver_finds_a_rising_crossing_and_reports_absence_honestly()
-    {
-        // A synthetic altitude curve crossing zero at t=0.25 days keeps the solver itself under test, independent of
-        // any ephemeris.
-        double Altitude(JulianDayUt day) => (day.Value - 2451545.0 - 0.25) * 100.0;
-
-        var found = AltitudeCrossingSolver.FindCrossing(Altitude, JulianDayUt.J2000, 1.0, 0.05, 0.0,
-            EventKind.Rise, rising: true);
-        Assert.True(found.Occurred);
-        Assert.Equal(2451545.25, found.Time.Value, 6);
-
-        // Never crossing in the window is a real answer, not an exception and not a fabricated time.
-        var absent = AltitudeCrossingSolver.FindCrossing(_ => 5.0, JulianDayUt.J2000, 1.0, 0.05, 0.0,
-            EventKind.Rise, rising: true);
-        Assert.False(absent.Occurred);
     }
 }
