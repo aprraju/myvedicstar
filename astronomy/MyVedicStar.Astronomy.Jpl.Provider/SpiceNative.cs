@@ -35,22 +35,3 @@ internal static partial class SpiceNative
         [Out] double[] state,
         out double lightTime);
 }
-
-/// <summary>
-/// Describes how the SPICE runtime is provided. Recorded in provenance so a result can always be traced to a toolkit
-/// version and a kernel set (FR-08, AC-4).
-/// </summary>
-public sealed record SpiceConfiguration(string ToolkitVersion, string ToolkitSource, IReadOnlyList<string> Kernels)
-{
-    /// <summary>The kernel set this epic ships: DE440 for modern dates, DE441 for the extended span. Paths are
-    /// mount points inside the image, never remote URLs.</summary>
-    public static SpiceConfiguration Default { get; } = new(
-        ToolkitVersion: "CSPICE-N0067",
-        ToolkitSource: "NAIF (JPL), https://naif.jpl.nasa.gov/naif/toolkit.html - public domain",
-        Kernels: ["/var/spice/de440.bsp", "/var/spice/naif0012.tls", "/var/spice/pck00011.tpc"]);
-}
-
-/// <summary>Raised when the native SPICE library or a kernel is unavailable. A dependency failure, never a silent
-/// fallback to a different calculation route.</summary>
-public sealed class SpiceUnavailableException(string message, Exception? inner = null)
-    : Exception(message, inner);

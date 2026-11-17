@@ -24,7 +24,7 @@ public static class AltitudeCrossingSolver
         double windowDays, double stepDays, double targetAltitudeDegrees, EventKind kind, bool rising)
     {
         ArgumentNullException.ThrowIfNull(altitudeDegrees);
-        if (windowDays <= 0) throw new ArgumentOutOfRangeException(nameof(windowDays));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowDays);
         if (stepDays <= 0 || stepDays > windowDays) throw new ArgumentOutOfRangeException(nameof(stepDays));
 
         var previous = altitudeDegrees(start) - targetAltitudeDegrees;

@@ -21,7 +21,11 @@ attribution requirement. AC-4 asserts that every package reference appears here.
 
 | Component | Version | Licence | Provenance | Attribution |
 | --- | --- | --- | --- | --- |
-| NAIF CSPICE | N0067 | Public domain (NASA/JPL, US Government work) | https://naif.jpl.nasa.gov/naif/toolkit.html | "SPICE toolkit, courtesy of NASA/JPL-Caltech" in NOTICE. |
+| NAIF CSPICE | **reported by the image at run time** | Public domain (NASA/JPL, US Government work) | https://naif.jpl.nasa.gov/naif/toolkit.html | "SPICE toolkit, courtesy of NASA/JPL-Caltech" in NOTICE. |
+
+**Toolkit version is not hardcoded.** `SpiceConfiguration.ReportedToolkitVersion` is supplied by the image, and
+`SpiceAstronomyEngine.VerifyToolkitMatchesInventory` fails when the reported version differs from this inventory or is
+absent. A constant in source would make this claim unfalsifiable.
 | Generic kernels (naif0012.tls, pck00011.tpc) | N0067-era | Public domain | https://naif.jpl.nasa.gov/naif/data_generic.html | Same notice. |
 
 ### Provisioning
@@ -35,7 +39,11 @@ dependency failure, never a silent fallback to another numerical route.
 | Dataset | Span used | Licence | Provenance |
 | --- | --- | --- | --- |
 | JPL DE440 | 1800-01-01 .. 2200-12-31 supported span | Public domain | https://ssd.jpl.nasa.gov/planets/eph_export.html |
-| JPL DE441 | Extended span, selectable via kernel set | Public domain | Same |
+| JPL DE441 | Extended span; declared from the product floor (DE441 nominally begins before year 1, which `DateOnly` cannot represent) | Public domain | Same |
+
+**Kernel coverage is declared in `SpiceConfiguration` and the supported date span is derived from it** - not asserted
+in prose. `SpiceConfiguration.Default` declares both DE440 and DE441, and a test proves the shipped configuration
+covers the 1800-01-01..2200-12-31 promise.
 
 ## Deliberately absent
 
