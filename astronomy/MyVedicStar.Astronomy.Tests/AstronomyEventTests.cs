@@ -103,11 +103,13 @@ public sealed class AstronomyEventTests
     [Fact]
     public void Solar_events_resolve_through_a_supplied_position_source()
     {
-        // A synthetic source producing a diurnal circle that genuinely clears the horizon: declination 20 degrees at
-        // an observer on the equator reaches +70 degrees altitude, well above the -0.83 degree sunrise threshold.
-        // (A declination of 0 at the equator peaks at exactly 0 degrees, which never crosses the refracted horizon -
-        // that case is the separate Sunrise/Sunset non-occurrence test.)
-        var service = new AstronomyEventService(new SyntheticPositions(declinationDegrees: 20.0), Provenance);
+        // Declination 20 at the equator swings from -70 to +70 degrees, crossing the -0.83 degree threshold twice.
+        // The right ascension is chosen so the rising and setting crossings both fall inside the 24-hour window:
+        // with RA = GMST(J2000) + 100 degrees they land about 37 and 762 minutes in, verified by computing the series
+        // rather than assuming.
+        const double rightAscension = 20.4561;
+        var service = new AstronomyEventService(new SyntheticPositions(rightAscension, declinationDegrees: 20.0),
+            Provenance);
         var observer = new EventObserver(new ObserverLocation(0.0, 0.0, 0), null, "UTC");
 
         var events = service.SolarEvents(JulianDayUt.J2000, observer);
@@ -155,13 +157,16 @@ public sealed class AstronomyEventTests
             LocalEventFormatter.ToLocal(new JulianDayUt(2460379.8125), "America/New_York", "tz").Resolution);
     }
 
-    private sealed class SyntheticPositions(double declinationDegrees) : IEventBodyPositions
+    /// <summary>
+    /// A synthetic body fixed in right ascension at a chosen declination, so the local hour angle advances with
+    /// sidereal time exactly as a real star's does. An earlier version advanced right ascension at 360 degrees/day,
+    /// which nearly cancels the sidereal rotation and pins the altitude almost constant - a fixture bug that made a
+    /// crossing look impossible.
+    /// </summary>
+    private sealed class SyntheticPositions(double rightAscensionDegrees, double declinationDegrees)
+        : IEventBodyPositions
     {
-        public EquatorialPoint GetEquatorial(CelestialBody body, JulianDayUt time)
-        {
-            // One turn per day of right ascension at a fixed declination: a simple diurnal circle.
-            var degrees = (time.Value - 2451545.0) * 360.0;
-            return new EquatorialPoint(((degrees % 360.0) + 360.0) % 360.0, declinationDegrees);
-        }
+        public EquatorialPoint GetEquatorial(CelestialBody body, JulianDayUt time) =>
+            new(rightAscensionDegrees, declinationDegrees);
     }
 }
