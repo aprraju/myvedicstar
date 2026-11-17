@@ -100,25 +100,26 @@ public static class TimeScales
                       + (P(U(year, 1600), 3) / 7129.0),
             < 1800 => 8.83 + (0.1603 * U(year, 1700)) + (-0.0059285 * P(U(year, 1700), 2))
                       + (0.00013336 * P(U(year, 1700), 3)) - (P(U(year, 1700), 4) / 1174000.0),
-            < 1860 => 13.72 + (-0.332447 * U(year, 1800)) + (0.0068612 * P(U(year, 1800), 2))
-                      + (0.0041116 * P(U(year, 1800), 3)) + (-0.00037436 * P(U(year, 1800), 4))
-                      + (0.0000121272 * P(U(year, 1800), 5)) + (-0.0000001699 * P(U(year, 1800), 6))
-                      + (0.000000000875 * P(U(year, 1800), 7)),
-            < 1900 => 7.62 + (0.5737 * U(year, 1860)) + (-0.251754 * P(U(year, 1860), 2))
-                      + (0.01680668 * P(U(year, 1860), 3)) + (-0.0004473624 * P(U(year, 1860), 4))
-                      + (P(U(year, 1860), 5) / 233174.0),
-            < 1920 => -2.79 + (1.494119 * U(year, 1900)) + (-0.0598939 * P(U(year, 1900), 2))
-                      + (0.0061966 * P(U(year, 1900), 3)) + (-0.000197 * P(U(year, 1900), 4)),
-            < 1941 => 21.20 + (0.84493 * U(year, 1920)) + (-0.076100 * P(U(year, 1920), 2))
-                      + (0.0020936 * P(U(year, 1920), 3)),
-            < 1961 => 29.07 + (0.407 * U(year, 1950)) + (-P(U(year, 1950), 2) / 233.0)
-                      + (P(U(year, 1950), 3) / 2547.0),
-            < 1986 => 45.45 + (1.067 * U(year, 1975)) + (-P(U(year, 1975), 2) / 260.0)
-                      + (-P(U(year, 1975), 3) / 718.0),
-            < 2005 => 63.86 + (0.3345 * U(year, 2000)) + (-0.060374 * P(U(year, 2000), 2))
-                      + (0.0017275 * P(U(year, 2000), 3)) + (0.000651814 * P(U(year, 2000), 4))
-                      + (0.00002373599 * P(U(year, 2000), 5)),
-            < 2050 => 62.92 + (0.32217 * U(year, 2000)) + (0.005589 * P(U(year, 2000), 2)),
+            < 1860 => 13.72 + (-0.332447 * T(year, 1800)) + (0.0068612 * P(T(year, 1800), 2))
+                      + (0.0041116 * P(T(year, 1800), 3)) + (-0.00037436 * P(T(year, 1800), 4))
+                      + (0.0000121272 * P(T(year, 1800), 5)) + (-0.0000001699 * P(T(year, 1800), 6))
+                      + (0.000000000875 * P(T(year, 1800), 7)),
+            < 1900 => 7.62 + (0.5737 * T(year, 1860)) + (-0.251754 * P(T(year, 1860), 2))
+                      + (0.01680668 * P(T(year, 1860), 3)) + (-0.0004473624 * P(T(year, 1860), 4))
+                      + (P(T(year, 1860), 5) / 233174.0),
+            // From 1860 onward the canonical polynomials take t = (year - start) in YEARS, not centuries.
+            < 1920 => -2.79 + (1.494119 * T(year, 1900)) + (-0.0598939 * P(T(year, 1900), 2))
+                      + (0.0061966 * P(T(year, 1900), 3)) + (-0.000197 * P(T(year, 1900), 4)),
+            < 1941 => 21.20 + (0.84493 * T(year, 1920)) + (-0.076100 * P(T(year, 1920), 2))
+                      + (0.0020936 * P(T(year, 1920), 3)),
+            < 1961 => 29.07 + (0.407 * T(year, 1950)) + (-P(T(year, 1950), 2) / 233.0)
+                      + (P(T(year, 1950), 3) / 2547.0),
+            < 1986 => 45.45 + (1.067 * T(year, 1975)) + (-P(T(year, 1975), 2) / 260.0)
+                      + (-P(T(year, 1975), 3) / 718.0),
+            < 2005 => 63.86 + (0.3345 * T(year, 2000)) + (-0.060374 * P(T(year, 2000), 2))
+                      + (0.0017275 * P(T(year, 2000), 3)) + (0.000651814 * P(T(year, 2000), 4))
+                      + (0.00002373599 * P(T(year, 2000), 5)),
+            < 2050 => 62.92 + (0.32217 * T(year, 2000)) + (0.005589 * P(T(year, 2000), 2)),
             < 2150 => -20.0 + (32.0 * Math.Pow((year - 1820.0) / 100.0, 2)) - (0.5628 * (2150.0 - year)),
             _ => -20.0 + (32.0 * Math.Pow((year - 1820.0) / 100.0, 2))
         };
@@ -174,7 +175,12 @@ public static class TimeScales
         return new DateOnly(year, month, Math.Clamp(day, 1, DateTime.DaysInMonth(year, month)));
     }
 
+    /// <summary>Espenak-Meeus century offset, used by the branches before 1800.</summary>
     private static double U(double year, double start) => (year - start) / 100.0;
+
+    /// <summary>Espenak-Meeus YEAR offset, used by the branches from 1800 onward. Mixing this up with
+    /// <see cref="U"/> silently produces a value that is authoritative-looking and wrong.</summary>
+    private static double T(double year, double start) => year - start;
     private static double P(double value, int power) => Math.Pow(value, power);
     private static double DegreesToRadians(double degrees) => degrees * (Math.PI / 180.0);
 }

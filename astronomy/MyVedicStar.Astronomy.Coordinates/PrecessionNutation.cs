@@ -55,7 +55,8 @@ public static class PrecessionNutation
             longitudeArcseconds += (longitudeSine + (longitudeT * t)) * Math.Sin(argument);
             obliquityArcseconds += (obliquityCosine + (obliquityT * t)) * Math.Cos(argument);
         }
-        return (longitudeArcseconds / 3600.0, obliquityArcseconds / 3600.0);
+        // The series coefficients are in units of 0.0001 arcsecond, so convert to arcseconds then to degrees.
+        return (longitudeArcseconds / 10000.0 / 3600.0, obliquityArcseconds / 10000.0 / 3600.0);
     }
 
     /// <summary>True obliquity: mean obliquity plus nutation in obliquity, in degrees.</summary>
