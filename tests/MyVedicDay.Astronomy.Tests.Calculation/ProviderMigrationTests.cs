@@ -68,34 +68,56 @@ public sealed class ProviderMigrationTests
     [Fact]
     public void IEphemeris_delegates_every_method_to_the_engine_with_no_parallel_maths()
     {
-        // Distinct sentinel values per body so a copied implementation cannot accidentally match.
-        var engine = new StubEngine(sunLongitude: 111.5, moonLongitude: 222.5, sunRa: 10.0, sunDec: 20.0,
+        // A spy engine records exactly which engine call each port method made, so an implementation that computed
+        // a value locally would fail even if the number happened to match.
+        var spy = new SpyEngine(sunLongitude: 111.5, moonLongitude: 222.5, sunRa: 10.0, sunDec: 20.0,
             moonRa: 30.0, moonDec: 40.0, moonParallax: 0.95);
-        var ephemeris = new AstronomyEngineEphemerisAdapter(engine);
+        var ephemeris = new AstronomyEngineEphemerisAdapter(spy);
 
+        // 1. Each port method must reach the engine with the RIGHT body.
         Assert.Equal(111.5, ephemeris.GetSunLongitude(JulianDay), 12);
-        Assert.Equal(222.5, ephemeris.GetMoonLongitude(JulianDay), 12);
-        Assert.Equal(10.0, ephemeris.GetSunEquatorial(JulianDay).RightAscension, 12);
-        Assert.Equal(20.0, ephemeris.GetSunEquatorial(JulianDay).Declination, 12);
-        Assert.Equal(30.0, ephemeris.GetMoonEquatorial(JulianDay).RightAscension, 12);
-        Assert.Equal(40.0, ephemeris.GetMoonEquatorial(JulianDay).Declination, 12);
-        Assert.Equal(0.95, ephemeris.GetMoonEquatorial(JulianDay).HorizontalParallax, 12);
+        Assert.Equal([(SpyEngine.Call.TropicalLongitude, CelestialBody.Sun)], spy.Observed);
 
-        // The engine was called, and only through the adapter: no value was computed locally. The exact count is an
-        // implementation detail (GetMoonEquatorial is called once per assertion above, and each call reaches the
-        // engine once), so assert that the calls happened rather than pinning a brittle number.
-        Assert.True(engine.CallCount > 0, "The adapter must delegate to the engine, not compute locally.");
+        spy.Reset();
+        Assert.Equal(222.5, ephemeris.GetMoonLongitude(JulianDay), 12);
+        Assert.Equal([(SpyEngine.Call.TropicalLongitude, CelestialBody.Moon)], spy.Observed);
+
+        spy.Reset();
+        var sunEquatorial = ephemeris.GetSunEquatorial(JulianDay);
+        Assert.Equal([(SpyEngine.Call.Equatorial, CelestialBody.Sun)], spy.Observed);
+        Assert.Equal(10.0, sunEquatorial.RightAscension, 12);
+        Assert.Equal(20.0, sunEquatorial.Declination, 12);
+
+        spy.Reset();
+        var moonEquatorial = ephemeris.GetMoonEquatorial(JulianDay);
+        Assert.Equal([(SpyEngine.Call.Equatorial, CelestialBody.Moon)], spy.Observed);
+        Assert.Equal(30.0, moonEquatorial.RightAscension, 12);
+        Assert.Equal(40.0, moonEquatorial.Declination, 12);
+        Assert.Equal(0.95, moonEquatorial.HorizontalParallax, 12);
     }
 
     [Fact]
-    public void Replacing_the_engine_changes_every_port_result_proving_one_calculation_path()
+    public void Replacing_the_engine_changes_every_port_result_proving_no_second_calculation_path()
     {
-        // Two engines with different constants. Every port method must follow the engine.
-        var first = new AstronomyEngineEphemerisAdapter(new StubEngine(sunLongitude: 1.0, moonLongitude: 2.0));
-        var second = new AstronomyEngineEphemerisAdapter(new StubEngine(sunLongitude: 3.0, moonLongitude: 4.0));
+        // Two engines with different constants. EVERY port method must follow the engine. If any method had its own
+        // maths, it would return the same value for both engines and this assertion would fail.
+        var first = new AstronomyEngineEphemerisAdapter(new StubEngine(sunLongitude: 1.0, moonLongitude: 2.0,
+            sunRa: 5.0, sunDec: 6.0, moonRa: 7.0, moonDec: 8.0, moonParallax: 0.9));
+        var second = new AstronomyEngineEphemerisAdapter(new StubEngine(sunLongitude: 3.0, moonLongitude: 4.0,
+            sunRa: 50.0, sunDec: 60.0, moonRa: 70.0, moonDec: 80.0, moonParallax: 0.95));
 
         Assert.NotEqual(first.GetSunLongitude(JulianDay), second.GetSunLongitude(JulianDay));
         Assert.NotEqual(first.GetMoonLongitude(JulianDay), second.GetMoonLongitude(JulianDay));
+        Assert.NotEqual(first.GetSunEquatorial(JulianDay).RightAscension,
+            second.GetSunEquatorial(JulianDay).RightAscension);
+        Assert.NotEqual(first.GetSunEquatorial(JulianDay).Declination,
+            second.GetSunEquatorial(JulianDay).Declination);
+        Assert.NotEqual(first.GetMoonEquatorial(JulianDay).RightAscension,
+            second.GetMoonEquatorial(JulianDay).RightAscension);
+        Assert.NotEqual(first.GetMoonEquatorial(JulianDay).Declination,
+            second.GetMoonEquatorial(JulianDay).Declination);
+        Assert.NotEqual(first.GetMoonEquatorial(JulianDay).HorizontalParallax,
+            second.GetMoonEquatorial(JulianDay).HorizontalParallax);
     }
 
     [Fact]
@@ -230,6 +252,41 @@ public sealed class ProviderMigrationTests
         throw new InvalidOperationException(
             $"Parity fixture file '{ParityFixtures.FileName}' not found in any ancestor of {AppContext.BaseDirectory}.");
     }
+
+    /// <summary>
+    /// A spy that records exactly which engine operation each call made, so a delegation test can assert the adapter
+    /// forwarded to the RIGHT engine call rather than merely producing a plausible value.
+    /// </summary>
+    private sealed class SpyEngine(
+        double sunLongitude = 10.0,
+        double moonLongitude = 20.0,
+        double sunRa = 1.0,
+        double sunDec = 2.0,
+        double moonRa = 3.0,
+        double moonDec = 4.0,
+        double moonParallax = 0.9) : IEphemerisEngine
+    {
+        public enum Call { TropicalLongitude, Equatorial }
+
+        private readonly List<(Call Operation, CelestialBody Body)> _observed = [];
+        public IReadOnlyList<(Call Operation, CelestialBody Body)> Observed => _observed;
+        public void Reset() => _observed.Clear();
+
+        public double GetTropicalLongitude(CelestialBody body, double julianDayUt)
+        {
+            _observed.Add((Call.TropicalLongitude, body));
+            return body == CelestialBody.Sun ? sunLongitude : moonLongitude;
+        }
+
+        public AstronomyEngineEquatorial GetEquatorial(CelestialBody body, double julianDayUt)
+        {
+            _observed.Add((Call.Equatorial, body));
+            return body == CelestialBody.Sun
+                ? new AstronomyEngineEquatorial(sunRa, sunDec)
+                : new AstronomyEngineEquatorial(moonRa, moonDec, moonParallax);
+        }
+    }
+
 
     private sealed class StubEngine(
         double sunLongitude = 10.0,
