@@ -35,9 +35,12 @@ public sealed class DependencyInspectionTests
         foreach (var project in ProjectFiles())
         {
             var references = ReferencesOf(project);
+            // A reference is allowed only when it is another project in THIS solution. Anything named
+            // MyVedicStar.* or MyVedicDay.* that is not MyVedicStar.Astronomy.* is a product project.
             Assert.DoesNotContain(references, r =>
-                r.StartsWith("MyVedicStar.", StringComparison.Ordinal) && r != "MyVedicStar.Astronomy"
-                || r.StartsWith("MyVedicDay", StringComparison.Ordinal));
+                r.StartsWith("MyVedicDay", StringComparison.Ordinal)
+                || (r.StartsWith("MyVedicStar.", StringComparison.Ordinal)
+                    && !r.StartsWith("MyVedicStar.Astronomy.", StringComparison.Ordinal)));
         }
     }
 
