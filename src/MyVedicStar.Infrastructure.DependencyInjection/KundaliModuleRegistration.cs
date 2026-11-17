@@ -17,3 +17,4 @@ public static class KundaliModuleRegistration
         return services;
     }
 }
+// CI path-filter proof for #86 (third gap): this DI-only edit must trigger MyVedicDay API CI.
