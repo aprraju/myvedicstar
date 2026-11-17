@@ -79,10 +79,12 @@ public sealed class PlanetaryAndConfigurationTests
         Assert.True(SpiceConfiguration.Default.CoversDate(AstronomyCapabilities.MinimumSupportedDate));
         Assert.True(SpiceConfiguration.Default.CoversDate(AstronomyCapabilities.MaximumSupportedDate));
 
+        // SupportedDateRange is now the INTERSECTION of kernel coverage and the product promise, so it must equal
+        // the promise exactly (issue #83).
         var range = SpiceConfiguration.Default.SupportedDateRange;
         Assert.NotNull(range);
-        Assert.True(range!.Value.From <= AstronomyCapabilities.MinimumSupportedDate);
-        Assert.True(range.Value.To >= AstronomyCapabilities.MaximumSupportedDate);
+        Assert.Equal(AstronomyCapabilities.MinimumSupportedDate, range!.Value.From);
+        Assert.Equal(AstronomyCapabilities.MaximumSupportedDate, range.Value.To);
     }
 
     [Fact]

@@ -99,14 +99,21 @@ public sealed class SpiceAstronomyEngine : IAstronomyEngine
                 + $"'{inventoryToolkitVersion}'. Update the inventory or the image; they must agree.");
     }
 
-    /// <summary>Refuses a date the mounted kernels do not cover, derived from configuration rather than a constant
-    /// (architect note 1).</summary>
+    /// <summary>
+    /// Refuses a date the engine cannot actually serve. Uses the single serviceability gate, so it can never accept a
+    /// date that <see cref="AstronomyCapabilities.IsSupportedDate"/> would reject or vice versa (issue #83).
+    /// </summary>
     public void EnsureDateIsCovered(DateOnly date)
     {
-        if (!_configuration.CoversDate(date))
-            throw new AstronomyNotSupportedException(
-                $"No kernel declared in SpiceConfiguration covers {date:yyyy-MM-dd}; the supported span is derived "
-                + "from the mounted kernels, not asserted.");
+        if (_configuration.IsServiceable(date)) return;
+
+        // Say which gate refused, so a caller can tell a policy floor from a missing kernel.
+        var reason = !AstronomyCapabilities.IsSupportedDate(date)
+            ? "outside the product's supported span"
+            : "not covered by any declared ephemeris kernel";
+        throw new AstronomyNotSupportedException(
+            $"{date:yyyy-MM-dd} is {reason}. The supported span is the intersection of the product floor and the "
+            + "mounted kernel coverage, derived from configuration rather than asserted.");
     }
 
     private void EnsureAvailable()
