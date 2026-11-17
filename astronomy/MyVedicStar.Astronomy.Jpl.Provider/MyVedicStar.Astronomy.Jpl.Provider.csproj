@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The JPL/SPICE provider implements Core contracts. It may reference Core and packages, never another
+       provider or a product module. Native SPICE assets are supplied by the host image, not downloaded at runtime. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <!-- [LibraryImport] source generation emits unsafe marshalling code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>true</IsPackable>
+    <Description>JPL DE440/DE441 provider over NAIF CSPICE for MyVedicStar astronomy.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVedicStar.Astronomy.Core\MyVedicStar.Astronomy.Core.csproj" />
+  </ItemGroup>
+
+</Project>

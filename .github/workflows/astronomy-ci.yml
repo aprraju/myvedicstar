@@ -1,0 +1,54 @@
+name: MyVedicStar Astronomy CI
+
+# Proves FR-01 AC-1: the astronomy solution builds and tests on its own, from a clean checkout, with no product
+# project references. This workflow never references src/MyVedicStar.* or src/MyVedicDay.*, so it cannot be satisfied
+# by product code doing the work.
+on:
+  pull_request:
+    paths:
+      - 'astronomy/**'
+      - '.github/workflows/astronomy-ci.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'astronomy/**'
+      - '.github/workflows/astronomy-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  independent-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      # nuget.config authenticates to GitHub Packages even for public packages.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prove the solution references no product project
+        run: |
+          if grep -rIl --include='*.csproj' -E 'MyVedic(Star|Day)\.(API|Shared|Business|Data|Integration|Calculation|Api|Caching|Host)' astronomy/; then
+            echo "::error::An astronomy project references a product project, which FR-01 forbids."
+            exit 1
+          fi
+          echo "No astronomy project references a product project."
+
+      - name: Restore
+        run: dotnet restore astronomy/MyVedicStar.Astronomy.slnx
+
+      - name: Build
+        run: dotnet build astronomy/MyVedicStar.Astronomy.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test astronomy/MyVedicStar.Astronomy.slnx --configuration Release --no-build --logger trx --results-directory astronomy-test-results
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: astronomy-test-results
+          path: astronomy-test-results/*.trx
