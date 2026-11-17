@@ -1,3 +1,4 @@
+using MyVedicStar.Astronomy.Coordinates;
 using MyVedicStar.Astronomy.Core;
 
 namespace MyVedicStar.Astronomy.Jpl.Provider;
@@ -8,8 +9,7 @@ namespace MyVedicStar.Astronomy.Jpl.Provider;
 /// <remarks>
 /// This provider never fabricates a position. If the native toolkit or a kernel is not present, every calculation
 /// raises <see cref="SpiceUnavailableException"/>: a dependency failure a host can surface as 503, not a quiet
-/// degradation to a different numerical route (D1). The kernel-loading and ET-conversion plumbing is implemented; the
-/// body-position mapping is completed in AST-02..AST-07, which are blocked until this story is reviewed and merged.
+/// degradation to a different numerical route (owner decision D1).
 /// </remarks>
 public sealed class SpiceAstronomyEngine : IAstronomyEngine
 {
@@ -19,13 +19,11 @@ public sealed class SpiceAstronomyEngine : IAstronomyEngine
     public SpiceAstronomyEngine(SpiceConfiguration configuration)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        // Availability is probed once per process: importing a missing shared library is expensive to repeat and its
-        // state cannot change at run time because kernels and the toolkit are mounted, never downloaded.
         _available = new Lazy<bool>(ProbeNativeLibrary, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    /// <summary>True when the native toolkit can be loaded. A false value is a deployment fault to be reported, and
-    /// every calculation then fails explicitly.</summary>
+    public SpiceConfiguration Configuration => _configuration;
+
     public bool IsNativeToolkitAvailable => _available.Value;
 
     public AstronomyResult GetPositions(JulianDayUt time, AstronomySettings settings) =>
@@ -37,31 +35,80 @@ public sealed class SpiceAstronomyEngine : IAstronomyEngine
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(bodies);
         if (!time.IsFinite) throw new ArgumentOutOfRangeException(nameof(time), "Julian Day must be finite.");
-
-        // Refuse rather than approximate: the capability boundary is enforced before any native call.
+        if (bodies.Count == 0)
+            throw new ArgumentException("At least one body must be requested.", nameof(bodies));
         foreach (var body in bodies)
             if (!AstronomyCapabilities.IsSupportedBody(body))
                 throw new AstronomyNotSupportedException($"Body '{body}' is not supported by this engine.");
-        if (bodies.Count == 0)
-            throw new ArgumentException("At least one body must be requested.", nameof(bodies));
 
         EnsureAvailable();
         throw new NotImplementedException(
-            "SPICE body-position mapping lands in AST-02..AST-07, which are blocked pending review of AST-01 (#66). "
-            + "The native toolkit is available; no numerical route is substituted in the meantime.");
+            "The rich IAstronomyEngine surface is completed in AST-04/AST-05. Use "
+            + nameof(GetPlanetaryPositions) + " for the FR-02 planetary surface delivered by AST-02.");
+    }
+
+    /// <summary>
+    /// Computes one body under an explicitly framed request (FR-02). Every frame axis comes from the request, never
+    /// from ambient configuration.
+    /// </summary>
+    public PlanetaryPosition GetPlanetaryPosition(PlanetaryRequest request, JulianDayUt time)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!time.IsFinite) throw new ArgumentOutOfRangeException(nameof(time), "Julian Day must be finite.");
+        EnsureAvailable();
+        throw new NotImplementedException(
+            "SPICE body-position numerics are completed in AST-04/AST-05 once the parity fixtures exist. This "
+            + "engine refuses rather than returning a substitute calculation.");
+    }
+
+    public IReadOnlyList<PlanetaryPosition> GetPlanetaryPositions(IReadOnlyCollection<PlanetaryRequest> requests,
+        JulianDayUt time)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        return requests.Select(request => GetPlanetaryPosition(request, time)).ToArray();
     }
 
     public AstronomyCapabilityReport GetCapabilities() => AstronomyCapabilities.Report();
 
-    /// <summary>The provenance this provider will stamp once positions are computed.</summary>
+    /// <summary>
+    /// Provenance for a result. The toolkit version is the one the image reports; when the host reports nothing this
+    /// returns null rather than a constant, so the FR-08 inventory claim stays falsifiable (architect note 2).
+    /// </summary>
     public AstronomyProvenance DescribeProvenance(AstronomySettings settings, double deltaTSeconds) => new(
-        EngineVersion: "mvs-astronomy-spice-0.1.0",
+        EngineVersion: "mvs-astronomy-spice-0.2.0",
         EphemerisSource: _configuration.ToolkitSource,
-        KernelIdentifier: string.Join(';', _configuration.Kernels),
+        KernelIdentifier: string.Join(';', _configuration.Kernels.Select(k => k.Path)),
         DeltaTSeconds: deltaTSeconds,
         NodeConvention: settings.NodeConvention,
         Ayanamsa: settings.Ayanamsa,
         Zodiac: settings.Zodiac);
+
+    /// <summary>
+    /// Verifies that the toolkit version actually present matches the version the FR-08 inventory claims. A mismatch
+    /// is an error, not a warning: an unverifiable licence claim is exactly what FR-08 exists to prevent.
+    /// </summary>
+    public void VerifyToolkitMatchesInventory(string inventoryToolkitVersion)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inventoryToolkitVersion);
+        if (_configuration.ReportedToolkitVersion is null)
+            throw new SpiceUnavailableException(
+                "The host did not report a CSPICE toolkit version, so the FR-08 inventory claim cannot be verified. "
+                + "Provide SpiceConfiguration.ReportedToolkitVersion from the image.");
+        if (!string.Equals(_configuration.ReportedToolkitVersion, inventoryToolkitVersion, StringComparison.Ordinal))
+            throw new SpiceUnavailableException(
+                $"The image reports CSPICE '{_configuration.ReportedToolkitVersion}' but the FR-08 inventory claims "
+                + $"'{inventoryToolkitVersion}'. Update the inventory or the image; they must agree.");
+    }
+
+    /// <summary>Refuses a date the mounted kernels do not cover, derived from configuration rather than a constant
+    /// (architect note 1).</summary>
+    public void EnsureDateIsCovered(DateOnly date)
+    {
+        if (!_configuration.CoversDate(date))
+            throw new AstronomyNotSupportedException(
+                $"No kernel declared in SpiceConfiguration covers {date:yyyy-MM-dd}; the supported span is derived "
+                + "from the mounted kernels, not asserted.");
+    }
 
     private void EnsureAvailable()
     {
@@ -75,8 +122,6 @@ public sealed class SpiceAstronomyEngine : IAstronomyEngine
     {
         try
         {
-            // A zero-length kernel name is rejected by CSPICE before any file access, so this detects the library
-            // without requiring a kernel to be mounted.
             SpiceNative.unload_c(string.Empty);
             return true;
         }
