@@ -5,7 +5,7 @@ public sealed record VedicProfileRequest(
     string? Name, DateOnly DateOfBirth, string BirthTimeMode,
     string? BirthTime, string? BirthTimeFrom, string? BirthTimeTo,
     string? TimeAccuracyNote, string LocationName, decimal Latitude, decimal Longitude,
-    string TimezoneId, string Gender, string Occupation, string Relationship,
+    string TimezoneId, string Gender, string? Occupation, string? Relationship,
     string? CustomRelationship);
 
 /// <summary>Replace payload adds the current revision required for optimistic concurrency.</summary>
@@ -13,7 +13,7 @@ public sealed record ReplaceVedicProfileRequest(
     string? Name, DateOnly DateOfBirth, string BirthTimeMode,
     string? BirthTime, string? BirthTimeFrom, string? BirthTimeTo,
     string? TimeAccuracyNote, string LocationName, decimal Latitude, decimal Longitude,
-    string TimezoneId, string Gender, string Occupation, string Relationship,
+    string TimezoneId, string Gender, string? Occupation, string? Relationship,
     string? CustomRelationship, long Revision);
 
 public sealed record VedicProfileSummaryResponse(Guid Id, string Name, string Relationship,
@@ -27,7 +27,7 @@ public sealed record VedicProfileResponse(
     Guid Id, string Name, DateOnly DateOfBirth, string BirthTimeMode,
     string? BirthTime, string? BirthTimeFrom, string? BirthTimeTo,
     string? TimeAccuracyNote, string LocationName, decimal Latitude, decimal Longitude,
-    string TimezoneId, string Gender, string Occupation, string Relationship,
+    string TimezoneId, string Gender, string? Occupation, string? Relationship,
     string? CustomRelationship, long Revision)
 {
     public static VedicProfileResponse From(MyVedicStar.VedicProfiles.Shared.VedicProfile value) =>

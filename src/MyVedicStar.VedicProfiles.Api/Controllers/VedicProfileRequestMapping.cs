@@ -20,12 +20,22 @@ internal static class VedicProfileRequestMapping
     private static VedicProfileDetails Build(string? name, DateOnly dateOfBirth, string birthTimeMode,
         string? birthTime, string? birthTimeFrom, string? birthTimeTo, string? timeAccuracyNote,
         string locationName, decimal latitude, decimal longitude, string timezoneId, string gender,
-        string occupation, string relationship, string? customRelationship) =>
+        string? occupation, string? relationship, string? customRelationship) =>
         new(name, dateOfBirth, ParseMode(birthTimeMode), ParseTime(birthTime), ParseTime(birthTimeFrom),
             ParseTime(birthTimeTo), timeAccuracyNote, locationName, latitude, longitude, timezoneId, gender,
             occupation, ParseRelationship(relationship), customRelationship);
 
     private static BirthTimeMode ParseMode(string value) => Enum.TryParse<BirthTimeMode>(value, true, out var mode) ? mode : (BirthTimeMode)(-1);
-    private static Relationship ParseRelationship(string value) => Enum.TryParse<Relationship>(value, true, out var relationship) ? relationship : (Relationship)(-1);
-    private static TimeOnly? ParseTime(string? value) => TimeOnly.TryParseExact(value, "HH:mm:ss", out var time) ? time : null;
+    // Relationship is optional on create: an omitted value means the profile is the
+    // account owner's own profile. A supplied but unrecognised value is still rejected.
+    private static Relationship ParseRelationship(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? Relationship.Self
+        : Enum.TryParse<Relationship>(value, true, out var relationship) ? relationship
+        : (Relationship)(-1);
+    // TryParseExact throws on a null input, so an omitted time would become an opaque 500.
+    // Absent (null/blank) means "no time supplied"; a malformed value still fails validation.
+    private static TimeOnly? ParseTime(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null
+        : TimeOnly.TryParseExact(value, "HH:mm:ss", out var time) ? time
+        : throw new MyVedicStar.Shared.Exceptions.ValidationException(MyVedicStar.VedicProfiles.Shared.VedicProfileErrors.InvalidTimes);
 }

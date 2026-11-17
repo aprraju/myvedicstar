@@ -75,7 +75,6 @@ public sealed class VedicProfilesFacadeTests : IDisposable
         yield return [d with { CustomRelationship = "" }];
         yield return [d with { Name = " " }];
         yield return [d with { Name = new string('a', VedicProfileLimits.Name + 1) }];
-        yield return [d with { Occupation = " " }];
         yield return [d with { Gender = " " }];
         yield return [d with { Gender = "text\ncontrol" }];
         yield return [d with { LocationName = "" }];
@@ -227,6 +226,31 @@ public sealed class VedicProfilesFacadeTests : IDisposable
     private static VedicProfileDetails Valid() => new("Saved", new DateOnly(2000, 2, 29), BirthTimeMode.Known,
         Noon, Noon, Noon, null, "Birth location", 12.34567890123456789m, -76.12345678901234567m,
         "America/Chicago", "Prefer not to say", "Engineer", Relationship.Father, null);
+
+    [Fact]
+    public async Task Non_self_relationship_never_inherits_account_name()
+    {
+        // A non-Self profile must supply its own name; the account name is never substituted.
+        await Assert.ThrowsAsync<ValidationException>(() => facade.CreateAsync(user, Valid() with { Relationship = Relationship.Father, Name = " " }, Token));
+        await accounts.DidNotReceive().GetDefaultNameAsync(Arg.Any<ClaimsPrincipal>(), Token);
+        await repository.DidNotReceive().CreateAsync(Arg.Any<Guid>(), Arg.Any<VedicProfileDetails>(), Token);
+    }
+
+    [Fact]
+    public async Task Blank_self_name_falls_back_only_when_account_name_exists()
+    {
+        accounts.GetDefaultNameAsync(user, Token).Returns((string?)null);
+        await Assert.ThrowsAsync<ValidationException>(() => facade.CreateAsync(user, Valid() with { Relationship = Relationship.Self, Name = "  " }, Token));
+        await repository.DidNotReceive().CreateAsync(Arg.Any<Guid>(), Arg.Any<VedicProfileDetails>(), Token);
+    }
+
+    [Fact]
+    public async Task Occupation_is_optional()
+    {
+        var result = await facade.CreateAsync(user, Valid() with { Occupation = "" }, Token);
+        await repository.Received(1).CreateAsync(Arg.Any<Guid>(), Arg.Any<VedicProfileDetails>(), Token);
+        Assert.Empty(result.Details.Occupation);
+    }
 
     public void Dispose() => provider.Dispose();
 
