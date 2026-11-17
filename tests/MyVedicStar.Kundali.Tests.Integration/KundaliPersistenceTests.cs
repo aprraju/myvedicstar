@@ -3,6 +3,7 @@ using MyVedicStar.Authorize.Tests.Integration.Postgres;
 using MyVedicStar.Kundali.Data;
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.Shared.Exceptions;
+using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Tests.Integration;
 

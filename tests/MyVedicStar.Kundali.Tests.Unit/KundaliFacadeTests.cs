@@ -2,8 +2,8 @@ using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Kundali.Business;
 using MyVedicStar.Kundali.Shared;
-using MyVedicStar.VedicProfiles.Shared;
 using MyVedicStar.Shared.Exceptions;
+using MyVedicStar.VedicProfiles.Shared;
 using NSubstitute;
 
 namespace MyVedicStar.Kundali.Tests.Unit;
