@@ -274,6 +274,40 @@ public sealed class ProviderMigrationTests
         Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
     }
 
+    [Fact]
+    public void A_second_conflicting_provider_registration_cannot_downgrade_the_first()
+    {
+        // TryAdd means the FIRST registration wins. So calling the provider registration twice with different keys
+        // is not order-neutral: the earlier key decides. What matters is that this cannot happen silently for the
+        // real composition, which calls it once - and that a later cheap call cannot quietly replace an expensive
+        // or explicitly requested provider with the analytical default.
+        var engine = new StubEngine(sunLongitude: 5.0);
+        var services = new ServiceCollection();
+        services.AddAstronomyProvider(ProviderSelectionParser.SpiceKey, _ => engine);
+        services.AddAstronomy(ProviderSelection.Analytical);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        // First registration wins, so the requested spice provider survives a later analytical default.
+        Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
+        Assert.Single(services, d => d.ServiceType == typeof(IEphemeris));
+    }
+
+    [Fact]
+    public void Registration_order_is_harmless_when_the_selection_agrees()
+    {
+        // The realistic composition path: one provider registration plus a later AddAstronomy() that names the same
+        // selection. No matter the order, one descriptor and the same resolution.
+        var services = new ServiceCollection();
+        services.AddAstronomy();
+        services.AddAstronomyProvider(ProviderSelectionParser.AnalyticalKey);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        Assert.Single(services, d => d.ServiceType == typeof(IEphemeris));
+        Assert.IsType<MeeusEphemeris>(provider.GetRequiredService<IEphemeris>());
+    }
+
     private static ServiceProvider Build(string key, IEphemerisEngine? engine = null)
     {
         var services = new ServiceCollection();
