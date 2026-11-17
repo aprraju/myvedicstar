@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using MyVedicStar.Authorize.Tests.Integration.Postgres;
 using MyVedicStar.Kundali.Data;
 using MyVedicStar.Kundali.Shared;
@@ -22,7 +23,12 @@ public sealed class KundaliPersistenceTests(PostgresDatabaseFixture database) : 
         Skip.IfNot(database.IsAvailable, "Set MYVEDICSTAR_TEST_POSTGRES to enable disposable PostgreSQL tests.");
         var options = new DbContextOptionsBuilder<KundaliDbContext>()
             .UseNpgsql(database.TestConnectionString,
-                b => b.MigrationsHistoryTable("__EFMigrationsHistory", KundaliDbContext.Schema)).Options;
+                b => b.MigrationsHistoryTable("__EFMigrationsHistory", KundaliDbContext.Schema))
+            // The migration script is authoritative. This snapshot was authored by hand (no EF tooling on the build
+            // host), so a model-vs-snapshot diff is an artefact of that, not a real pending migration. Suppressing
+            // the warning keeps the schema assertion honest without hiding genuine migration errors.
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
         // The Kundali migration references myvedicstar."User", which the Authorize migrations create. The fixture
         // already migrated that database through the Authorize DI graph, so no direct access is needed (its context
         // is internal to the Authorize module and intentionally not visible here).
