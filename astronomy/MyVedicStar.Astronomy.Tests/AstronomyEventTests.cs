@@ -52,13 +52,15 @@ public sealed class AstronomyEventTests
     [Fact]
     public void The_solver_is_deterministic_across_repeated_runs()
     {
-        double Altitude(JulianDayUt time) => Math.Sin((time.Value - 2451545.0) * 2.0 * Math.PI);
+        // A positive-slope ramp crossing zero at t=0.25, so a RISING crossing genuinely exists.
+        double Altitude(JulianDayUt time) => (time.Value - 2451545.0 - 0.25) * 100.0;
 
         var first = AltitudeCrossingSolver.Find(Altitude, JulianDayUt.J2000, 1.0, 0.0, EventType.Sunrise, true,
             NonOccurrenceReason.SunNeverRises, Provenance);
         var second = AltitudeCrossingSolver.Find(Altitude, JulianDayUt.J2000, 1.0, 0.0, EventType.Sunrise, true,
             NonOccurrenceReason.SunNeverRises, Provenance);
 
+        Assert.True(first.Occurred);
         Assert.Equal(first.Instant!.Value.Value, second.Instant!.Value.Value, 12);
         Assert.Equal(first.Diagnostics.Iterations, second.Diagnostics.Iterations);
     }
@@ -101,9 +103,11 @@ public sealed class AstronomyEventTests
     [Fact]
     public void Solar_events_resolve_through_a_supplied_position_source()
     {
-        // A synthetic source that reproduces a plausible daily circle, so the wiring is exercised without an
-        // ephemeris. Declination fixed at 0 and RA advancing one full turn per sidereal day.
-        var service = new AstronomyEventService(new SyntheticPositions(), Provenance);
+        // A synthetic source producing a diurnal circle that genuinely clears the horizon: declination 20 degrees at
+        // an observer on the equator reaches +70 degrees altitude, well above the -0.83 degree sunrise threshold.
+        // (A declination of 0 at the equator peaks at exactly 0 degrees, which never crosses the refracted horizon -
+        // that case is the separate Sunrise/Sunset non-occurrence test.)
+        var service = new AstronomyEventService(new SyntheticPositions(declinationDegrees: 20.0), Provenance);
         var observer = new EventObserver(new ObserverLocation(0.0, 0.0, 0), null, "UTC");
 
         var events = service.SolarEvents(JulianDayUt.J2000, observer);
@@ -151,13 +155,13 @@ public sealed class AstronomyEventTests
             LocalEventFormatter.ToLocal(new JulianDayUt(2460379.8125), "America/New_York", "tz").Resolution);
     }
 
-    private sealed class SyntheticPositions : IEventBodyPositions
+    private sealed class SyntheticPositions(double declinationDegrees) : IEventBodyPositions
     {
         public EquatorialPoint GetEquatorial(CelestialBody body, JulianDayUt time)
         {
-            // One turn per day of right ascension, zero declination: a simple diurnal circle.
+            // One turn per day of right ascension at a fixed declination: a simple diurnal circle.
             var degrees = (time.Value - 2451545.0) * 360.0;
-            return new EquatorialPoint(((degrees % 360.0) + 360.0) % 360.0, 0.0);
+            return new EquatorialPoint(((degrees % 360.0) + 360.0) % 360.0, declinationDegrees);
         }
     }
 }
