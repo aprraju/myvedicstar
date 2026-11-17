@@ -104,8 +104,9 @@ later Kundali stories.
    not claim a D60 chart as correct; (b) do return the placement together with a computed boundary distance in
    arcseconds, marked provisional when that distance is inside the engine tolerance. This is the
    "never degrade silently" rule applied literally: the value is either supported or visibly marked.
-2. D30/D24/D20/D16/D12/D10/D7 boundaries are supported, because their cuts are at least 1.5 degrees and the section
-   4 Lagna budget is smaller. D9 is supported and is the smallest definitively supported division.
+2. D30/D24/D20/D16/D12/D10/D7/D9 boundaries are supported. Each supported division is one whose cut the Lagna budget
+   cannot move across a boundary - that is the rule the code enforces, not an ordering by division number. D9 is
+   supported; the divisions beyond D9 that the product offers (D60) are the ones listed as provisional in 3.1.
 3. Shadbala Chesta Bala is not supported and is returned as an explicit unsupported component. Chesta needs a true
    apparent-velocity convention per graha, including the classical retrograde re-scaling, that this provider set does
    not define to the classical formula's satisfaction. The other five balas (Sthana, Dig, Kala, Naisargika, Drik) are

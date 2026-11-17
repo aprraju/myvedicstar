@@ -18,18 +18,18 @@ public sealed class KundaliCapabilityBoundaryTests
     }
 
     [Fact]
-    public void D9_is_the_smallest_definitively_supported_division()
+    public void D9_is_supported_and_D60_is_never_definitive()
     {
         Assert.Contains(9, KundaliCapabilities.SupportedDivisionalCharts);
 
-        // A D-n cut is 30/n degrees, so a *higher* n is a narrower cut. D9 is the finest division that is still
-        // supported definitively: every supported divisional must therefore have n <= 9.
-        foreach (var divisions in KundaliCapabilities.SupportedDivisionalCharts)
-            Assert.True(divisions <= 9,
-                $"D{divisions} is finer than D9, so D9 is not the finest definitively supported division.");
-
-        // D60 is finer still and must never be presented as a definitive fact.
+        // D60 is the division the ADR refuses: it must never appear among the definitive set, and must be listed as
+        // provisional so a caller can see why rather than inferring "unsupported" from an absence.
         Assert.DoesNotContain(60, KundaliCapabilities.SupportedDivisionalCharts);
+        Assert.Contains(60, KundaliCapabilities.ProvisionalDivisionalCharts);
+
+        // The supported and provisional sets must not overlap: a division is either definitive or provisional.
+        Assert.Empty(KundaliCapabilities.SupportedDivisionalCharts
+            .Intersect(KundaliCapabilities.ProvisionalDivisionalCharts));
     }
 
     [Fact]
