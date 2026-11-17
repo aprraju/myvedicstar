@@ -226,6 +226,54 @@ public sealed class ProviderMigrationTests
         }
     }
 
+    [Fact]
+    public void AddAstronomy_alone_binds_the_port_through_the_selection_not_a_hardcoded_provider()
+    {
+        // Regression for the defect found during AST-05: AddAstronomy registered MeeusEphemeris directly while
+        // AddAstronomyProvider registered the configured provider. Both used TryAddSingleton, so which one won
+        // depended on call order and the configured key could be silently ignored.
+        var services = new ServiceCollection();
+        services.AddAstronomy();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        // Exactly one registration of the port: two would mean two authors of the same decision.
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IEphemeris));
+        Assert.IsType<MeeusEphemeris>(provider.GetRequiredService<IEphemeris>());
+
+        // The selection is recorded even on the default path, so provenance cannot be absent.
+        Assert.Equal(ProviderSelection.Analytical, provider.GetRequiredService<SelectedAstronomyProvider>().Selection);
+    }
+
+    [Fact]
+    public void A_configured_spice_selection_survives_AddAstronomy_being_called_afterwards()
+    {
+        // Order independence. If AddAstronomy still registered the analytical implementation directly, calling it
+        // after the provider registration would either win (wrong provider silently) or add a second descriptor.
+        var engine = new StubEngine(sunLongitude: 42.0);
+        var services = new ServiceCollection();
+        services.AddAstronomyProvider(ProviderSelectionParser.SpiceKey, _ => engine);
+        services.AddAstronomy();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IEphemeris));
+        Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
+        Assert.Equal(ProviderSelection.Spice, provider.GetRequiredService<SelectedAstronomyProvider>().Selection);
+    }
+
+    [Fact]
+    public void AddAstronomy_with_an_explicit_selection_binds_that_selection()
+    {
+        var engine = new StubEngine(sunLongitude: 7.0);
+        var services = new ServiceCollection();
+        services.AddAstronomy(ProviderSelection.Spice, _ => engine);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
+    }
+
     private static ServiceProvider Build(string key, IEphemerisEngine? engine = null)
     {
         var services = new ServiceCollection();

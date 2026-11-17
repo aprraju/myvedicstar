@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using MyVedicDay.Astronomy;
 using MyVedicDay.Caching;
 using MyVedicDay.Localization;
 using MyVedicDay.Location;
@@ -65,6 +66,9 @@ public static class PanchangBusinessServiceCollectionExtensions
         services.TryAddScoped<IPanchangTraditionFacade>(provider => provider.GetRequiredService<GlossaryFacade>());
 
         // Panchang's own layers.
+        // Bind the astronomy port to the configured provider. Passing the key straight through means an unknown or
+        // absent value fails here, at composition, instead of silently defaulting to the analytical series.
+        services.AddAstronomyProvider(configuration[AstronomyProviderRegistration.ConfigurationKey]);
         services.AddPanchangCalculation();
         services.AddPanchangData(configuration);
 
@@ -77,4 +81,3 @@ public static class PanchangBusinessServiceCollectionExtensions
 
         return services;
     }
-}
