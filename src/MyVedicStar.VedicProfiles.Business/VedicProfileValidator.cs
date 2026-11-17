@@ -11,7 +11,7 @@ internal sealed class VedicProfileValidator(TimeProvider clock)
         if (!RequiredText(details.Name, VedicProfileLimits.Name)
             || !RequiredText(details.LocationName, VedicProfileLimits.LocationName)
             || !RequiredText(details.Gender, VedicProfileLimits.Gender)
-            || !RequiredText(details.Occupation, VedicProfileLimits.Occupation)
+            || !OptionalText(details.Occupation, VedicProfileLimits.Occupation)
             || !OptionalText(details.TimeAccuracyNote, VedicProfileLimits.TimeAccuracyNote))
             throw new ValidationException(VedicProfileErrors.InvalidDetails);
 

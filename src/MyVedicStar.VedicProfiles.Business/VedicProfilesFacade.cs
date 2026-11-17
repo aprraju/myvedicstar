@@ -17,6 +17,9 @@ internal sealed class VedicProfilesFacade(IVedicProfileAccountReader accounts, I
     {
         var accountId = await accounts.GetRegisteredAccountIdAsync(user, token);
         ArgumentNullException.ThrowIfNull(details);
+        // Only Self may inherit the name; every other relationship must supply one.
+        // When the account has no usable name, leave it blank so the validator returns
+        // a 400 rather than inventing a value.
         if (details.Relationship == Relationship.Self && string.IsNullOrWhiteSpace(details.Name))
             details = details with { Name = await accounts.GetDefaultNameAsync(user, token) };
         validator.Validate(details);
