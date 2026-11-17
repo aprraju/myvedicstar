@@ -1,0 +1,74 @@
+namespace MyVedicStar.API.Contracts;
+
+/// <summary>Revision summary. Failure is reported as a stable reason code, never an engine message, so no internal
+/// detail or personal data can appear in an error body.</summary>
+public sealed record KundaliRevisionResponse(
+    Guid RevisionId,
+    long Revision,
+    string Status,
+    string? FailureReasonCode,
+    string InputSnapshotHash,
+    bool IsStale,
+    bool IsPartial,
+    string[] CompletedSections,
+    KundaliProvenanceResponse Provenance,
+    DateTimeOffset CreatedAtUtc)
+{
+    public static KundaliRevisionResponse From(MyVedicStar.Kundali.Shared.KundaliRevisionSummary value) => new(
+        value.RevisionId, value.Revision, value.Status.ToString(), value.FailureReasonCode, value.InputSnapshotHash,
+        value.IsStale, value.IsPartial, value.CompletedSections.ToArray(), KundaliProvenanceResponse.From(value.Provenance),
+        value.CreatedAtUtc);
+}
+
+public sealed record KundaliProvenanceResponse(
+    string EngineVersion, string EphemerisVersion, string RuleSetVersion, string TimezoneDataVersion, string Ayanamsa)
+{
+    public static KundaliProvenanceResponse From(MyVedicStar.Kundali.Shared.KundaliProvenance value) => new(
+        value.EngineVersion, value.EphemerisVersion, value.RuleSetVersion, value.TimezoneDataVersion, value.Ayanamsa);
+}
+
+/// <summary>Module shell payload. <c>HasResult</c> is false when the profile has no Kundali yet, which is a valid
+/// empty state rather than an error (KUN-01/KUN-02 shell contract).</summary>
+public sealed record KundaliViewResponse(
+    Guid ProfileId,
+    Guid AggregateId,
+    long AggregateRevision,
+    bool HasResult,
+    KundaliRevisionResponse? CurrentRevision,
+    DateTimeOffset? CreatedAtUtc,
+    DateTimeOffset? UpdatedAtUtc)
+{
+    public static KundaliViewResponse From(MyVedicStar.Kundali.Shared.KundaliView value) => new(
+        value.Aggregate.ProfileId, value.Aggregate.Id, value.Aggregate.Revision, value.CurrentRevision is not null,
+        value.CurrentRevision is null ? null : KundaliRevisionResponse.From(value.CurrentRevision),
+        value.Aggregate.CreatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.CreatedAtUtc,
+        value.Aggregate.UpdatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.UpdatedAtUtc);
+}
+
+public sealed record KundaliPreferencesResponse(string ChartStyle, long Revision, DateTimeOffset? UpdatedAtUtc)
+{
+    public static KundaliPreferencesResponse From(MyVedicStar.Kundali.Shared.KundaliPreferences value) => new(
+        value.ChartStyle, value.Revision, value.UpdatedAtUtc == DateTimeOffset.MinValue ? null : value.UpdatedAtUtc);
+}
+
+/// <summary>Replace payload carries the revision required for optimistic concurrency.</summary>
+public sealed record SaveKundaliPreferencesRequest(string ChartStyle, long Revision);
+
+/// <summary>The published capability boundary (ADR-0016 section 3), returned as data.</summary>
+public sealed record KundaliCapabilitiesResponse(
+    int[] SupportedDivisionalCharts,
+    int[] ProvisionalDivisionalCharts,
+    string[] SupportedShadbalaComponents,
+    string[] UnsupportedShadbalaComponents,
+    string LunarNodeConvention,
+    string AscendantConvention,
+    DateOnly MinimumSupportedBirthDate,
+    DateOnly MaximumSupportedBirthDate,
+    string[] UnsupportedCapabilities)
+{
+    public static KundaliCapabilitiesResponse From(MyVedicStar.Kundali.Shared.KundaliCapabilityReport value) => new(
+        value.SupportedDivisionalCharts.ToArray(), value.ProvisionalDivisionalCharts.ToArray(),
+        value.SupportedShadbalaComponents.ToArray(), value.UnsupportedShadbalaComponents.ToArray(),
+        value.LunarNodeConvention, value.AscendantConvention, value.MinimumSupportedBirthDate,
+        value.MaximumSupportedBirthDate, value.UnsupportedCapabilities.ToArray());
+}
