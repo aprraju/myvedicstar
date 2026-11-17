@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using MyVedicStar.Authorize.Data.Users;
 using MyVedicStar.Authorize.Tests.Integration.Postgres;
 using MyVedicStar.Kundali.Data;
 using MyVedicStar.Kundali.Shared;
@@ -37,19 +39,15 @@ public sealed class KundaliPersistenceTests(PostgresDatabaseFixture database) : 
         return db;
     }
 
+    /// <summary>Accounts are created through the Authorize module's own repository, so this test never writes into
+    /// another module's schema directly and the row shape stays whatever Authorize defines.</summary>
     private async Task<Guid> AccountAsync()
     {
-        var id = Guid.NewGuid();
-        await using var connection = database.CreateConnection();
-        await connection.OpenAsync();
-        await using var command = new Npgsql.NpgsqlCommand(
-            "INSERT INTO myvedicstar.\"User\" (\"Id\", \"ExternalId\", \"Email\", \"GivenName\", \"FamilyName\", \"Issuer\", \"CreatedUtc\", \"UpdatedUtc\", \"IsActive\", \"ProfileManaged\", \"ProfileRevision\", \"DisplayNameSyncPending\", \"FirstNameSyncPending\", \"LastNameSyncPending\") " +
-            "SELECT @id, @externalId, 'k@example.com', 'F', 'L', 'https://test.example', now(), now(), true, false, 0, false, false, false " +
-            "RETURNING \"Id\"", connection);
-        command.Parameters.AddWithValue("id", id);
-        command.Parameters.AddWithValue("externalId", Guid.NewGuid().ToString());
-        await command.ExecuteNonQueryAsync();
-        return id;
+        await using var scope = database.Services.CreateAsyncScope();
+        var user = await scope.ServiceProvider.GetRequiredService<IUserRepository>()
+            .UpsertAsync(new(Guid.NewGuid().ToString(), "k@example.com", "First", "Last", "https://test.example"),
+                default);
+        return user.Id;
     }
 
     private static KundaliInputSnapshot Snapshot(long profileRevision = 1) => new(new DateOnly(1990, 4, 12),

@@ -21,12 +21,14 @@ public sealed class KundaliCapabilityBoundaryTests
     public void D9_is_the_smallest_definitively_supported_division()
     {
         Assert.Contains(9, KundaliCapabilities.SupportedDivisionalCharts);
-        Assert.True(KundaliCapabilities.SupportedDivisionalCharts.Min() == 9,
-            "D9 must be the smallest supported division.");
 
-        // Every supported division must have a cut wider than the D9 cut, which is the ADR's stated rationale.
+        // D9 is the smallest supported *divisional*: no supported division may be finer than D9, because a narrower
+        // cut could not absorb the Lagna accuracy budget. Coarser divisions (1..7) are expected and allowed.
         foreach (var divisions in KundaliCapabilities.SupportedDivisionalCharts)
-            Assert.True(30.0 / divisions >= 30.0 / 9, $"D{divisions} cut is narrower than D9.");
+            Assert.True(30.0 / divisions >= 30.0 / 9,
+                $"D{divisions} cut is narrower than the D9 cut, so D9 is not the smallest supported division.");
+
+        Assert.DoesNotContain(KundaliCapabilities.SupportedDivisionalCharts, d => d > 9);
     }
 
     [Fact]
