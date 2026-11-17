@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicDay.Astronomy;
 using MyVedicStar.Astronomy.Core;
@@ -224,6 +225,120 @@ public sealed class ProviderMigrationTests
             var diverging = ParityGate.Evaluate(fixture, fixture.TropicalLongitudeDegrees + (1.0 / 60.0));
             Assert.False(diverging.Passed);
         }
+    }
+
+    [Fact]
+    public void AddAstronomy_alone_binds_the_port_through_the_selection_not_a_hardcoded_provider()
+    {
+        // Regression for the defect found during AST-05: AddAstronomy registered MeeusEphemeris directly while
+        // AddAstronomyProvider registered the configured provider. Both used TryAddSingleton, so which one won
+        // depended on call order and the configured key could be silently ignored.
+        var services = new ServiceCollection();
+        services.AddAstronomy();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        // Exactly one registration of the port: two would mean two authors of the same decision.
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IEphemeris));
+        Assert.IsType<MeeusEphemeris>(provider.GetRequiredService<IEphemeris>());
+
+        // The selection is recorded even on the default path, so provenance cannot be absent.
+        Assert.Equal(ProviderSelection.Analytical, provider.GetRequiredService<SelectedAstronomyProvider>().Selection);
+    }
+
+    [Fact]
+    public void A_configured_spice_selection_survives_AddAstronomy_being_called_afterwards()
+    {
+        // Order independence. If AddAstronomy still registered the analytical implementation directly, calling it
+        // after the provider registration would either win (wrong provider silently) or add a second descriptor.
+        var engine = new StubEngine(sunLongitude: 42.0);
+        var services = new ServiceCollection();
+        services.AddAstronomyProvider(ProviderSelectionParser.SpiceKey, _ => engine);
+        services.AddAstronomy();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IEphemeris));
+        Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
+        Assert.Equal(ProviderSelection.Spice, provider.GetRequiredService<SelectedAstronomyProvider>().Selection);
+    }
+
+    [Fact]
+    public void AddAstronomy_with_an_explicit_selection_binds_that_selection()
+    {
+        var engine = new StubEngine(sunLongitude: 7.0);
+        var services = new ServiceCollection();
+        services.AddAstronomy(ProviderSelection.Spice, _ => engine);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
+    }
+
+    [Fact]
+    public void A_second_conflicting_provider_registration_cannot_downgrade_the_first()
+    {
+        // TryAdd means the FIRST registration wins. So calling the provider registration twice with different keys
+        // is not order-neutral: the earlier key decides. What matters is that this cannot happen silently for the
+        // real composition, which calls it once - and that a later cheap call cannot quietly replace an expensive
+        // or explicitly requested provider with the analytical default.
+        var engine = new StubEngine(sunLongitude: 5.0);
+        var services = new ServiceCollection();
+        services.AddAstronomyProvider(ProviderSelectionParser.SpiceKey, _ => engine);
+        services.AddAstronomy(ProviderSelection.Analytical);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        // First registration wins, so the requested spice provider survives a later analytical default.
+        Assert.IsType<AstronomyEngineEphemerisAdapter>(provider.GetRequiredService<IEphemeris>());
+        Assert.Single(services, d => d.ServiceType == typeof(IEphemeris));
+    }
+
+    [Fact]
+    public void Registration_order_is_harmless_when_the_selection_agrees()
+    {
+        // The realistic composition path: one provider registration plus a later AddAstronomy() that names the same
+        // selection. No matter the order, one descriptor and the same resolution.
+        var services = new ServiceCollection();
+        services.AddAstronomy();
+        services.AddAstronomyProvider(ProviderSelectionParser.AnalyticalKey);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+
+        Assert.Single(services, d => d.ServiceType == typeof(IEphemeris));
+        Assert.IsType<MeeusEphemeris>(provider.GetRequiredService<IEphemeris>());
+    }
+
+    [Fact]
+    public void An_absent_key_resolves_to_the_documented_default_at_composition()
+    {
+        // Absence is a normal state: the Day and Star hosts load their own layered configuration and neither ships an
+        // Astronomy section. Composition must therefore default it explicitly in one named place, NOT fail. An
+        // UNKNOWN value is different and still throws - see the test below.
+        var configuration = new ConfigurationBuilder().Build();
+        var services = new ServiceCollection();
+        services.AddAstronomyProvider(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey);
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+        Assert.Equal(ProviderSelection.Analytical, provider.GetRequiredService<SelectedAstronomyProvider>().Selection);
+    }
+
+    [Fact]
+    public void A_present_but_unknown_key_still_fails_at_composition()
+    {
+        // The default applies to absence only. A typo must never degrade to analytical.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [AstronomyProviderRegistration.ConfigurationKey] = "spice-ish"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        var failure = Assert.Throws<ArgumentException>(() => services.AddAstronomyProvider(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey));
+        Assert.Contains("Unknown astronomy provider key", failure.Message, StringComparison.Ordinal);
     }
 
     private static ServiceProvider Build(string key, IEphemerisEngine? engine = null)

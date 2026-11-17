@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using MyVedicDay.Astronomy;
 using MyVedicDay.Caching;
 using MyVedicDay.Localization;
 using MyVedicDay.Location;
@@ -17,6 +18,7 @@ using MyVedicDay.Panchang.Business.Traditions;
 using MyVedicDay.Panchang.Calculation;
 using MyVedicDay.Panchang.Data;
 using MyVedicDay.Traditions;
+using MyVedicStar.Astronomy.Core;
 using NodaTime;
 
 namespace MyVedicDay.Panchang.Business;
@@ -64,7 +66,15 @@ public static class PanchangBusinessServiceCollectionExtensions
         services.TryAddScoped<IGlossaryFacade>(provider => provider.GetRequiredService<GlossaryFacade>());
         services.TryAddScoped<IPanchangTraditionFacade>(provider => provider.GetRequiredService<GlossaryFacade>());
 
-        // Panchang's own layers.
+        // Bind the astronomy port to the configured provider.
+        //
+        // The key is read here and handed to AddAstronomyProvider, which parses it strictly: an UNKNOWN value still
+        // fails at composition rather than degrading to the analytical series. An ABSENT value resolves to the
+        // documented default instead, because absence is a normal state - the Day and Star hosts load their own
+        // layered configuration and neither ships this section today. Defaulting absence in one named place keeps
+        // that explicit, and decision D2 keeps the analytical series the default until AST-12 (#77) flips it.
+        services.AddAstronomyProvider(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey);
         services.AddPanchangCalculation();
         services.AddPanchangData(configuration);
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MyVedicStar.Astronomy.Core;
 
 namespace MyVedicDay.Astronomy;
 
@@ -13,11 +14,26 @@ public static class AstronomyServiceCollectionExtensions
     /// <see cref="ILunisolarCalendar"/>.
     /// Stateless singletons; safe to call from several modules.
     /// </summary>
-    public static IServiceCollection AddAstronomy(this IServiceCollection services)
+    /// <remarks>
+    /// Kept for callers that do not configure a provider; it selects the analytical provider explicitly by name
+    /// rather than registering <see cref="MeeusEphemeris"/> directly, so there is exactly one place that decides
+    /// which provider sits behind the port. Callers that honour configuration should use
+    /// <see cref="AstronomyProviderRegistration.AddAstronomyProvider"/> instead.
+    /// </remarks>
+    public static IServiceCollection AddAstronomy(this IServiceCollection services) =>
+        services.AddAstronomy(ProviderSelection.Analytical);
+
+    /// <summary>
+    /// Adds the shared astronomy services with the port bound to the given provider selection.
+    /// </summary>
+    public static IServiceCollection AddAstronomy(this IServiceCollection services,
+        ProviderSelection selection, Func<IServiceProvider, IEphemerisEngine>? configureSpice = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<IEphemeris, MeeusEphemeris>();
+        // The port is decided in exactly one place. Registering MeeusEphemeris here as well would make the
+        // configured selection dependent on call order, and Try* hides that kind of mistake.
+        services.AddAstronomyProvider(ProviderSelectionParser.ToKey(selection), configureSpice);
         services.TryAddSingleton<ISunEventCalculator, SunEventCalculator>();
         services.TryAddSingleton<IMoonEventCalculator, MoonEventCalculator>();
         services.TryAddSingleton<IPlanetEphemeris, KeplerianPlanetEphemeris>();
