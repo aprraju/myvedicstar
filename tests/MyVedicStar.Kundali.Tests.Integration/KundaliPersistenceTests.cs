@@ -57,19 +57,23 @@ public sealed class KundaliPersistenceTests(PostgresDatabaseFixture database) : 
     [SkippableFact]
     public async Task Concurrent_first_generations_create_exactly_one_active_aggregate()
     {
-        await using var db = await ContextAsync();
         var user = await AccountAsync();
         var profile = Guid.NewGuid();
-        var repository = new KundaliRepository(db, TimeProvider.System);
 
-        // Two callers racing the same profile: the unique index must resolve them to one aggregate.
-        var results = await Task.WhenAll(
-            repository.EnsureAggregateWithRevisionAsync(user, profile, Snapshot(), Provenance, default),
-            repository.EnsureAggregateWithRevisionAsync(user, profile, Snapshot(), Provenance, default));
+        // Each racing caller gets its own DbContext, exactly as two independent HTTP requests would. Sharing one
+        // context across threads would test DbContext thread-safety, not the unique index.
+        async Task<KundaliView> GenerateOnce()
+        {
+            await using var context = await ContextAsync();
+            return await new KundaliRepository(context, TimeProvider.System)
+                .EnsureAggregateWithRevisionAsync(user, profile, Snapshot(), Provenance, default);
+        }
+
+        var results = await Task.WhenAll(GenerateOnce(), GenerateOnce());
 
         Assert.All(results, r => Assert.Equal(profile, r.Aggregate.ProfileId));
-        var rows = await db.Aggregates.AsNoTracking()
-            .CountAsync(x => x.UserId == user && x.ProfileId == profile);
+        await using var check = await ContextAsync();
+        var rows = await check.Aggregates.AsNoTracking().CountAsync(x => x.UserId == user && x.ProfileId == profile);
         Assert.Equal(1, rows);
     }
 

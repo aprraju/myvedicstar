@@ -116,8 +116,14 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
             .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId && x.Id == revisionId, token)
             ?? throw new ResourceNotFoundException(KundaliErrors.NotFound);
 
-        var column = SectionColumn(section);
-        context.Entry(revision).Property(column).CurrentValue = payloadJson;
+        // A failed write must not register its section as completed: a section that did not finish would otherwise
+        // be reported as present and could be served as if it were valid.
+        var failed = isFinal && failureReasonCode is not null;
+        if (!failed)
+        {
+            var column = SectionColumn(section);
+            context.Entry(revision).Property(column).CurrentValue = payloadJson;
+        }
         revision.UpdatedAtUtc = clock.GetUtcNow();
 
         if (isFinal && failureReasonCode is null)

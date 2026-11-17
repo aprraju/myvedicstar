@@ -22,13 +22,14 @@ public sealed class KundaliCapabilityBoundaryTests
     {
         Assert.Contains(9, KundaliCapabilities.SupportedDivisionalCharts);
 
-        // D9 is the smallest supported *divisional*: no supported division may be finer than D9, because a narrower
-        // cut could not absorb the Lagna accuracy budget. Coarser divisions (1..7) are expected and allowed.
+        // A D-n cut is 30/n degrees, so a *higher* n is a narrower cut. D9 is the finest division that is still
+        // supported definitively: every supported divisional must therefore have n <= 9.
         foreach (var divisions in KundaliCapabilities.SupportedDivisionalCharts)
-            Assert.True(30.0 / divisions >= 30.0 / 9,
-                $"D{divisions} cut is narrower than the D9 cut, so D9 is not the smallest supported division.");
+            Assert.True(divisions <= 9,
+                $"D{divisions} is finer than D9, so D9 is not the finest definitively supported division.");
 
-        Assert.DoesNotContain(KundaliCapabilities.SupportedDivisionalCharts, d => d > 9);
+        // D60 is finer still and must never be presented as a definitive fact.
+        Assert.DoesNotContain(60, KundaliCapabilities.SupportedDivisionalCharts);
     }
 
     [Fact]
