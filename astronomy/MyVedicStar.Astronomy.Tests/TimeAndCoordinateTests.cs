@@ -9,8 +9,12 @@ public sealed class TimeAndCoordinateTests
     [Fact]
     public void Delta_t_matches_published_values_across_the_supported_span()
     {
-        // Published Delta T (Espenak-Meeus / IERS): about 13 s in 1900, 64 s in 2000, ~69 s in 2020.
-        Assert.InRange(TimeScales.DeltaTSeconds(ToJd(1900, 1, 1)), 10.0, 16.0);
+        // Published Delta T (IERS / Espenak-Meeus): near -3 s around 1900, ~24 s around 1930, ~45 s around 1975,
+        // and ~69 s around 2020. Delta T passed through zero shortly after 1900, so a naive "always positive"
+        // expectation would be wrong.
+        Assert.InRange(TimeScales.DeltaTSeconds(ToJd(1900, 1, 1)), -3.5, -2.0);
+        Assert.InRange(TimeScales.DeltaTSeconds(ToJd(1930, 1, 1)), 23.0, 25.0);
+        Assert.InRange(TimeScales.DeltaTSeconds(ToJd(1975, 1, 1)), 44.0, 47.0);
         Assert.InRange(TimeScales.DeltaTSeconds(ToJd(2000, 1, 1)), 62.0, 66.0);
         Assert.InRange(TimeScales.DeltaTSeconds(ToJd(2020, 1, 1)), 67.0, 72.0);
     }
@@ -72,12 +76,22 @@ public sealed class TimeAndCoordinateTests
         Assert.Equal(expected, PrecessionNutation.MeanObliquityDegrees(jdTt), 4);
     }
 
-    [Fact]
-    public void Nutation_is_small_but_non_zero_and_bounded()
+    [Theory]
+    [InlineData(2000, 1, 1, -13.9)]
+    [InlineData(1990, 6, 15, 12.8)]
+    public void Nutation_in_longitude_matches_the_published_oscillation(int y, int m, int d, double expectedArcseconds)
     {
-        var (dPsi, dEpsilon) = PrecessionNutation.Nutation(ToJd(2025, 1, 1));
-        Assert.InRange(Math.Abs(dPsi), 0.001, 0.006);
-        Assert.InRange(Math.Abs(dEpsilon), 0.001, 0.006);
+        // IAU 1980: Delta psi oscillates within about +/- 17 arcseconds. These two epochs sit near its extremes,
+        // which is what makes the series verifiable rather than merely "small".
+        var (dPsi, _) = PrecessionNutation.Nutation(ToJd(y, m, d));
+        Assert.InRange(dPsi * 3600.0, expectedArcseconds - 1.5, expectedArcseconds + 1.5);
+    }
+
+    [Fact]
+    public void Nutation_in_obliquity_stays_within_published_bounds()
+    {
+        var (_, dEpsilon) = PrecessionNutation.Nutation(ToJd(2025, 1, 1));
+        Assert.InRange(Math.Abs(dEpsilon) * 3600.0, 1.0, 10.0);
     }
 
     [Fact]

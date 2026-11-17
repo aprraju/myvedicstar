@@ -36,8 +36,9 @@ public sealed record SpiceConfiguration
             // DE441's own span starts before year 1, which DateOnly cannot represent. The declared coverage is
             // therefore clamped to what the product promises; the engine never claims dates outside the policy
             // floor anyway, and CoversDate is what actually gates a request.
-            new SpiceKernel("/var/spice/de441.bsp", AstronomyCapabilities.MinimumSupportedDate,
-                new DateOnly(17191, 12, 31)),
+            // Coverage is clamped to the representable DateOnly range on both ends; the product floor is what
+            // actually gates a request, and CoversDate is the check the engine uses.
+            new SpiceKernel("/var/spice/de441.bsp", DateOnly.MinValue, DateOnly.MaxValue),
             new SpiceKernel("/var/spice/naif0012.tls", null, null),
             new SpiceKernel("/var/spice/pck00011.tpc", null, null)
         ]
