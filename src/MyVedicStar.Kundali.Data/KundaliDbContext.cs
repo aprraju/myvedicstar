@@ -100,7 +100,7 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
         model.Entity<KundaliAggregateEntity>(b =>
         {
             b.ToTable("KundaliAggregates", table =>
-                table.HasCheckConstraint("CK_KundaliAggregates_Revision", '"Revision" >= 0'));
+                table.HasCheckConstraint("CK_KundaliAggregates_Revision", """Revision"" >= 0"));
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).ValueGeneratedNever();
             b.Property(x => x.Revision).IsConcurrencyToken();
@@ -115,8 +115,8 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
         {
             b.ToTable("KundaliResultRevisions", table =>
             {
-                table.HasCheckConstraint("CK_KundaliRevisions_Status", '"Status" BETWEEN 0 AND 3');
-                table.HasCheckConstraint("CK_KundaliRevisions_Revision", '"Revision" > 0');
+                table.HasCheckConstraint("CK_KundaliRevisions_Status", """Status"" BETWEEN 0 AND 3");
+                table.HasCheckConstraint("CK_KundaliRevisions_Revision", """Revision"" > 0");
                 // A failed revision must carry a reason code and a succeeded one must not, so a failure is never
                 // presented without an explanation and a success never carries a stale one.
                 table.HasCheckConstraint("CK_KundaliRevisions_FailureReason",
@@ -158,7 +158,7 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
         model.Entity<KundaliPreferenceEntity>(b =>
         {
             b.ToTable("KundaliPreferences", table =>
-                table.HasCheckConstraint("CK_KundaliPreferences_Revision", '"Revision" >= 0'));
+                table.HasCheckConstraint("CK_KundaliPreferences_Revision", """Revision"" >= 0"));
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).ValueGeneratedNever();
             b.Property(x => x.ChartStyle).HasMaxLength(32).IsRequired();
