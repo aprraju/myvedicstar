@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using MyVedicStar.API.Contracts;
 using MyVedicDay.Api.Tests.Integration.Infrastructure;
 
 namespace MyVedicDay.Api.Tests.Integration.Api;
@@ -16,7 +15,18 @@ namespace MyVedicDay.Api.Tests.Integration.Api;
 /// </remarks>
 public sealed class BirthTimeWindowApiTests(ApiTestFactory factory) : IClassFixture<ApiTestFactory>
 {
-    private static VedicProfileRequest Profile(string mode, string? time, string? from, string? to) =>
+    /// <summary>
+    /// The request shape is declared locally rather than importing the API project: this test project does not
+    /// reference it, and a boundary test should assert over the wire format anyway. If the controller contract's
+    /// field names change, these tests fail loudly - which is the behaviour we want from a contract test.
+    /// </summary>
+    private sealed record ProfilePayload(
+        string? Name, DateOnly DateOfBirth, string BirthTimeMode,
+        string? BirthTime, string? BirthTimeFrom, string? BirthTimeTo,
+        string? TimeAccuracyNote, string LocationName, decimal Latitude, decimal Longitude,
+        string TimezoneId, string Gender, string? Occupation, string? Relationship, string? CustomRelationship);
+
+    private static ProfilePayload Profile(string mode, string? time, string? from, string? to) =>
         new("Asha", new DateOnly(1990, 4, 12), mode, time, from, to, null, "Chennai", 13.0827m, 80.2707m,
             "Asia/Kolkata", "Female", "Engineer", "Self", null);
 
