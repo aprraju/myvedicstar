@@ -43,6 +43,7 @@
   <Project Path="src/MyVedicStar.Caching/MyVedicStar.Caching.csproj" />
   <Project Path="src/MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
   <Project Path="src/MyVedicStar.Kundali.Business/MyVedicStar.Kundali.Business.csproj" />
+  <Project Path="src/MyVedicStar.Kundali.Calculation/MyVedicStar.Kundali.Calculation.csproj" />
   <Project Path="src/MyVedicStar.Kundali.Data/MyVedicStar.Kundali.Data.csproj" />
   <Project Path="src/MyVedicStar.Kundali.Integration/MyVedicStar.Kundali.Integration.csproj" />
   <Project Path="src/MyVedicStar.Kundali.Api/MyVedicStar.Kundali.Api.csproj" />

@@ -21,6 +21,10 @@
     <Project Path="src/MyVedicStar.VedicProfiles.Integration/MyVedicStar.VedicProfiles.Integration.csproj" />
     <Project Path="src/MyVedicStar.VedicProfiles.Api/MyVedicStar.VedicProfiles.Api.csproj" />
     <Project Path="src/MyVedicStar.Kundali.Business/MyVedicStar.Kundali.Business.csproj" />
+    <Project Path="src/MyVedicStar.Kundali.Calculation/MyVedicStar.Kundali.Calculation.csproj" />
+    <!-- Kundali.Calculation depends on the astronomy port; without this project the reference is
+         unresolvable in the solution Star CI actually builds. -->
+    <Project Path="src/MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
     <Project Path="src/MyVedicStar.Kundali.Data/MyVedicStar.Kundali.Data.csproj" />
     <Project Path="src/MyVedicStar.Kundali.Integration/MyVedicStar.Kundali.Integration.csproj" />
     <Project Path="src/MyVedicStar.Kundali.Api/MyVedicStar.Kundali.Api.csproj" />
