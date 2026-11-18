@@ -216,6 +216,10 @@ public static class KundaliUnsupportedReasons
 
     /// <summary>KUN-13: no transit interval falls in the searched span for this profile's Moon sign.</summary>
     public const string NoIntervalInSpan = "no-interval-in-span";
+
+    /// <summary>The dasha sequence exists, but the queried instant falls outside its span. Neither a birth-time problem
+    /// nor an unvalidated value: the chain is the engine's own output and simply does not cover this moment.</summary>
+    public const string OutsideDashaSpan = "outside-dasha-span";
 }
 
 /// <summary>One field that could not be computed, with a reason code. The path is the response property name so a
