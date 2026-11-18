@@ -59,6 +59,13 @@ public static class KundaliIntegrationRegistration
         services.AddScoped<IKundaliProfileReader, KundaliProfileReader>();
         services.AddKundaliAstronomyMetadata();
         services.AddKundaliCalculationEngine();
+        services.AddKundaliDivisionalMapper();
+        services.AddKundaliDignityRules();
+
+        // Registers as a profile-deletion participant so deleting a profile removes its Kundali rows. Additive, so a
+        // host that composes this module gets the behaviour without VedicProfiles knowing Kundali exists.
+        services.AddScoped<MyVedicStar.VedicProfiles.Business.IVedicProfileDeletionParticipant,
+            KundaliProfileDeletionParticipant>();
         return services;
     }
 }

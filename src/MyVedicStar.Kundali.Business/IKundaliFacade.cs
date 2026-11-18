@@ -51,5 +51,10 @@ public interface IKundaliFacade
     /// the engine produced a position for it; the rule list is independent of any chart.</summary>
     Task<KundaliPlanetsSection> GetPlanetsAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+    /// <summary>KUN-23: removes this account's Kundali data for a profile. Called as part of profile deletion so a
+    /// deleted profile leaves no Kundali rows behind and every Kundali endpoint then returns 404.</summary>
+    /// <returns>The number of aggregates removed; zero means the profile had no Kundali data.</returns>
+    Task<int> DeleteForProfileAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }

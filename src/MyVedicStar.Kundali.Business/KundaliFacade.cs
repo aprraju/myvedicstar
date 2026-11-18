@@ -409,6 +409,16 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             aspects));
     }
 
+    public async Task<int> DeleteForProfileAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+
+        // No ownership pre-read: the delete is account-scoped, so a foreign profile deletes nothing and reports zero -
+        // which is the same answer as a profile that never existed. A pre-read would add a round trip and a timing
+        // difference between "exists but not yours" and "does not exist".
+        return await repository.DeleteForProfileAsync(accountId, profileId, token);
+    }
+
 
     private static KundaliDasha ToDasha(KundaliEngineDasha period) =>
 

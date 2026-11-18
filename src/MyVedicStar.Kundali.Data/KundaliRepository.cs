@@ -193,6 +193,31 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
         return new KundaliPreferences(entity.ChartStyle, entity.Revision, entity.UpdatedAtUtc);
     }
 
+
+    public async Task<int> DeleteForProfileAsync(Guid accountId, Guid profileId, CancellationToken token)
+    {
+        // Ordered children-first. The aggregate row is removed last so that a partially-applied delete can never leave
+        // a profile looking alive while its revisions are gone - the reverse order would.
+        await using var transaction = await context.Database.BeginTransactionAsync(token);
+
+        var revisions = await context.Revisions
+            .Where(x => x.UserId == accountId && x.ProfileId == profileId).ExecuteDeleteAsync(token);
+        await context.InputSnapshots
+            .Where(x => x.UserId == accountId && x.ProfileId == profileId).ExecuteDeleteAsync(token);
+        await context.Preferences
+            .Where(x => x.UserId == accountId && x.ProfileId == profileId).ExecuteDeleteAsync(token);
+        var aggregates = await context.Aggregates
+            .Where(x => x.UserId == accountId && x.ProfileId == profileId).ExecuteDeleteAsync(token);
+
+        await transaction.CommitAsync(token);
+
+        // Revision count is not reported: only aggregates tell a caller whether the profile had Kundali data at all,
+        // and mixing the two would make the number mean two different things depending on the profile's history.
+        _ = revisions;
+        return aggregates;
+    }
+
+
     private static KundaliResultRevisionEntity NewRevision(Guid aggregateId, Guid accountId, Guid profileId,
         long revision, KundaliInputSnapshot snapshot, KundaliProvenance provenance, DateTimeOffset now) => new()
     {
