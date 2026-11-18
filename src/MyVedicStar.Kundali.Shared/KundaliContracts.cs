@@ -258,14 +258,15 @@ public sealed record KundaliPlacement(string Graha, string Sign, int House, bool
 /// </summary>
 public static class KundaliSigns
 {
-    /// <summary>All twelve sign names, in zodiacal order. Exposed so a chart can enumerate every house
-    /// without duplicating the list.</summary>
-    public static IReadOnlyList<string> All { get; } = Names;
     private static readonly string[] Names =
     [
         "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
         "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
     ];
+
+    /// <summary>All twelve sign names, in zodiacal order. Exposed so a chart can enumerate every house
+    /// without duplicating the list.</summary>
+    public static IReadOnlyList<string> All { get; } = Names;
 
     /// <summary>Maps a zero-based sign index to its name. Out-of-range input is a programming error, not data.</summary>
     public static string NameOf(int index) =>
