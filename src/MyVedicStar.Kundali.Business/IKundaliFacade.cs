@@ -55,6 +55,17 @@ public interface IKundaliFacade
     /// deleted profile leaves no Kundali rows behind and every Kundali endpoint then returns 404.</summary>
     /// <returns>The number of aggregates removed; zero means the profile had no Kundali data.</returns>
     Task<int> DeleteForProfileAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+    /// <summary>KUN-22: applies one profile edit to this module. A birth-input or settings change advances the profile
+    /// revision, bumps the aggregate and abandons any in-flight revision; a display-only change (name) touches nothing
+    /// calculation-related, so the engine is never called for it. Idempotent on (profile, new revision).</summary>
+    Task<KundaliProfileChangeResult> ApplyProfileChangeAsync(ClaimsPrincipal user, Guid profileId,
+        long profileRevision, string changeKind, CancellationToken token);
+
+    /// <summary>KUN-22: the background-result admission check. Returns the stored revision summary when the result is
+    /// still current, and discards it (returning the reason) when it was computed for an earlier revision or under a
+    /// different version tuple. A discarded result is never persisted as current.</summary>
+    Task<KundaliBackgroundResultDisposition> DiscardObsoleteResultAsync(ClaimsPrincipal user, Guid profileId,
+        Guid revisionId, CancellationToken token);
 
 
     /// <summary>KUN-11: bhinnashtakavarga per planet and the sarvashtakavarga aggregate for an owned profile.</summary>

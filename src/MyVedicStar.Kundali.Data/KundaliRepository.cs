@@ -13,20 +13,30 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
 {
     private const string UniqueViolation = "23505";
 
-    public async Task<KundaliView?> GetAsync(Guid accountId, Guid profileId, CancellationToken token)
+    public async Task<KundaliView?> GetAsync(Guid accountId, Guid profileId, long? currentProfileRevision,
+        CancellationToken token)
     {
         var aggregate = await context.Aggregates.AsNoTracking()
             .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId, token);
         if (aggregate is null) return null;
 
         KundaliRevisionSummary? current = null;
+        var inputRevision = 0L;
         if (aggregate.ActiveRevisionId is { } activeId)
         {
             var revision = await context.Revisions.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId && x.Id == activeId, token);
-            if (revision is not null) current = ToSummary(revision);
+            if (revision is not null)
+            {
+                inputRevision = revision.ProfileRevision;
+                current = ToSummary(revision, currentProfileRevision);
+            }
         }
-        return new KundaliView(ToContract(aggregate), current);
+
+        // ProfileRevision falls back to the stored one when the caller could not read the profile: reporting a made-up
+        // revision would be worse than reporting the last known value alongside the staleness the caller already has.
+        return new KundaliView(ToContract(aggregate), current,
+            currentProfileRevision ?? aggregate.ProfileRevision, inputRevision);
     }
 
     public async Task<KundaliView> EnsureAggregateWithRevisionAsync(Guid accountId, Guid profileId,
@@ -55,10 +65,10 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
             // otherwise report a safe conflict so the client re-reads. Never assume the winner is readable here --
             // the losing transaction may commit after ours.
             context.ChangeTracker.Clear();
-            return await GetAsync(accountId, profileId, token)
+            return await GetAsync(accountId, profileId, snapshot.ProfileRevision, token)
                 ?? throw new KundaliConflictException(KundaliErrors.AlreadyRunning);
         }
-        return new KundaliView(ToContract(aggregate), ToSummary(revision));
+        return new KundaliView(ToContract(aggregate), ToSummary(revision, snapshot.ProfileRevision));
     }
 
     public async Task<KundaliView> AddRevisionAsync(Guid accountId, Guid profileId, long aggregateRevision,
@@ -98,7 +108,7 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
         {
             throw new KundaliConflictException(KundaliErrors.AlreadyRunning);
         }
-        return new KundaliView(ToContract(aggregate), ToSummary(revision));
+        return new KundaliView(ToContract(aggregate), ToSummary(revision, snapshot.ProfileRevision));
     }
 
     public async Task<KundaliRevisionSummary> SaveSectionAsync(Guid accountId, Guid profileId, Guid revisionId,
@@ -116,8 +126,17 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
             .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId && x.Id == revisionId, token)
             ?? throw new ResourceNotFoundException(KundaliErrors.NotFound);
 
-        // A failed write must not register its section as completed: a section that did not finish would otherwise
-        // be reported as present and could be served as if it were valid.
+        // KUN-22: a late worker write for a revision the profile has already left is discarded, not applied. Failing the
+        // write is the only way to guarantee an obsolete payload can never become readable.
+        if (revision.SupersededByProfileRevision is not null)
+            throw new KundaliConflictException(KundaliErrors.ObsoleteResult);
+
+        // A failure marks the revision failed without registering its section as completed, so a section that did not
+        // finish can never be reported as present. A terminal status is also authoritative in the other direction: a
+        // late intermediate write must not resurrect a revision that already succeeded or failed.
+        if (revision.Status is KundaliGenerationStatus.Succeeded or KundaliGenerationStatus.Failed && !isFinal)
+            throw new KundaliConflictException(KundaliErrors.ObsoleteResult);
+
         var failed = isFinal && failureReasonCode is not null;
         if (!failed)
         {
@@ -147,7 +166,9 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
         }
 
         await context.SaveChangesAsync(token);
-        return ToSummary(revision);
+        // The revision's own profile revision is authoritative here: it is what the payload was computed against, and a
+        // later edit moves the aggregate's value, not this row's history.
+        return ToSummary(revision, revision.ProfileRevision);
     }
 
     public async Task<KundaliPreferences?> GetPreferencesAsync(Guid accountId, Guid profileId, CancellationToken token)
@@ -216,13 +237,108 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
         _ = revisions;
         return aggregates;
     }
+    public async Task<KundaliStoredSections?> GetSectionsAsync(Guid accountId, Guid profileId, Guid revisionId,
+        CancellationToken token)
+    {
+        var revision = await context.Revisions.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId && x.Id == revisionId, token);
+        return revision is null
+            ? null
+            : new KundaliStoredSections(revision.Id, revision.Revision, revision.ProfileRevision, revision.Status,
+                revision.IsPartial, revision.OverviewJson, revision.ChartsJson, revision.DashasJson);
+    }
 
+    /// <summary>
+    /// KUN-22 propagation, in one transaction: advance the profile revision (compare-and-swap), bump the aggregate
+    /// revision, mark any in-flight revision superseded with a reason so a late worker result is visibly obsolete, and
+    /// publish exactly one invalidation event. The event is written in the same transaction as the change, so a
+    /// published event always describes a change that committed - never one that rolled back.
+    /// </summary>
+    public async Task<KundaliProfileChangeResult> ApplyProfileChangeAsync(Guid accountId, Guid profileId,
+        long oldRevision, long newRevision, string changeKind, CancellationToken token)
+    {
+        var displayOnly = KundaliProfileChangeKinds.IsDisplayOnly(changeKind);
+        var aggregate = await context.Aggregates
+            .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId, token)
+            ?? throw new ResourceNotFoundException(KundaliErrors.NotFound);
+
+        // Idempotent on the target revision: a replayed or out-of-order delivery of an already-applied change is a
+        // no-op, so it can never cancel work that a later revision legitimately started.
+        if (aggregate.ProfileRevision >= newRevision)
+            return new KundaliProfileChangeResult(profileId, aggregate.ProfileRevision, Applied: false, displayOnly,
+                aggregate.Revision, null);
+
+        // A display-only change is not a calculation event: the profile revision still advances (so the profile and the
+        // aggregate cannot disagree) but no revision is abandoned and no recalculation is implied.
+        var aggregateRevisionBefore = aggregate.Revision;
+        var now = clock.GetUtcNow();
+        aggregate.ProfileRevision = newRevision;
+        if (!displayOnly)
+        {
+            aggregate.Revision = aggregate.Revision + 1;
+            aggregate.UpdatedAtUtc = now;
+        }
+
+        Guid? abandoned = null;
+        if (!displayOnly && aggregate.ActiveRevisionId is { } activeId)
+        {
+            var active = await context.Revisions
+                .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId && x.Id == activeId, token);
+            if (active is not null
+                && active.Status is KundaliGenerationStatus.Pending or KundaliGenerationStatus.Running)
+            {
+                // Abandons the in-flight revision explicitly. The payload is left untouched and the row is not deleted:
+                // history stays auditable and a late worker write is rejected by the supersession check below.
+                active.Status = KundaliGenerationStatus.Failed;
+                active.FailureReasonCode = KundaliFailureReasons.SupersededByProfileEdit;
+                active.SupersededByProfileRevision = newRevision;
+                active.IsPartial = false;
+                active.UpdatedAtUtc = now;
+                abandoned = active.Id;
+            }
+
+            // Sections of revisions that already succeeded stay readable as history; the supersession marker on the
+            // active revision is what stops them being presented as current.
+            if (active is not null && active.SupersededByProfileRevision is null)
+                active.SupersededByProfileRevision = newRevision;
+        }
+
+        context.ProfileInvalidations.Add(new KundaliProfileInvalidationEntity
+        {
+            Id = Guid.NewGuid(), UserId = accountId, ProfileId = profileId, OldRevision = oldRevision,
+            NewRevision = newRevision, ChangeKind = changeKind, CancelledRevisionId = abandoned, PublishedAtUtc = now
+        });
+
+        try
+        {
+            await context.SaveChangesAsync(token);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Two edits raced from the same base revision. The loser must not silently fold into the winner's change.
+            context.ChangeTracker.Clear();
+            throw new KundaliConflictException(KundaliErrors.StaleSnapshot);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // The unique (user, profile, new revision) index: the event was already published by a concurrent delivery.
+            context.ChangeTracker.Clear();
+            var published = await context.Aggregates.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.UserId == accountId && x.ProfileId == profileId, token);
+            return new KundaliProfileChangeResult(profileId, published?.ProfileRevision ?? newRevision,
+                Applied: false, displayOnly, published?.Revision ?? aggregateRevisionBefore, abandoned);
+        }
+
+        return new KundaliProfileChangeResult(profileId, newRevision, Applied: true, displayOnly,
+            aggregate.Revision, abandoned);
+    }
 
     private static KundaliResultRevisionEntity NewRevision(Guid aggregateId, Guid accountId, Guid profileId,
         long revision, KundaliInputSnapshot snapshot, KundaliProvenance provenance, DateTimeOffset now) => new()
     {
         Id = Guid.NewGuid(), AggregateId = aggregateId, UserId = accountId, ProfileId = profileId,
         Revision = revision, Status = KundaliGenerationStatus.Pending,
+        ProfileRevision = snapshot.ProfileRevision,
         InputSnapshotHash = snapshot.ComputeHash(),
         EngineVersion = provenance.EngineVersion, EphemerisVersion = provenance.EphemerisVersion,
         RuleSetVersion = provenance.RuleSetVersion, TimezoneDataVersion = provenance.TimezoneDataVersion,
@@ -260,10 +376,16 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
     private static KundaliAggregate ToContract(KundaliAggregateEntity e) =>
         new(e.Id, e.ProfileId, e.ActiveRevisionId, e.Revision, e.CreatedAtUtc, e.UpdatedAtUtc);
 
-    private static KundaliRevisionSummary ToSummary(KundaliResultRevisionEntity e) => new(
+    private static KundaliRevisionSummary ToSummary(KundaliResultRevisionEntity e, long? currentProfileRevision) => new(
         e.Id, e.Revision, e.Status, e.FailureReasonCode,
         new KundaliProvenance(e.EngineVersion, e.EphemerisVersion, e.RuleSetVersion, e.TimezoneDataVersion, e.Ayanamsa),
-        e.InputSnapshotHash, false, e.IsPartial, CompletedSections(e), e.CreatedAtUtc);
+        e.InputSnapshotHash,
+        // Staleness is computed from the profile revision as it is now, and from the supersession marker, never from the
+        // cached copy of a result: a stale cache entry cannot make a stale revision look current (KUN-21/KUN-22).
+        IsStale: e.SupersededByProfileRevision is not null
+            || (currentProfileRevision is { } current && e.ProfileRevision != current),
+        e.IsPartial, CompletedSections(e), e.CreatedAtUtc,
+        SupersededByRevision: e.SupersededByProfileRevision);
 
     private static IReadOnlyList<string> CompletedSections(KundaliResultRevisionEntity e)
     {

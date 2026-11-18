@@ -15,6 +15,10 @@ public static class KundaliFailureReasons
     public const string TimezoneUnresolvable = "timezone_unresolvable";
     public const string UnsupportedCapability = "unsupported_capability";
     public const string BirthDateOutOfRange = "birth_date_out_of_range";
+
+    /// <summary>The profile was edited while this result was being produced, so the result describes inputs that no
+    /// longer exist. It is discarded, never shown (KUN-22).</summary>
+    public const string SupersededByProfileEdit = "superseded_by_profile_edit";
     public const string Unknown = "unknown";
 }
 
@@ -83,6 +87,14 @@ public sealed record KundaliInputSnapshot(
 
 /// <summary>Current revision summary returned with the aggregate. Section payloads are added by later stories;
 /// this foundation stores and versions the envelope.</summary>
+/// <remarks>
+/// <para><c>IsStale</c> is computed against the profile's revision as it is right now, not stored: a revision persisted
+/// for an older profile revision is stale the moment the profile changes, whether or not a replacement has been
+/// generated yet. It is never derived from the cached copy of a result, so a stale cache entry cannot make a stale
+/// revision look current.</para>
+/// <para><c>SupersededByRevision</c> names the revision that replaced this one when a newer revision has been accepted
+/// (KUN-22). A non-null value means the payload must not be presented as current at all.</para>
+/// </remarks>
 public sealed record KundaliRevisionSummary(
     Guid RevisionId,
     long Revision,
@@ -93,7 +105,8 @@ public sealed record KundaliRevisionSummary(
     bool IsStale,
     bool IsPartial,
     IReadOnlyList<string> CompletedSections,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    long? SupersededByRevision = null);
 
 /// <summary>One aggregate per owned profile. Carries the active revision pointer and the display preferences that
 /// must survive a reload without recalculating.</summary>
@@ -114,22 +127,33 @@ public sealed record KundaliPreferences(
 
 /// <summary>What a read returns: the aggregate plus its current revision summary, or a status when no revision has
 /// completed yet.</summary>
-
-/// <summary>
-/// The settings a result was produced under, surfaced on the aggregate so a client never has to guess which ayanamsa
-/// or chart style applied. <c>Ayanamsa</c> is calculation-affecting; <c>ChartStyle</c> is presentation-only.
+/// <summary>The settings a result was produced under, so a client never has to guess which ayanamsa or
+/// chart style applied. <c>Ayanamsa</c> is calculation-affecting; <c>ChartStyle</c> is presentation-only.
 /// </summary>
-/// <param name="Ayanamsa">Effective ayanamsa from the account's Settings. Changing it invalidates results.</param>
+/// <param name="Ayanamsa">Effective ayanamsa from the account Settings. Changing it invalidates results.</param>
 /// <param name="ChartStyle">Effective chart style. Presentation only; changing it must never invoke the engine.</param>
 public sealed record KundaliEffectiveSettings(string Ayanamsa, string ChartStyle);
 
-
+/// <summary>What a read returns: the aggregate plus its current revision summary, or a status when no revision
+/// has completed yet.</summary>
+/// <param name="Aggregate">The aggregate envelope: active revision pointer and optimistic revision.</param>
+/// <param name="CurrentRevision">The active revision, or null when none has been accepted yet.</param>
+/// <param name="ProfileRevision">The profile input revision the result is judged against (KUN-21/KUN-22).</param>
+/// <param name="InputRevision">The profile revision the current result was computed from.</param>
+/// <param name="IsCurrent">True only when the current revision succeeded, was computed from the profile present
+/// revision, and has not been superseded. Reading this instead of inferring it keeps the staleness rule in one place.</param>
+/// <param name="RevisionKey">Opaque, account-scoped cache identity for this exact result: profile, input revision,
+/// effective settings and engine/rule versions. Clients echo it back and can key their own query cache on it.</param>
+/// <param name="Settings">Effective settings for this read. Nullable with a null default: persistence does not
+/// know the account Settings, and inventing a value there would put a plausible-looking ayanamsa on a result it never
+/// applied. The facade fills it from the metadata reader on every read, so a null reaching a caller is a bug.</param>
 public sealed record KundaliView(
     KundaliAggregate Aggregate,
     KundaliRevisionSummary? CurrentRevision,
-    // Nullable with a null default: persistence does not know the account's Settings, and inventing a value there
-    // would put a plausible-looking ayanamsa on a result it never applied. The facade fills it from the metadata
-    // reader on every read, so a null reaching a caller would be a bug - not a legitimate state.
+    long ProfileRevision = 0,
+    long InputRevision = 0,
+    bool IsCurrent = false,
+    string? RevisionKey = null,
     KundaliEffectiveSettings? Settings = null);
 
 public static class KundaliLimits
@@ -137,6 +161,28 @@ public static class KundaliLimits
     public const int ChartStyle = 32;
     /// <summary>Generous bound so a section payload cannot become an unbounded write.</summary>
     public const int SectionPayloadBytes = 1_048_576;
+}
+
+/// <summary>
+/// What a profile edit changed (KUN-22). The classification decides whether an invariant was broken: a display change
+/// (`name`) alters what is shown and nothing else, so it must never cost a calculation. Every other kind can move the
+/// birth snapshot or the effective settings a result was computed from.
+/// </summary>
+public static class KundaliProfileChangeKinds
+{
+    /// <summary>Profile name only. Display-only: the engine is not called and no revision is created.</summary>
+    public const string Display = "display";
+
+    /// <summary>Birth date, birth time, or the birth place/coordinates: the calculation input changed.</summary>
+    public const string BirthInput = "birth-input";
+
+    /// <summary>Calculation settings (for example the ayanamsa) changed for the profile.</summary>
+    public const string CalculationSettings = "calculation-settings";
+
+    public static readonly IReadOnlyList<string> All = [Display, BirthInput, CalculationSettings];
+
+    /// <summary>Only a display change is exempt from invalidation; anything unrecognised is treated as a real change.</summary>
+    public static bool IsDisplayOnly(string changeKind) => string.Equals(changeKind, Display, StringComparison.Ordinal);
 }
 
 /// <summary>
@@ -212,7 +258,55 @@ public sealed record KundaliOverview(
     string? SunSign,
     KundaliDasha? CurrentDasha,
     IReadOnlyList<KundaliPlacement> KeyPlacements,
-    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+    IReadOnlyList<KundaliUnsupportedField> Unsupported)
+{
+    /// <summary>The revision freshness envelope (KUN-21). Stamped by the facade, never by the projection that builds
+    /// the facts, so a payload can never be published without saying which revision it describes.</summary>
+    public KundaliResultFreshness Freshness { get; init; } = KundaliResultFreshness.None;
+
+    /// <summary>The mahadasha chain the current-dasha highlight was selected from, used to derive the expiry boundary
+    /// from the same periods. Never persisted and never published: it is cleared before the payload is cached or
+    /// returned, so no consumer can read it as a section.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<KundaliDasha>? MahadashaChain { get; init; }
+
+    /// <summary>True when neither the facts nor the profile revision moved between a cached copy and a recomputation,
+    /// so the cached copy may be served. Any change means the cached copy is discarded rather than compared field by
+    /// field.</summary>
+    public bool Matches(KundaliOverview other) =>
+        ProfileId == other.ProfileId && Freshness.RevisionKey == other.Freshness.RevisionKey
+        && Freshness.CurrentDashaExpiresAtUtc == other.Freshness.CurrentDashaExpiresAtUtc
+        && (MahadashaChain ?? []).SequenceEqual(other.MahadashaChain ?? [])
+        && Equals(BirthDetails, other.BirthDetails) && Equals(Conventions, other.Conventions)
+        && Equals(Ascendant, other.Ascendant) && MoonSign == other.MoonSign && SunSign == other.SunSign
+        && Equals(CurrentDasha, other.CurrentDasha)
+        && KeyPlacements.SequenceEqual(other.KeyPlacements) && Unsupported.SequenceEqual(other.Unsupported);
+}
+
+/// <summary>
+/// Revision identity of a result (KUN-21). `RevisionKey` binds the profile, the input revision, the effective
+/// calculation settings and every engine/rule version, so an engine upgrade or a profile edit can never be served as a
+/// current result. `CurrentDashaExpiresAtUtc` is the exact instant the `currentDasha` value stops describing "now" -
+/// the end of the mahadasha containing the response instant - so a cached copy can be revalidated at the boundary
+/// instead of after an arbitrary lifetime.
+/// </summary>
+public sealed record KundaliResultFreshness(
+    Guid ProfileId,
+    long ProfileRevision,
+    string RevisionKey,
+    string InputSnapshotHash,
+    KundaliProvenance Provenance,
+    DateTimeOffset AsOfUtc,
+    DateTimeOffset? CurrentDashaExpiresAtUtc)
+{
+    public static KundaliResultFreshness None { get; } =
+        new(Guid.Empty, 0, "", "", new KundaliProvenance("", "", "", "", ""), DateTimeOffset.MinValue, null);
+
+    /// <summary>True when a copy taken at `now` still describes the world: the same revision identity, and the dasha
+    /// highlight has not crossed its boundary.</summary>
+    public bool IsFreshAt(DateTimeOffset now) =>
+        RevisionKey.Length > 0 && (CurrentDashaExpiresAtUtc is not { } boundary || now < boundary);
+}
 
 public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, string Nakshatra);
 

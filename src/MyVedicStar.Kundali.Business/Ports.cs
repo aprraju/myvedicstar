@@ -10,6 +10,7 @@ public interface IKundaliProfileReader
 {
     Task<Guid> GetRegisteredAccountIdAsync(ClaimsPrincipal user, CancellationToken token);
 
+
     /// <summary>Returns an immutable snapshot for an owned profile, or null when the profile is not owned.
     /// A foreign id and a missing id are indistinguishable here on purpose (the facade maps both to 404).
     /// Reads are performed as the supplied principal so ownership is enforced by the owning module.</summary>
@@ -31,7 +32,11 @@ public interface IKundaliProfileReader
 /// <see cref="KundaliConflictException"/> for the loser of a concurrent first generation.</summary>
 public interface IKundaliRepository
 {
-    Task<KundaliView?> GetAsync(Guid accountId, Guid profileId, CancellationToken token);
+    /// <summary>Reads the aggregate and its current revision. <paramref name="currentProfileRevision"/> is the profile's
+    /// input revision as it is right now; results computed from any other revision are reported as stale rather than
+    /// current (KUN-21/KUN-22). Pass null only when the profile revision is genuinely unknown.</summary>
+    Task<KundaliView?> GetAsync(Guid accountId, Guid profileId, long? currentProfileRevision,
+        CancellationToken token);
 
     /// <summary>Creates the aggregate and its first revision atomically, or returns the existing aggregate when one
     /// already exists for this owner+profile. Idempotent per owner+profile+input hash+config version.</summary>
@@ -66,7 +71,47 @@ public interface IKundaliRepository
     /// <summary>Upserts display preferences. Presentation-only: never touches revisions or provenance.</summary>
     Task<KundaliPreferences> SavePreferencesAsync(Guid accountId, Guid profileId, string chartStyle,
         long revision, CancellationToken token);
+
+    /// <summary>Reads one revision's stored section payloads, for the section read paths that serve persisted results
+    /// instead of recalculating (KUN-21). Returns null when the revision is not this owner's.</summary>
+    Task<KundaliStoredSections?> GetSectionsAsync(Guid accountId, Guid profileId, Guid revisionId,
+        CancellationToken token);
+
+    /// <summary>
+    /// Applies one profile revision change to this module's state atomically (KUN-22): the aggregate's
+    /// <c>ProfileRevision</c> is advanced (compare-and-swap on the previous value), the aggregate revision is bumped and
+    /// the in-flight revision, if any, is abandoned with a reason code. <paramref name="cancelledRevisionIds"/> receives
+    /// the abandoned revisions so queues can drop their jobs.
+    /// </summary>
+    /// <remarks>Idempotent on (`profileId`, `newRevision`): a duplicate or out-of-order delivery is a no-op, so a
+    /// replayed event can never cancel work that a later revision legitimately started.</remarks>
+    Task<KundaliProfileChangeResult> ApplyProfileChangeAsync(Guid accountId, Guid profileId, long oldRevision,
+        long newRevision, string changeKind, CancellationToken token);
 }
+
+/// <summary>What an applied profile change did, so the caller can report it without re-reading everything.</summary>
+/// <param name="Applied">False when the change was already applied (stale or duplicate delivery).</param>
+/// <param name="AggregateRevision">The aggregate's revision after the change, for the client's next compare-and-swap.
+/// </param>
+/// <param name="AbandonedRevisionId">The in-flight revision that was abandoned, if one was running.</param>
+public sealed record KundaliProfileChangeResult(
+    Guid ProfileId,
+    long ProfileRevision,
+    bool Applied,
+    bool DisplayOnly,
+    long AggregateRevision,
+    Guid? AbandonedRevisionId);
+
+/// <summary>The stored section payloads of one revision. A null member means that section was never produced.</summary>
+public sealed record KundaliStoredSections(
+    Guid RevisionId,
+    long Revision,
+    long ProfileRevision,
+    KundaliGenerationStatus Status,
+    bool IsPartial,
+    string? OverviewJson,
+    string? ChartsJson,
+    string? DashasJson);
 
 /// <summary>
 /// Reads the configured astronomy provider's identity and version metadata. This is a version read, not a
@@ -116,6 +161,25 @@ public interface IKundaliCalculationEngine
 
     /// <summary>Builds the dasha timeline for one input, with the current path at the supplied instant.</summary>
     KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query);
+}
+
+/// <summary>
+/// Account-scoped cache for Kundali results (KUN-21). An optimisation only: the persisted result is the source of
+/// truth, so every failure here degrades to a miss and a recompute, never to an error. Keys are built by
+/// <see cref="KundaliCacheKeys"/> and always carry the owner id, so a shared L2 entry is never readable across
+/// accounts.
+/// </summary>
+public interface IKundaliResultCache
+{
+    /// <summary>Returns the cached value, or null on a miss, an unusable entry, a failure, or when caching is off.</summary>
+    Task<T?> GetAsync<T>(string key, CancellationToken token) where T : class;
+
+    /// <summary>Stores a value until <paramref name="validUntil"/>. A failure is recorded and swallowed.</summary>
+    Task SetAsync<T>(string key, T value, DateTimeOffset validUntil, string policy, CancellationToken token)
+        where T : class;
+
+    /// <summary>Removes one entry. Used when a recomputation disagrees with the cached copy.</summary>
+    Task RemoveAsync(string key, CancellationToken token);
 }
 
 /// <summary>Plain engine input. Built from the owned snapshot; contains no identity and no settings lookups.</summary>

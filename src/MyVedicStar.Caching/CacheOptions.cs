@@ -21,6 +21,9 @@ public sealed class ApplicationCacheOptions
         ["festivals"] = new() { MemoryLifetime = TimeSpan.Zero, DistributedLifetime = TimeSpan.FromDays(2) },
         ["reference"] = new() { MemoryLifetime = TimeSpan.FromMinutes(5), DistributedLifetime = TimeSpan.FromDays(2) },
         ["calculation"] = new() { MemoryLifetime = TimeSpan.Zero, DistributedLifetime = TimeSpan.FromDays(30) },
+        // Kundali section reads (KUN-21). Warm reads must stay well inside the 100 ms section budget, so a short L1
+        // lifetime is kept; correctness does not depend on it because the key carries the profile revision and versions.
+        ["kundali"] = new() { MemoryLifetime = TimeSpan.FromMinutes(2), DistributedLifetime = TimeSpan.FromHours(12) },
     };
 }
 

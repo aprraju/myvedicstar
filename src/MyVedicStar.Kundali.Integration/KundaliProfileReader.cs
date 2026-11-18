@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MyVedicStar.Authorize.Business;
 using MyVedicStar.Kundali.Business;
 using MyVedicStar.Kundali.Shared;
@@ -15,7 +16,11 @@ internal sealed class KundaliProfileReader(IAuthorizeFacade authorize, IVedicPro
     ISettingsFacade settings) : IKundaliProfileReader
 {
     public Task<Guid> GetRegisteredAccountIdAsync(ClaimsPrincipal user, CancellationToken token) =>
-        authorize.GetRegisteredAccountIdAsync(user, token);
+        // An internally constructed principal carries its account explicitly (a background worker acts for the account
+        // it was queued for); every request principal is resolved by the owning Authorize module as before.
+        KundaliPrincipal.IsInternal(user)
+            ? Task.FromResult(Guid.Parse(user.FindFirst(KundaliPrincipal.AccountClaim)!.Value))
+            : authorize.GetRegisteredAccountIdAsync(user, token);
 
     public async Task<KundaliInputSnapshot?> GetSnapshotAsync(ClaimsPrincipal user, Guid profileId,
         CancellationToken token)
@@ -62,6 +67,10 @@ public static class KundaliIntegrationRegistration
         services.AddKundaliDivisionalMapper();
         services.AddKundaliDignityRules();
         services.AddKundaliAshtakavargaRules();
+        // The result cache is the shared application cache behind a port: no new cache infrastructure is introduced
+        // (KUN-21 Architect refinement). Registered as TryAdd so a host that has already registered an implementation -
+        // or a test that supplies a fake - keeps it.
+        services.TryAddScoped<IKundaliResultCache, KundaliResultCacheAdapter>();
         return services;
     }
 }
