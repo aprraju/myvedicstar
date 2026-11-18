@@ -49,8 +49,12 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
             // birth time makes the whole sequence indeterminate - not merely the fine detail of it.
             AddGap(gaps, nameof(KundaliCalculationResult.VimshottariMahadashas),
                 KundaliCalculationReasons.RequiresExactBirthTime);
+            AddGap(gaps, nameof(KundaliCalculationResult.YoginiPeriods),
+                KundaliCalculationReasons.RequiresExactBirthTime);
+            AddGap(gaps, nameof(KundaliCalculationResult.CharaSignPeriods),
+                KundaliCalculationReasons.RequiresExactBirthTime);
 
-            return new KundaliCalculationResult(conventions, null, null, null, null, null, gaps);
+            return new KundaliCalculationResult(conventions, null, null, null, null, null, null, null, gaps);
         }
 
         // One resolution of the local wall clock to an instant, shared by the astronomy and the dasha anchor: two
@@ -78,8 +82,19 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
                 period.EndUtc.ToDateTimeOffset(), period.IsRemainder))
             .ToArray();
 
+        var yogini = YoginiDasha.BuildPeriods(moonSidereal, birthInstant)
+            .Select(period => new KundaliYoginiPeriod(period.Name, period.Ruler,
+                period.StartUtc.ToDateTimeOffset(), period.EndUtc.ToDateTimeOffset(), period.IsRemainder))
+            .ToArray();
+
+        // The Chara progression needs the ascendant, which is withheld as unvalidated-reference, so it is not built
+        // here. Reported rather than silently omitted, and reported with the same validation reason as the ascendant
+        // it depends on - because that is the actual cause.
+        AddGap(gaps, nameof(KundaliCalculationResult.CharaSignPeriods),
+            KundaliCalculationReasons.UnvalidatedReference);
+
         return new KundaliCalculationResult(conventions, sunSidereal, moonSidereal,
-            SignOf(sunSidereal), SignOf(moonSidereal), mahadashas, gaps);
+            SignOf(sunSidereal), SignOf(moonSidereal), mahadashas, yogini, null, gaps);
     }
 
     /// <summary>Zero-based sign index. 0 = Aries. Whole-sign, so the boundary belongs to the later sign.</summary>

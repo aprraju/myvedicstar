@@ -58,6 +58,8 @@ public sealed record KundaliCalculationResult(
     int? SunSign,
     int? MoonSign,
     IReadOnlyList<KundaliVimshottariPeriod>? VimshottariMahadashas,
+    IReadOnlyList<KundaliYoginiPeriod>? YoginiPeriods,
+    IReadOnlyList<KundaliCharaPeriod>? CharaSignPeriods,
     IReadOnlyList<KundaliCalculationGap> Gaps);
 
 /// <summary>
@@ -65,6 +67,12 @@ public sealed record KundaliCalculationResult(
 /// caller's concern.
 /// </summary>
 /// <param name="IsRemainder">True for the birth period, which began before birth and so is not a full term.</param>
+/// <summary>One Yogini period. <c>Ruler</c> is the planet; the period itself is named separately.</summary>
+public sealed record KundaliYoginiPeriod(string Name, string Ruler, DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc, bool IsRemainder);
+
+/// <summary>One equal-duration sign period from the Chara progression. Not a validated Chara dasha period.</summary>
+public sealed record KundaliCharaPeriod(string Sign, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 public sealed record KundaliVimshottariPeriod(string Lord, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
     bool IsRemainder);
 

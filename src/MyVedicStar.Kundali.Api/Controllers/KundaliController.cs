@@ -37,6 +37,17 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
     public async Task<ActionResult<KundaliOverviewResponse>> Overview(Guid profileId, CancellationToken token) =>
         Ok(KundaliOverviewResponse.From(await facade.GetOverviewAsync(User, profileId, token)));
 
+
+    /// <summary>KUN-09 dasha timeline. <c>at</c> selects the instant the period path describes; omitting it means
+    /// server now, and the resolved instant is echoed in the response so the caller never has to assume it.
+    /// A <c>system</c> that does not exist is a 400, never a silent fallback to another system's dates. A system that exists but is not yet validated is answered with a reason code.</summary>
+    [HttpGet("{profileId:guid}/sections/dashas"), ProducesResponseType<KundaliDashaTimelineResponse>(200)]
+    public async Task<ActionResult<KundaliDashaTimelineResponse>> Dashas(Guid profileId,
+        [FromQuery] string? system, [FromQuery] DateTimeOffset? at, CancellationToken token) =>
+        Ok(KundaliDashaTimelineResponse.From(
+            await facade.GetDashasAsync(User, profileId, system ?? "vimshottari", at, token)));
+
+
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
     [HttpPost("{profileId:guid}/generations"), ProducesResponseType<KundaliViewResponse>(202)]

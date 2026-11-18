@@ -109,6 +109,7 @@ public sealed partial class SharedHostTests
             "GET api/v1/kundali/{profileId:guid}/overview",
             "POST api/v1/kundali/{profileId:guid}/generations",
             "POST api/v1/kundali/{profileId:guid}/retry",
+            "GET api/v1/kundali/{profileId:guid}/sections/dashas",
             "GET api/v1/kundali/{profileId:guid}/preferences",
             "PUT api/v1/kundali/{profileId:guid}/preferences",
         ];

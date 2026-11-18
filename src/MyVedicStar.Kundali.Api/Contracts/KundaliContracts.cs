@@ -98,6 +98,29 @@ public sealed record KundaliOverviewResponse(
         value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
 }
 
+
+/// <summary>KUN-09 dashas. Period bounds are absolute UTC instants; <c>DisplayTimezone</c> names the zone to render
+/// them in, so the client never guesses. <c>MoonLongitude</c> is published so the starting lord can be checked.</summary>
+public sealed record KundaliDashaTimelineResponse(
+    string System,
+    string DisplayTimezone,
+    double? MoonLongitude,
+    DateTimeOffset? At,
+    IReadOnlyList<KundaliDashaResponse> Mahadashas,
+    IReadOnlyList<KundaliDashaResponse> PeriodPath,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliDashaTimelineResponse From(MyVedicStar.Kundali.Shared.KundaliDashaTimeline value) => new(
+        value.System,
+        value.DisplayTimezone,
+        value.MoonLongitude,
+        value.At,
+        value.Mahadashas.Select(KundaliDashaResponse.From).ToArray(),
+        value.PeriodPath.Select(KundaliDashaResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+
 /// <summary>Time fields are omitted when the mode does not carry them, so no consumer can read a placeholder as a
 /// real birth time.</summary>
 public sealed record KundaliBirthDetailsResponse(
