@@ -104,13 +104,17 @@ public sealed record KundaliCapabilitiesResponse(
     string AscendantConvention,
     DateOnly MinimumSupportedBirthDate,
     DateOnly MaximumSupportedBirthDate,
-    string[] UnsupportedCapabilities)
+    string[] UnsupportedCapabilities,
+    /// <summary>Closed set of section ids a report may request. Published so the client binds to these ids rather
+    /// than asserting the server's structure.</summary>
+    string[] ReportSections)
 {
     public static KundaliCapabilitiesResponse From(MyVedicStar.Kundali.Shared.KundaliCapabilityReport value) => new(
         value.SupportedDivisionalCharts.ToArray(), value.ProvisionalDivisionalCharts.ToArray(),
         value.SupportedShadbalaComponents.ToArray(), value.UnsupportedShadbalaComponents.ToArray(),
         value.LunarNodeConvention, value.AscendantConvention, value.MinimumSupportedBirthDate,
-        value.MaximumSupportedBirthDate, value.UnsupportedCapabilities.ToArray());
+        value.MaximumSupportedBirthDate, value.UnsupportedCapabilities.ToArray(),
+        value.ReportSections.ToArray());
 }
 
 /// <summary>KUN-05 overview response. Every astrological block is nullable and, when null, its path appears in

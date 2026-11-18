@@ -59,7 +59,10 @@ public static class KundaliCapabilities
             "Rahu/Ketu use the mean lunar node; true-node positions are not produced.",
             "No arc-second astronomy, eclipse prediction, topocentric parallax or atmospheric refraction.",
             "Birth dates outside the supported range are refused rather than extrapolated."
-        ]);
+        ],
+        // The report section set is the same closed vocabulary the module uses for persistence, so a client cannot
+        // ask for a section the server does not define, and the two lists cannot drift apart.
+        KundaliSections.All);
 }
 
 /// <summary>Immutable capability payload. Serialised as data so the UI can render "not supported, and why".</summary>
@@ -72,4 +75,8 @@ public sealed record KundaliCapabilityReport(
     string AscendantConvention,
     DateOnly MinimumSupportedBirthDate,
     DateOnly MaximumSupportedBirthDate,
-    IReadOnlyList<string> UnsupportedCapabilities);
+    IReadOnlyList<string> UnsupportedCapabilities,
+    /// <summary>The closed set of section ids a report can be asked for. Published so a client binds to these ids
+    /// instead of asserting the server's structure; a report request naming anything outside this set is rejected
+    /// rather than silently ignored.</summary>
+    IReadOnlyList<string> ReportSections);
