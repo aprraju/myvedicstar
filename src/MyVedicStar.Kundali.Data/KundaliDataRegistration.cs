@@ -14,6 +14,7 @@ public static class KundaliDataRegistration
         services.AddDbContext<KundaliDbContext>((provider, builder) =>
             DatabaseConfiguration.ConfigureDomainDatabase(builder, provider, KundaliDbContext.Schema));
         services.AddScoped<IKundaliRepository, KundaliRepository>();
+        services.AddScoped<IKundaliAlertRepository, KundaliAlertRepository>();
         return services;
     }
 }

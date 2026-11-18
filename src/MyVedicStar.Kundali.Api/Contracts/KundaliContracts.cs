@@ -394,3 +394,103 @@ public sealed record KundaliBhavaBalaHouseResponse(
         value.Components,
         value.Total);
 }
+
+/// <summary>
+/// KUN-13 transit response. Every number is accompanied by the instant it describes, the instant it was computed and
+/// the instant it expires, so a client never has to guess freshness.
+/// </summary>
+public sealed record KundaliTransitsSectionResponse(
+    DateTimeOffset ReferenceInstant,
+    string Timezone,
+    DateTimeOffset ComputedAt,
+    DateTimeOffset ExpiresAt,
+    KundaliTransitGrahaResponse? Saturn,
+    KundaliTransitGrahaResponse? Jupiter,
+    KundaliSadeSatiResponse? SadeSati,
+    IReadOnlyList<KundaliDatedTransitResponse> DatedTransits,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliTransitsSectionResponse From(MyVedicStar.Kundali.Shared.KundaliTransitsSection value) => new(
+        value.ReferenceInstant,
+        value.Timezone,
+        value.ComputedAt,
+        value.ExpiresAt,
+        value.Saturn is null ? null : KundaliTransitGrahaResponse.From(value.Saturn),
+        value.Jupiter is null ? null : KundaliTransitGrahaResponse.From(value.Jupiter),
+        value.SadeSati is null ? null : KundaliSadeSatiResponse.From(value.SadeSati),
+        value.DatedTransit.Select(KundaliDatedTransitResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+public sealed record KundaliTransitGrahaResponse(
+    string Graha,
+    string Sign,
+    double? Longitude,
+    bool? IsRetrograde,
+    IReadOnlyList<KundaliTransitWindowResponse> Windows)
+{
+    public static KundaliTransitGrahaResponse From(MyVedicStar.Kundali.Shared.KundaliTransitGraha value) => new(
+        value.Graha, value.Sign, value.Longitude, value.IsRetrograde,
+        value.Windows.Select(KundaliTransitWindowResponse.From).ToArray());
+}
+
+/// <summary>Start inclusive, end exclusive: a boundary instant belongs to exactly one window.</summary>
+public sealed record KundaliTransitWindowResponse(string Sign, DateTimeOffset StartUtc, DateTimeOffset EndUtc)
+{
+    public static KundaliTransitWindowResponse From(MyVedicStar.Kundali.Shared.KundaliTransitWindow value) =>
+        new(value.Sign, value.StartUtc, value.EndUtc);
+}
+
+public sealed record KundaliSadeSatiResponse(
+    string Phase,
+    bool Active,
+    string MoonSign,
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc,
+    bool IsPartial,
+    IReadOnlyList<KundaliSadeSatiPhaseResponse> Phases)
+{
+    public static KundaliSadeSatiResponse From(MyVedicStar.Kundali.Shared.KundaliSadeSati value) => new(
+        value.Phase, value.Active, value.MoonSign, value.StartUtc, value.EndUtc, value.IsPartial,
+        value.Phases.Select(KundaliSadeSatiPhaseResponse.From).ToArray());
+}
+
+public sealed record KundaliSadeSatiPhaseResponse(string Phase, string Sign, DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc)
+{
+    public static KundaliSadeSatiPhaseResponse From(MyVedicStar.Kundali.Shared.KundaliSadeSatiPhase value) =>
+        new(value.Phase, value.Sign, value.StartUtc, value.EndUtc);
+}
+
+public sealed record KundaliDatedTransitResponse(string Graha, string EventType, string Sign, DateTimeOffset AtUtc)
+{
+    public static KundaliDatedTransitResponse From(MyVedicStar.Kundali.Shared.KundaliDatedTransit value) =>
+        new(value.Graha, value.EventType, value.Sign, value.AtUtc);
+}
+
+/// <summary>
+/// One alert consent as returned. <c>Channel</c> is present because a client must be able to show which channel it
+/// consented to, and the server validates it rather than trusting the request.
+/// </summary>
+public sealed record KundaliAlertPreferenceResponse(
+    string EventType,
+    string Channel,
+    DateTimeOffset ConsentedAtUtc,
+    DateTimeOffset UpdatedAtUtc)
+{
+    public static KundaliAlertPreferenceResponse From(MyVedicStar.Kundali.Shared.KundaliAlertPreference value) =>
+        new(value.EventType, value.Channel, value.ConsentedAtUtc, value.UpdatedAtUtc);
+}
+
+/// <summary>KUN-13 alert subscription request. <c>EventTypes</c> is required; an empty list is a 400, not a no-op.</summary>
+public sealed record KundaliAlertSubscriptionRequest(IReadOnlyList<string> EventTypes, string Channel);
+
+/// <summary>The full consent state for a profile, so the client never has to merge a response into cached state.</summary>
+public sealed record KundaliAlertsResponse(IReadOnlyList<KundaliAlertPreferenceResponse> Subscriptions,
+    IReadOnlyList<string> SupportedEventTypes, IReadOnlyList<string> SupportedChannels)
+{
+    public static KundaliAlertsResponse From(IReadOnlyList<MyVedicStar.Kundali.Shared.KundaliAlertPreference> values) =>
+        new(values.Select(KundaliAlertPreferenceResponse.From).ToArray(),
+            MyVedicStar.Kundali.Shared.KundaliAlertEventTypes.All.ToArray(),
+            MyVedicStar.Kundali.Shared.KundaliAlertEventTypes.Channels.ToArray());
+}

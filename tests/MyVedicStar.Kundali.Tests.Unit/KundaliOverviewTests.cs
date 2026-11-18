@@ -18,6 +18,7 @@ public sealed class KundaliOverviewTests
     private readonly Guid profileId = Guid.NewGuid();
     private readonly IKundaliProfileReader profiles = Substitute.For<IKundaliProfileReader>();
     private readonly IKundaliRepository repository = Substitute.For<IKundaliRepository>();
+    private readonly IKundaliAlertRepository alerts = Substitute.For<IKundaliAlertRepository>();
     private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
     private readonly IKundaliCalculationEngine engine;
     private readonly KundaliFacade facade;
@@ -39,7 +40,8 @@ public sealed class KundaliOverviewTests
         engine = Substitute.For<IKundaliCalculationEngine>();
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
-        facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
+        facade = new KundaliFacade(profiles, repository, alerts,
+            new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
             KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(),
             new TestShadbalaRules(), new FixedClock(), Substitute.For<IKundaliResultCache>());
     }

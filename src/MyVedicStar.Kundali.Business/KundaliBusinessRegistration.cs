@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MyVedicStar.Kundali.Shared;
 
 namespace MyVedicStar.Kundali.Business;
 
@@ -26,6 +27,11 @@ public static class KundaliBusinessRegistration
         services.TryAddScoped<IKundaliDignityRules, UnconfiguredDignityRules>();
         services.TryAddScoped<IKundaliAshtakavargaRules, UnconfiguredAshtakavargaRules>();
         services.TryAddScoped<IKundaliShadbalaRules, UnconfiguredShadbalaRules>();
+
+        // Composition supplies the real alert store. The default refuses rather than answering "no consents", because
+        // an empty list from a missing store is indistinguishable from a reader who opted out - and would silently
+        // disable email they asked for.
+        services.TryAddScoped<IKundaliAlertRepository, UnconfiguredAlertRepository>();
         return services;
     }
 }
@@ -150,6 +156,19 @@ internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculation
 
     public KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query) =>
         new KundaliEngineDashaTimeline(null, [], [], null, null, [new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented)]);
+
+    /// <summary>
+    /// No transits without an engine. The signs are reported as empty strings and every window list is empty with a
+    /// gap, rather than a plausible-looking window: a fabricated ingress date is exactly the failure this fallback
+    /// exists to make loud.
+    /// </summary>
+    public KundaliEngineTransits CalculateTransits(KundaliTransitQuery query) =>
+        new(string.Empty, [], string.Empty, [], null,
+        [
+            new KundaliEngineGap("Saturn", KundaliEngineReasons.NotImplemented),
+            new KundaliEngineGap("Jupiter", KundaliEngineReasons.NotImplemented),
+            new KundaliEngineGap("SadeSati", KundaliEngineReasons.NotImplemented)
+        ]);
 }
 /// <summary>Fallback used when composition has not supplied the real mapper. Reports nothing as implemented, so a
 /// missing registration surfaces as an unsupported chart rather than a silently wrong one.</summary>
@@ -207,4 +226,27 @@ internal sealed class UnconfiguredDignityRules : IKundaliDignityRules
         throw new InvalidOperationException("No dignity rules are registered.");
 
     public IReadOnlyList<int> AspectedSigns(string planet, int fromSign) => [];
+}
+
+/// <summary>
+/// Fallback used when composition has not supplied an alert store. Every operation throws, so a host that forgets to
+/// register the store fails loudly instead of reporting "no subscriptions" for a reader who has some.
+/// </summary>
+internal sealed class UnconfiguredAlertRepository : IKundaliAlertRepository
+{
+    private const string Message =
+        "No Kundali alert store is registered. Compose the Data layer with AddKundaliData.";
+
+    public Task<IReadOnlyList<KundaliAlertPreference>> GetAsync(Guid accountId, Guid profileId,
+        CancellationToken token) => throw new InvalidOperationException(Message);
+
+    public Task<IReadOnlyList<KundaliAlertPreference>> GrantAsync(Guid accountId, Guid profileId,
+        IReadOnlyCollection<string> eventTypes, string channel, CancellationToken token) =>
+        throw new InvalidOperationException(Message);
+
+    public Task<int> RevokeAllAsync(Guid accountId, Guid profileId, CancellationToken token) =>
+        throw new InvalidOperationException(Message);
+
+    public Task<IReadOnlyList<KundaliAlertPreference>> GetForDeliveryAsync(Guid accountId, Guid profileId,
+        CancellationToken token) => throw new InvalidOperationException(Message);
 }

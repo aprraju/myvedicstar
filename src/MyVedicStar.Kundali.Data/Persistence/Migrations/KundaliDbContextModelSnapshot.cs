@@ -198,6 +198,58 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_KundaliProfileInvalidations_Revision", "\"NewRevision\" > 0 AND \"NewRevision\" > \"OldRevision\"");
                         });
+
+                    b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliAlertPreferenceEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("ConsentedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex(new[] { "UserId", "ProfileId", "EventType" }, "UX_KundaliAlertPreferences_UserProfileEvent")
+                        .IsUnique();
+
+                    b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.ToTable("KundaliAlertPreferences", "myvedicstarkundali", t =>
+                        {
+                            t.HasCheckConstraint("CK_KundaliAlertPreferences_Channel", "\"Channel\" IN ('email')");
+                        });
                 });
 
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliPreferenceEntity", b =>

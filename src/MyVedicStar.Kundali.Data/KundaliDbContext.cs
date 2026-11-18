@@ -88,6 +88,33 @@ internal sealed class KundaliPreferenceEntity
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
+/// <summary>
+/// KUN-13 opt-in alert consent. One row per owner, profile and event type, so consent is granted and revoked per event
+/// rather than as a single blanket switch - a reader who wants Saturn transits but not Sade Sati must be able to say so.
+/// </summary>
+/// <remarks>
+/// <para><c>ConsentedAtUtc</c> is the record of when consent was given, and it is the reason this is a table of its own
+/// rather than a JSON column on the preference row: an audit of when a person agreed to receive email is a different
+/// obligation from a display preference, and it must survive a preference delete.</para>
+/// <para>Delivery is email-only. <c>Channel</c> exists so an approved future channel is an added value, not a migration,
+/// but the domain port validates the value against the approved set rather than accepting what a client sends.</para>
+/// </remarks>
+internal sealed class KundaliAlertPreferenceEntity
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public Guid ProfileId { get; set; }
+
+    /// <summary>Event type id from the published catalogue, for example <c>sade-sati</c>.</summary>
+    public string EventType { get; set; } = "";
+
+    /// <summary>Delivery channel. Email only in this phase.</summary>
+    public string Channel { get; set; } = "";
+
+    public DateTimeOffset ConsentedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
 internal sealed class AccountReference { public Guid Id { get; set; } }
 
 /// <summary>
@@ -120,6 +147,7 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
     public DbSet<KundaliInputSnapshotEntity> InputSnapshots => Set<KundaliInputSnapshotEntity>();
     public DbSet<KundaliPreferenceEntity> Preferences => Set<KundaliPreferenceEntity>();
     public DbSet<KundaliProfileInvalidationEntity> ProfileInvalidations => Set<KundaliProfileInvalidationEntity>();
+    public DbSet<KundaliAlertPreferenceEntity> AlertPreferences => Set<KundaliAlertPreferenceEntity>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -222,6 +250,23 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
             // produce a second event, so consumers can be idempotent on the revision and still be correct.
             b.HasIndex(x => new { x.UserId, x.ProfileId, x.NewRevision }).IsUnique()
                 .HasDatabaseName("UX_KundaliProfileInvalidations_UserProfileRevision");
+        });
+
+        model.Entity<KundaliAlertPreferenceEntity>(b =>
+        {
+            b.ToTable("KundaliAlertPreferences", table => table.HasCheckConstraint(
+                "CK_KundaliAlertPreferences_Channel", @"""Channel"" IN ('email')"));
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedNever();
+            b.Property(x => x.EventType).HasMaxLength(64).IsRequired();
+            b.Property(x => x.Channel).HasMaxLength(32).IsRequired();
+            b.HasOne<AccountReference>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+            // The architect's uniqueness rule, and the reason a repeated PUT cannot create duplicate subscriptions:
+            // the database rejects the second row, and the repository upserts instead of relying on a read-then-write
+            // race that two concurrent requests would win together.
+            b.HasIndex(x => new { x.UserId, x.ProfileId, x.EventType }).IsUnique()
+                .HasDatabaseName("UX_KundaliAlertPreferences_UserProfileEvent");
         });
     }
 }

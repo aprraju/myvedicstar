@@ -76,6 +76,43 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
     public async Task<ActionResult<KundaliAshtakavargaResponse>> Ashtakavarga(Guid profileId, CancellationToken token) =>
         Ok(KundaliAshtakavargaResponse.From(await facade.GetAshtakavargaAsync(User, profileId, token)));
 
+    /// <summary>
+    /// KUN-13 transit section for an explicit reference instant. <c>at</c> selects the instant the positions describe;
+    /// omitting it means server now, and the resolved instant is echoed so the caller never has to assume it. An
+    /// unresolvable <c>tz</c> is a 400, never a quiet substitution of the profile's zone.
+    /// </summary>
+    [HttpGet("{profileId:guid}/sections/transits"), ProducesResponseType<KundaliTransitsSectionResponse>(200)]
+    public async Task<ActionResult<KundaliTransitsSectionResponse>> Transits(Guid profileId,
+        [FromQuery] DateTimeOffset? at, [FromQuery] string? tz, CancellationToken token) =>
+        Ok(KundaliTransitsSectionResponse.From(
+            await facade.GetTransitsAsync(User, profileId, at, tz, token)));
+
+    /// <summary>
+    /// KUN-13 alert consents for an owned profile. Empty subscriptions mean the reader has opted out of everything,
+    /// which is the default and is reported as an empty list rather than a 404.
+    /// </summary>
+    [HttpGet("{profileId:guid}/alerts"), ProducesResponseType<KundaliAlertsResponse>(200)]
+    public async Task<ActionResult<KundaliAlertsResponse>> Alerts(Guid profileId, CancellationToken token) =>
+        Ok(KundaliAlertsResponse.From(await facade.GetAlertsAsync(User, profileId, token)));
+
+    /// <summary>
+    /// KUN-13 opt-in. Idempotent: repeating the same request leaves one consent per event type and keeps the original
+    /// consent timestamp, so a retry cannot look like a new consent event. Email only, per the approved default.
+    /// </summary>
+    [HttpPut("{profileId:guid}/alerts"), ProducesResponseType<KundaliAlertsResponse>(200)]
+    public async Task<ActionResult<KundaliAlertsResponse>> SubscribeAlerts(Guid profileId,
+        KundaliAlertSubscriptionRequest request, CancellationToken token) =>
+        Ok(KundaliAlertsResponse.From(await facade.GrantAlertsAsync(User, profileId, request.EventTypes,
+            request.Channel, token)));
+
+    /// <summary>KUN-13 opt-out. Removes every consent for the profile; the count is echoed so the caller can tell
+    /// "revoked something" from "there was nothing to revoke".</summary>
+    [HttpDelete("{profileId:guid}/alerts"), ProducesResponseType(204)]
+    public async Task<IActionResult> RevokeAlerts(Guid profileId, CancellationToken token)
+    {
+        _ = await facade.RevokeAlertsAsync(User, profileId, token);
+        return NoContent();
+    }
 
     /// <summary>KUN-12 Shadbala and Bhava Bala. Returned as two separate top-level objects - planetary strength and house
     /// strength are different quantities and are never merged into one score.</summary>

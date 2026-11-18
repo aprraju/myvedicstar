@@ -6,6 +6,7 @@ using MyVedicStar.Shared.Exceptions;
 namespace MyVedicStar.Kundali.Business;
 
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
+    IKundaliAlertRepository alerts,
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
     IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
@@ -771,6 +772,158 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             aspects));
     }
 
+    /// <summary>
+    /// KUN-13 transit section. The reference instant is resolved once and echoed, so the caller never has to assume
+    /// which instant produced the answer.
+    /// </summary>
+    public async Task<KundaliTransitsSection> GetTransitsAsync(ClaimsPrincipal user, Guid profileId,
+        DateTimeOffset? at, string? timezone, CancellationToken token)
+    {
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        // An unknown zone is rejected, never quietly replaced by the profile's: the caller asked for a display zone,
+        // and answering in a different one would mislabel every instant in the response.
+        var displayTimezone = timezone ?? display.TimezoneId;
+        if (!ZoneIsResolvable(displayTimezone))
+            throw new ValidationException(KundaliErrors.InvalidTimezone);
+
+        var computedAt = clock.GetUtcNow();
+        var referenceInstant = at ?? computedAt;
+
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        // Transit positions are computed for the reference instant, not for the birth instant. Reusing the natal
+        // engine call would answer a different question.
+        var transits = calculationEngine.CalculateTransits(new KundaliTransitQuery(
+            new KundaliEngineInput(display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude,
+                display.Longitude, display.TimezoneId, metadata.Ayanamsa),
+            referenceInstant, displayTimezone));
+
+        foreach (var gap in transits.Gaps)
+            AddUnsupported(unsupported, gap.Path, gap.Reason);
+
+        var saturn = new KundaliTransitGraha("Saturn", transits.SaturnSign, null, null,
+            transits.SaturnWindows.Select(ToWindow).ToArray());
+        var jupiter = new KundaliTransitGraha("Jupiter", transits.JupiterSign, null, null,
+            transits.JupiterWindows.Select(ToWindow).ToArray());
+
+        KundaliSadeSati? sadeSati = null;
+        if (transits.SadeSati is { } interval)
+        {
+            var phase = interval.Phases.FirstOrDefault(candidate =>
+                candidate.StartUtc <= referenceInstant && referenceInstant < candidate.EndUtc);
+            sadeSati = new KundaliSadeSati(
+                phase?.Phase ?? NextPhaseName(interval, referenceInstant),
+                Active: phase is not null,
+                interval.MoonSign,
+                interval.StartUtc,
+                interval.EndUtc,
+                interval.IsPartial,
+                interval.Phases.Select(candidate => new KundaliSadeSatiPhase(candidate.Phase, candidate.Sign,
+                    candidate.StartUtc, candidate.EndUtc)).ToArray());
+
+            // Before the first phase begins there is nothing active to report, and saying so is not a gap in the
+            // calculation - the engine knows when it starts. Reported only when the whole interval is in the future.
+            if (phase is null && interval.StartUtc > referenceInstant)
+                AddUnsupported(unsupported, $"{nameof(KundaliTransitsSection.SadeSati)}.Active",
+                    KundaliUnsupportedReasons.NotYetActive);
+        }
+        else
+        {
+            AddUnsupported(unsupported, nameof(KundaliTransitsSection.SadeSati),
+                KundaliUnsupportedReasons.NoIntervalInSpan);
+        }
+
+        // Dated near-term events: the first ingress of each slow graha after the reference instant. An event list that
+        // included the past would make an "upcoming" alert feed depend on how far back it looked.
+        var dated = new List<KundaliDatedTransit>(2);
+        AddNextIngress(dated, transits.SaturnWindows, "Saturn", KundaliAlertEventTypes.SaturnIngress, referenceInstant);
+        AddNextIngress(dated, transits.JupiterWindows, "Jupiter", KundaliAlertEventTypes.JupiterIngress, referenceInstant);
+
+        return new KundaliTransitsSection(referenceInstant, displayTimezone, computedAt,
+            computedAt.Add(TransitFreshnessFor), saturn, jupiter, sadeSati, dated, unsupported);
+    }
+
+    public async Task<IReadOnlyList<KundaliAlertPreference>> GetAlertsAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+        _ = await ReadOwnedSnapshotAsync(user, profileId, token);
+        return await alerts.GetAsync(accountId, profileId, token);
+    }
+
+    public async Task<IReadOnlyList<KundaliAlertPreference>> GrantAlertsAsync(ClaimsPrincipal user, Guid profileId,
+        IReadOnlyList<string> eventTypes, string channel, CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+
+        // Consent is only meaningful for a profile that exists and is owned: a subscription for a deleted profile
+        // would be a queued email about nothing, and the ownership read is what proves the profile is real.
+        _ = await ReadOwnedSnapshotAsync(user, profileId, token);
+
+        return await alerts.GrantAsync(accountId, profileId, eventTypes, channel, token);
+    }
+
+    public async Task<int> RevokeAlertsAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+
+        // No ownership pre-read, for the same reason as the profile delete: the revoke is account-scoped, so a
+        // foreign profile revokes nothing and reports zero - indistinguishable from a profile that never existed.
+        return await alerts.RevokeAllAsync(accountId, profileId, token);
+    }
+
+    /// <summary>
+    /// How long a transit answer stays useful. Thirty minutes: the slow grahas this section reports move by
+    /// arcseconds over that window, so the numbers stay valid far longer, but a reader watching an ingress wants a
+    /// refresh cadence closer to their session than to the astronomy.
+    /// </summary>
+    private static readonly TimeSpan TransitFreshnessFor = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Whether the zone id resolves in the IANA database. Checked through <see cref="TimeZoneInfo"/> rather than a
+    /// NodaTime zone provider so the Business layer keeps its existing dependency set; both use the same tz database
+    /// on Linux, and the calculation engine resolves the birth zone through NodaTime, so an id that passes here and
+    /// fails there would surface as an engine error, not a wrong time.
+    /// </summary>
+    private static bool ZoneIsResolvable(string timezone)
+    {
+        if (string.IsNullOrWhiteSpace(timezone))
+            return false;
+
+        try
+        {
+            _ = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+            return true;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return false;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return false;
+        }
+    }
+
+    private static KundaliTransitWindow ToWindow(KundaliSignWindow window) =>
+        new(window.Sign, window.StartUtc, window.EndUtc);
+
+    private static string NextPhaseName(KundaliEngineSadeSati interval, DateTimeOffset at) =>
+        interval.Phases.Where(phase => phase.StartUtc > at).Select(phase => phase.Phase).FirstOrDefault()
+        ?? SadeSatiPhaseNames.AfterInterval;
+
+    private static void AddNextIngress(List<KundaliDatedTransit> target, IReadOnlyList<KundaliSignWindow> windows,
+        string graha, string eventType, DateTimeOffset at)
+    {
+        // The first window that STARTS after the reference instant. The window containing it started in the past and
+        // is already reported as the current sign, so repeating it as an upcoming event would duplicate it.
+        var next = windows.Where(window => window.StartUtc > at).OrderBy(window => window.StartUtc).FirstOrDefault();
+        if (next is not null)
+            target.Add(new KundaliDatedTransit(graha, eventType, next.Sign, next.StartUtc));
+    }
+
     public async Task<int> DeleteForProfileAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
         var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
@@ -898,4 +1051,13 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     }
 
     private static KundaliPreferences DefaultPreferences() => new("North", 0, DateTimeOffset.MinValue);
+    /// <summary>
+    /// KUN-13: why Sade Sati has nothing to report at the reference instant, when that is a fact about time rather
+    /// than a gap in the calculation. Kept here so the UI has one vocabulary for "not yet" and one for "not known".
+    /// </summary>
+    private static class SadeSatiPhaseNames
+    {
+        /// <summary>A following interval exists, but every phase of it starts after the reference instant.</summary>
+        public const string AfterInterval = "not-yet-active";
+    }
 }

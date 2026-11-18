@@ -22,6 +22,7 @@ public sealed class KundaliRevisionCacheTests
     private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
     private readonly IKundaliCalculationEngine engine = Substitute.For<IKundaliCalculationEngine>();
     private readonly IKundaliResultCache cache = Substitute.For<IKundaliResultCache>();
+    private readonly IKundaliAlertRepository alerts = Substitute.For<IKundaliAlertRepository>();
     private readonly MutableClock clock = new();
     private static readonly CancellationToken Token = CancellationToken.None;
 
@@ -45,7 +46,7 @@ public sealed class KundaliRevisionCacheTests
                 null, null, []));
     }
 
-    private KundaliFacade Facade() => new(profiles, repository,
+    private KundaliFacade Facade() => new(profiles, repository, alerts,
         new KundaliValidator(clock, KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation, metadata,
         engine, new UnconfiguredDivisionalMapperStub(), new NoDignityRules2(), new NoAshtakavargaRules(), new NoShadbalaRules(), clock, cache);
 

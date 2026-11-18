@@ -161,6 +161,15 @@ public interface IKundaliCalculationEngine
 
     /// <summary>Builds the dasha timeline for one input, with the current path at the supplied instant.</summary>
     KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query);
+
+    /// <summary>
+    /// KUN-13: transit windows and any Sade Sati interval for one input at an explicit reference instant.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Calculate"/> because a transit answer depends on an instant that is not part of the
+    /// birth snapshot: folding it into the natal result would make one cached result depend on a moving target.
+    /// </remarks>
+    KundaliEngineTransits CalculateTransits(KundaliTransitQuery query);
 }
 
 /// <summary>
@@ -250,6 +259,38 @@ public sealed record KundaliEngineDasha(string Lord, DateTimeOffset StartUtc, Da
 /// <summary>One value the engine withheld, and the capability-specific reason.</summary>
 public sealed record KundaliEngineGap(string Path, string Reason);
 
+/// <summary>
+/// KUN-13 transit request: the birth inputs plus the reference instant the transit positions describe.
+/// </summary>
+/// <remarks>
+/// The reference instant is supplied by the caller and never read from a clock here, so a transit answer is
+/// reproducible and a test asserting an interval is asserting the engine, not the wall clock.
+/// </remarks>
+public sealed record KundaliTransitQuery(KundaliEngineInput Input, DateTimeOffset At, string Timezone);
+
+/// <summary>
+/// KUN-13 transit output: both slow grahas' current sign and ingress windows, and the Sade Sati interval covering or
+/// following the reference instant.
+/// </summary>
+/// <param name="SadeSatiMoonSign">The natal Moon sign the phases were measured from, echoed so the interval is checkable.</param>
+public sealed record KundaliEngineTransits(
+    string SaturnSign,
+    IReadOnlyList<KundaliSignWindow> SaturnWindows,
+    string JupiterSign,
+    IReadOnlyList<KundaliSignWindow> JupiterWindows,
+    KundaliEngineSadeSati? SadeSati,
+    IReadOnlyList<KundaliEngineGap> Gaps);
+
+/// <summary>One ingress window as the engine produced it.</summary>
+public sealed record KundaliSignWindow(string Sign, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
+/// <summary>The Sade Sati interval and its named phases.</summary>
+public sealed record KundaliEngineSadeSati(string MoonSign, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
+    bool IsPartial, IReadOnlyList<KundaliEngineSadeSatiPhase> Phases);
+
+public sealed record KundaliEngineSadeSatiPhase(string Phase, string Sign, DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc);
+
 /// <summary>Reason codes produced by the engine, mirrored in the API's unsupported vocabulary.</summary>
 public static class KundaliEngineReasons
 {
@@ -263,3 +304,38 @@ public static class KundaliEngineReasons
     public const string NotImplemented = "not-implemented";
 }
 
+
+/// <summary>
+/// KUN-13: opt-in alert consent, stored per owner, profile and event type.
+/// </summary>
+/// <remarks>
+/// Kept separate from <see cref="IKundaliRepository"/> because consent has a different lifecycle from calculation
+/// results: it survives revision churn, it is deleted with the profile, and it is read at delivery time by a path that
+/// must never touch result rows.
+/// </remarks>
+public interface IKundaliAlertRepository
+{
+    /// <summary>Every consent row for one owned profile. Empty when the reader has opted out of everything.</summary>
+    Task<IReadOnlyList<KundaliAlertPreference>> GetAsync(Guid accountId, Guid profileId, CancellationToken token);
+
+    /// <summary>
+    /// Grants consent for the supplied event types on the supplied channel, idempotently.
+    /// </summary>
+    /// <returns>The resulting full set of consents for the profile, so a caller never has to re-read to render state.</returns>
+    /// <remarks>
+    /// Idempotent by unique index rather than by read-then-write: two concurrent identical PUTs both succeed and leave
+    /// one row, which is the behaviour the architect's "duplicate alert prevention on repeated PUT" test asks for.
+    /// An already-consented event keeps its original <c>ConsentedAtUtc</c>; only new grants set it.
+    /// </remarks>
+    Task<IReadOnlyList<KundaliAlertPreference>> GrantAsync(Guid accountId, Guid profileId,
+        IReadOnlyCollection<string> eventTypes, string channel, CancellationToken token);
+
+    /// <summary>Revokes every consent for the profile. Returns the number removed.</summary>
+    Task<int> RevokeAllAsync(Guid accountId, Guid profileId, CancellationToken token);
+
+    /// <summary>
+    /// Every consent row for one profile, read at delivery time so consent is re-checked rather than remembered.
+    /// </summary>
+    Task<IReadOnlyList<KundaliAlertPreference>> GetForDeliveryAsync(Guid accountId, Guid profileId,
+        CancellationToken token);
+}

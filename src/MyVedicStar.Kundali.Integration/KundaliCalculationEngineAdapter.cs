@@ -85,6 +85,14 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
                 .ToArray());
     }
 
+    /// <summary>
+    /// Natal-only adapter: transits are answered by <see cref="KundaliTransitAdapter"/>, which wraps this type. Refused
+    /// rather than returning an empty sky, because an empty result here would look like a profile with no transits.
+    /// </summary>
+    public KundaliEngineTransits CalculateTransits(KundaliTransitQuery query) =>
+        throw new NotSupportedException(
+            "The natal calculation adapter does not serve transits; resolve IKundaliCalculationEngine instead.");
+
     /// <summary>Path position to level name. Indexed because the engine returns the chain outermost first.</summary>
     private static readonly string[] LevelNames = ["Mahadasha", "Antara", "Pratyantar"];
 
@@ -113,9 +121,33 @@ public static class KundaliCalculationEngineRegistration
             GrahaProvider = provider.GetService<MyVedicDay.Astronomy.IGrahaPositionsProvider>(),
             PlanetaryReferences = GrahaReferences.Load(provider),
         });
-        services.Replace(ServiceDescriptor.Scoped<IKundaliCalculationEngine, KundaliCalculationEngineAdapter>());
+        // KUN-13: one registration for the port. The adapter delegates natal work to the real engine and adds the
+        // transit surface, so there is still exactly one IKundaliCalculationEngine in the container - a second
+        // registration would make the resolved implementation depend on registration order.
+        services.Replace(ServiceDescriptor.Scoped<IKundaliCalculationEngine>(provider => new KundaliTransitAdapter(
+            BuildTransitCalculator(provider),
+            new KundaliCalculationEngineAdapter(provider.GetRequiredService<Calculation.IKundaliEngine>()))));
         services.AddKundaliDivisionalMapper();
         services.AddKundaliDignityRules();
         return services;
     }
+
+    /// <summary>
+    /// The transit calculator, built from the same graha port and ayanamsa the natal engine uses, so a transit date and
+    /// a natal position can never disagree about where a graha was.
+    /// </summary>
+    private static TransitCalculator BuildTransitCalculator(IServiceProvider provider) => new(
+        RequireGrahaProvider(provider),
+        provider.GetRequiredService<MyVedicDay.Astronomy.IAyanamsa>());
+
+    /// <summary>
+    /// The graha port is required for transits rather than optional: a transit section that silently received no graha
+    /// source would report an empty sky, which is indistinguishable from a profile with no transits. Failing at
+    /// composition makes the missing registration a startup error instead of a wrong answer.
+    /// </summary>
+    private static MyVedicDay.Astronomy.IGrahaPositionsProvider RequireGrahaProvider(IServiceProvider provider) =>
+        provider.GetService<MyVedicDay.Astronomy.IGrahaPositionsProvider>()
+        ?? throw new InvalidOperationException(
+            "Transits need the graha positions port, but none is registered. Register the provider with " +
+            "AddAstronomyProvider before AddKundaliCalculationEngine.");
 }
