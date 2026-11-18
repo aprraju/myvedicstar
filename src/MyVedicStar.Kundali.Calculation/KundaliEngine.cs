@@ -72,7 +72,7 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
         // validation task, not a computation gap.
         AddGap(gaps, "Ascendant", KundaliCalculationReasons.UnvalidatedReference);
 
-        var periods = VimshottariDasha.BuildMahadashas(moonSidereal, Instant.FromDateTimeOffset(birthInstant));
+        var periods = VimshottariDasha.BuildMahadashas(moonSidereal, birthInstant);
         var mahadashas = periods
             .Select(period => new KundaliVimshottariPeriod(period.Lord, period.StartUtc.ToDateTimeOffset(),
                 period.EndUtc.ToDateTimeOffset(), period.IsRemainder))
