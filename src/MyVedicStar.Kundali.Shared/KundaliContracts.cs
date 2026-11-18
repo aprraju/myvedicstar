@@ -468,13 +468,22 @@ public sealed record KundaliBalaSection(
 
 /// <summary>One planet's Shadbala. <paramref name="ComponentsWithheld"/> names the classical components that are
 /// missing so the total is never mistaken for a six-fold score.</summary>
+/// <param name="ComponentStates">Machine-readable state per component (computed / withheld / placeholder). A client
+/// summing <paramref name="Components"/> must consult this rather than treat every number as strength — a placeholder
+/// zero and a computed zero are identical numerically.</param>
+/// <param name="ComponentsInTotal">Exactly which components the total sums, so the total is never correct only for a
+/// reader who also read a prose list.</param>
+/// <param name="ComponentsExcludedFromTotal">Components present in the breakdown that do not contribute strength.</param>
 public sealed record KundaliShadbalaPlanet(
     string Planet,
     IReadOnlyDictionary<string, double> Components,
+    IReadOnlyDictionary<string, string> ComponentStates,
     double Total,
     double? RequiredRupas,
     double? RatioToThreshold,
-    IReadOnlyList<string> ComponentsWithheld);
+    IReadOnlyList<string> ComponentsWithheld,
+    IReadOnlyList<string> ComponentsInTotal,
+    IReadOnlyList<string> ComponentsExcludedFromTotal);
 
 /// <summary>One house's Bhava Bala, with its own component breakdown.</summary>
 public sealed record KundaliBhavaBalaHouse(
@@ -482,5 +491,6 @@ public sealed record KundaliBhavaBalaHouse(
     IReadOnlyDictionary<string, double> Components,
     double Total);
 
-/// <summary>One component's value and the basis it was computed on, so a number is never bare.</summary>
-public sealed record KundaliBalaComponent(string Component, double Rupas, string Basis);
+/// <summary>One component's value, its basis, and its machine-readable state, so a number is never bare and a
+/// placeholder is never mistaken for a measurement.</summary>
+public sealed record KundaliBalaComponent(string Component, double Rupas, string Basis, string State);

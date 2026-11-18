@@ -24,12 +24,14 @@ internal sealed class KundaliShadbalaRulesAdapter : IKundaliShadbalaRules
                 planet.Planet,
                 planet.Components
                     .Select(component => new KundaliShadbalaComponent(
-                        component.Component, component.Rupas, component.Basis))
+                        component.Component, component.Rupas, component.Basis, component.State))
                     .ToArray(),
                 planet.TotalRupas,
                 planet.ComponentsWithheld,
                 planet.RequiredRupas,
-                planet.RatioToThreshold))
+                planet.RatioToThreshold,
+                planet.ComponentsInTotal,
+                planet.ComponentsExcludedFromTotal))
             .ToArray();
 }
 

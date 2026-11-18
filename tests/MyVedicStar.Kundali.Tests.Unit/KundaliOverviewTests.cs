@@ -76,7 +76,6 @@ public sealed class KundaliOverviewTests
                 ["Sthana"],
                 ["Dig"])).ToArray();
     }
-    }
 
     /// <summary>Real Ashtakavarga rules over the calculation project.</summary>
     private sealed class TestAshtakavargaRules : IKundaliAshtakavargaRules
@@ -698,6 +697,13 @@ public sealed class KundaliOverviewTests
         {
             Assert.Contains("Kala", planet.ComponentsWithheld);
             Assert.Contains("Chesta", planet.ComponentsWithheld);
+
+            // The review finding, locked at the section boundary: a consumer must be able to tell a placeholder from a
+            // measurement through the wire payload, without reading any prose.
+            Assert.Equal("placeholder", planet.ComponentStates["Dig"]);
+            Assert.Equal("computed", planet.ComponentStates["Sthana"]);
+            Assert.Contains("Dig", planet.ComponentsExcludedFromTotal);
+            Assert.DoesNotContain("Dig", planet.ComponentsInTotal);
         }
 
         Assert.NotEmpty(section.Shadbala);

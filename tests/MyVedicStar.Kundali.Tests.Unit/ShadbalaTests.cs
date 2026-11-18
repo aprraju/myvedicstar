@@ -26,13 +26,73 @@ public sealed class ShadbalaTests
     }
 
     [Fact]
-    public void Total_is_the_sum_of_the_produced_components()
+    public void Total_is_the_sum_of_the_components_that_count_toward_it()
     {
         // The reconciliation the contract requires: a total that does not match its parts is a defect, not a rounding
-        // difference, so it is asserted exactly against the component list rather than against a hardcoded number.
+        // difference, so it is asserted exactly. It sums only components that COUNT - previously this summed every
+        // component including Dig's placeholder zero, which made the total correct only for a reader who also read a
+        // list of English strings. Now the exclusion is structural: the same flag the total uses is the one asserted here.
         foreach (var planet in Shadbala.Compute(Chart).Planets)
         {
-            Assert.Equal(planet.Components.Sum(component => component.Rupas), planet.TotalRupas, 10);
+            var counting = planet.Components.Where(component => component.CountsTowardTotal)
+                .Sum(component => component.Rupas);
+
+            Assert.Equal(counting, planet.TotalRupas, 10);
+        }
+    }
+
+    [Fact]
+    public void The_total_does_not_include_the_dig_placeholder()
+    {
+        // Stated as its own test because it is the exact defect the review found: Dig is in the breakdown with a zero
+        // that is a placeholder, not a measurement. The total must exclude it, and must SAY it excluded it.
+        foreach (var planet in Shadbala.Compute(Chart).Planets)
+        {
+            Assert.Contains("Dig", planet.ComponentsExcludedFromTotal);
+            Assert.DoesNotContain("Dig", planet.ComponentsInTotal);
+            Assert.Contains("Dig", planet.ComponentsPlaceholder);
+        }
+    }
+
+    [Fact]
+    public void Every_component_carries_a_machine_readable_state()
+    {
+        // The core of the review finding: a client summing components must be able to tell a computed zero from a
+        // placeholder zero WITHOUT reading prose. Basis strings are for humans; State is for code.
+        var valid = new[]
+        {
+            Shadbala.ComponentStates.Computed,
+            Shadbala.ComponentStates.Withheld,
+            Shadbala.ComponentStates.Placeholder
+        };
+
+        foreach (var planet in Shadbala.Compute(Chart).Planets)
+        {
+            foreach (var component in planet.Components)
+            {
+                Assert.Contains(component.State, valid);
+            }
+
+            Assert.Equal(
+                Shadbala.ComponentStates.Placeholder,
+                planet.Components.Single(c => c.Component == "Dig").State);
+
+            Assert.Equal(
+                Shadbala.ComponentStates.Computed,
+                planet.Components.Single(c => c.Component == "Sthana").State);
+        }
+    }
+
+    [Fact]
+    public void Only_computed_components_count_toward_the_total()
+    {
+        foreach (var planet in Shadbala.Compute(Chart).Planets)
+        {
+            foreach (var component in planet.Components)
+            {
+                var expected = string.Equals(component.State, Shadbala.ComponentStates.Computed, StringComparison.Ordinal);
+                Assert.Equal(expected, component.CountsTowardTotal);
+            }
         }
     }
 

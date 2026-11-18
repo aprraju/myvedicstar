@@ -114,10 +114,14 @@ public sealed record KundaliShadbalaResult(
     double TotalRupas,
     IReadOnlyList<string> ComponentsWithheld,
     double? RequiredRupas,
-    double? RatioToThreshold);
+    double? RatioToThreshold,
+    IReadOnlyList<string> ComponentsInTotal,
+    IReadOnlyList<string> ComponentsExcludedFromTotal);
 
-/// <summary>One component's value and the basis it was computed on.</summary>
-public sealed record KundaliShadbalaComponent(string Component, double Rupas, string Basis);
+/// <summary>One component's value, the basis it was computed on, and its machine-readable state.</summary>
+/// <remarks>State exists so a consumer can distinguish a computed zero from a placeholder zero without parsing
+/// <paramref name="Basis"/>. Only <c>computed</c> components are strength.</remarks>
+public sealed record KundaliShadbalaComponent(string Component, double Rupas, string Basis, string State);
 
 
 public interface IKundaliDignityRules

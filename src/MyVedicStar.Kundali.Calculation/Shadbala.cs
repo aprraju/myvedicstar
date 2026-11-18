@@ -84,8 +84,32 @@ public static class Shadbala
     /// <summary>Virupas per rupa - the classical subunit conversion that every component must honour.</summary>
     public const double VirupasPerRupa = 60.0;
 
-    /// <summary>One component's contribution, in rupas, with its own provenance.</summary>
-    public sealed record ComponentScore(string Component, double Rupas, string Basis);
+    /// <summary>
+    /// Machine-readable state of a component. Present because a placeholder zero and a computed zero are identical in
+    /// the numeric field, and only prose in <c>Basis</c> would distinguish them. A client summing components cannot read
+    /// prose - and a total whose parts are only labelled in English is exactly the mistake this section refuses to make
+    /// at the total level.
+    /// </summary>
+    public static class ComponentStates
+    {
+        /// <summary>Genuinely computed from chart data.</summary>
+        public const string Computed = "computed";
+
+        /// <summary>Not producible; carries no score. The value is present for shape only and must not be summed as
+        /// strength.</summary>
+        public const string Withheld = "withheld";
+
+        /// <summary>Occupies the component slot but is not the classical quantity - e.g. Dig, which needs the
+        /// unvalidated ascendant. Currently zero, and zero BY FLAG rather than by measurement.</summary>
+        public const string Placeholder = "placeholder";
+    }
+
+    /// <summary>One component's contribution, in rupas, with its own provenance and machine-readable state.</summary>
+    public sealed record ComponentScore(string Component, double Rupas, string Basis, string State)
+    {
+        /// <summary>True only for a genuinely measured component. Placeholders and withheld entries are not strength.</summary>
+        public bool CountsTowardTotal => string.Equals(State, ComponentStates.Computed, StringComparison.Ordinal);
+    }
 
     /// <summary>The strength of one planet, partial by construction until every component exists.</summary>
     public sealed record PlanetStrength(
@@ -95,13 +119,25 @@ public static class Shadbala
         IReadOnlyList<string> ComponentsWithheld,
         double? RequiredRupas,
         double? RatioToThreshold,
-        double? RupasToThreshold)
+        double? RupasToThreshold,
+        IReadOnlyList<string> ComponentsInTotal,
+        IReadOnlyList<string> ComponentsExcludedFromTotal)
     {
         /// <summary>
         /// False whenever any classical component is missing. A caller must check this before treating
         /// <see cref="RatioToThreshold"/> as comparable to the classical table.
         /// </summary>
         public bool IsComplete => ComponentsWithheld.Count == 0;
+
+        /// <summary>
+        /// Components occupying a slot in the breakdown without being a measurement (e.g. Dig). Empty on a planet whose
+        /// every produced component is genuinely computed.
+        /// </summary>
+        public IReadOnlyList<string> ComponentsPlaceholder =>
+            Components.Where(component =>
+                    string.Equals(component.State, ComponentStates.Placeholder, StringComparison.Ordinal))
+                .Select(component => component.Component)
+                .ToArray();
     }
 
     /// <summary>The Shadbala section as a whole.</summary>
@@ -144,7 +180,11 @@ public static class Shadbala
                 Drik(planet, longitude, longitudeByPlanet, hiddenByPlanet)
             };
 
-            var total = components.Sum(component => component.Rupas);
+            // Only genuinely computed components contribute. Dig is present with a zero that is a PLACEHOLDER, not a
+            // measurement, so adding it would make the total correct only for a reader who also read a list of strings.
+            // Excluding it is the same statement the numeric state makes, and the two cannot drift apart.
+            var total = components.Where(component => component.CountsTowardTotal)
+                .Sum(component => component.Rupas);
             var withheld = WithheldComponents.Keys.ToArray();
             var required = RequiredRupas[planet];
 
@@ -158,7 +198,11 @@ public static class Shadbala
                 withheld,
                 required,
                 required == 0 ? null : total / required,
-                required - total));
+                required - total,
+                components.Where(component => component.CountsTowardTotal)
+                    .Select(component => component.Component).ToArray(),
+                components.Where(component => !component.CountsTowardTotal)
+                    .Select(component => component.Component).ToArray()));
         }
 
         return new Result(
@@ -188,7 +232,8 @@ public static class Shadbala
         return new ComponentScore(
             "Sthana",
             rupas,
-            $"uchcha-bala from own longitude; debilitation {debilitation:0.###} deg, separation {separation:0.###} deg");
+            $"uchcha-bala from own longitude; debilitation {debilitation:0.###} deg, separation {separation:0.###} deg",
+            ComponentStates.Computed);
     }
 
     /// <summary>
@@ -208,12 +253,14 @@ public static class Shadbala
         return new ComponentScore(
             "Dig",
             0.0,
-            "withheld: dig-bala is measured from the unvalidated ascendant; this zero is a placeholder, not a score");
+            "dig-bala is measured from the unvalidated ascendant; this zero is a placeholder, not a score",
+            ComponentStates.Placeholder);
     }
 
     /// <summary>Naisargika Bala: natural strength, a fixed classical ordering. Independent of the chart entirely.</summary>
     private static ComponentScore Naisargika(string planet) =>
-        new("Naisargika", NaisargikaRupas[planet], "classical natural order; fixed, chart-independent");
+        new("Naisargika", NaisargikaRupas[planet], "classical natural order; fixed, chart-independent",
+            ComponentStates.Computed);
 
     /// <summary>
     /// Drik Bala: aspectual strength, from Parashari whole-sign aspects cast onto the planet.
@@ -257,7 +304,8 @@ public static class Shadbala
             rupas,
             contributors.Count == 0
                 ? "no Parashari whole-sign aspects received"
-                : $"whole-sign aspects: {string.Join(", ", contributors)}");
+                : $"whole-sign aspects: {string.Join(", ", contributors)}",
+            ComponentStates.Computed);
     }
 
     /// <summary>Parashari whole-sign aspect rule: which houses each planet aspects, counted from itself.</summary>

@@ -157,10 +157,16 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
                     component => component.Component,
                     component => component.Rupas,
                     StringComparer.Ordinal),
+                planet.Components.ToDictionary(
+                    component => component.Component,
+                    component => component.State,
+                    StringComparer.Ordinal),
                 planet.TotalRupas,
                 planet.RequiredRupas,
                 planet.RatioToThreshold,
-                planet.ComponentsWithheld))
+                planet.ComponentsWithheld,
+                planet.ComponentsInTotal,
+                planet.ComponentsExcludedFromTotal))
             .ToArray();
 
         // Each withheld component is named on the section too, so a consumer reading only the top level still learns why
