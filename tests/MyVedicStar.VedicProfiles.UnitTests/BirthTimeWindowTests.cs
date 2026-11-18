@@ -47,6 +47,19 @@ public sealed class BirthTimeWindowTests : IDisposable
         Valid() with { BirthTimeMode = BirthTimeMode.Approximate, BirthTime = null, BirthTimeFrom = from, BirthTimeTo = to };
 
     [Fact]
+    public async Task A_long_window_that_stays_within_the_day_is_valid()
+    {
+        // 00:00 -> 23:59 runs forward on the clock, so it is a legitimate (very wide) approximate window. It is
+        // not a midnight crossing - no wrap occurs - and rejecting it would be a false positive on the rule.
+        var details = Window(TimeOnly.MinValue, new TimeOnly(23, 59));
+
+        var result = await facade.CreateAsync(user, details, Token);
+
+        Assert.Equal(TimeOnly.MinValue, result.Details.BirthTimeFrom);
+        Assert.Equal(new TimeOnly(23, 59), result.Details.BirthTimeTo);
+    }
+
+    [Fact]
     public async Task A_window_that_runs_forward_is_accepted_and_keeps_both_endpoints()
     {
         var details = Window(new TimeOnly(5, 0), new TimeOnly(7, 30));
@@ -61,7 +74,6 @@ public sealed class BirthTimeWindowTests : IDisposable
     [Theory]
     [InlineData(23, 30, 0, 30)]   // the reported bug: wraps midnight, previously accepted as a 23-hour window
     [InlineData(23, 59, 0, 0)]    // wraps at the boundary
-    [InlineData(0, 0, 23, 59)]    // the reversed form of the same mistake
     [InlineData(12, 0, 12, 0)]    // equal bounds: zero-length is not "approximate"
     [InlineData(12, 0, 11, 59)]   // backwards within a day
     public async Task A_window_that_does_not_run_forward_is_rejected_with_the_midnight_specific_error(
