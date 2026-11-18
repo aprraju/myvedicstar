@@ -15,6 +15,13 @@ internal sealed class KundaliValidator(TimeProvider clock, KundaliEngineVersions
         ArgumentNullException.ThrowIfNull(snapshot);
         if (!KundaliCapabilities.IsSupportedBirthDate(snapshot.DateOfBirth))
             throw new ValidationException(KundaliErrors.InvalidBirthDate);
+
+        // A birth date in the future is not a chart of anything. The check belongs here rather than in the engine
+        // because it is a property of the request, not of the astronomy - and it needs the host clock, which is why
+        // this type takes TimeProvider.
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        if (snapshot.DateOfBirth > today)
+            throw new ValidationException(KundaliErrors.InvalidBirthDate);
         if (string.IsNullOrWhiteSpace(snapshot.TimezoneId) || !TimeZoneExists(snapshot.TimezoneId))
             throw new ValidationException(KundaliErrors.InvalidConfig);
         if (!Enum.IsDefined(snapshot.BirthTimeMode) || snapshot.ProfileRevision <= 0)
@@ -49,6 +56,11 @@ internal sealed class KundaliValidator(TimeProvider clock, KundaliEngineVersions
             || string.IsNullOrWhiteSpace(provenance.Ayanamsa))
             throw new ValidationException(KundaliErrors.InvalidConfig);
     }
+
+    /// <summary>The configured engine versions. Exposed through the validator because it is the type that already
+    /// owns the capability boundary; a persisted result's provenance is built from these rather than from literals.
+    /// </summary>
+    public KundaliEngineVersions Versions => versions;
 
     private static bool TimeZoneExists(string timezoneId)
     {
