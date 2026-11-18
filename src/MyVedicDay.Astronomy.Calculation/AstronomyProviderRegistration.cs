@@ -35,20 +35,30 @@ public static class AstronomyProviderRegistration
         {
             case ProviderSelection.Analytical:
                 services.TryAddSingleton<IEphemeris, MeeusEphemeris>();
+                services.TryAddSingleton<IGrahaPositionsProvider, MeeusGrahaPositionsProvider>();
                 break;
 
             case ProviderSelection.Spice:
                 RequireEngine(configureSpice, ProviderSelectionParser.SpiceKey);
                 services.TryAddSingleton<IEphemerisEngine>(provider => configureSpice!(provider));
                 services.TryAddSingleton<IEphemeris, AstronomyEngineEphemerisAdapter>();
+                services.TryAddSingleton<IGrahaPositionsProvider, AstronomyEngineGrahaPositionsAdapter>();
                 break;
 
             case ProviderSelection.Compare:
                 RequireEngine(configureSpice, ProviderSelectionParser.CompareKey);
                 services.TryAddSingleton<IEphemerisEngine>(provider => configureSpice!(provider));
                 services.TryAddSingleton<IEphemeris, ComparingEphemeris>();
+                // Compare mode compares the Sun and Moon ports today. The graha surface has a single implementation
+                // only when the engine supplies one, so it follows the SPICE engine rather than pretending to compare
+                // nine bodies whose parity fixtures do not exist yet.
+                services.TryAddSingleton<IGrahaPositionsProvider, AstronomyEngineGrahaPositionsAdapter>();
                 break;
         }
+
+        // Both providers satisfy the graha port because both are selected here, from the same one key: a provider
+        // cannot be chosen for the Sun and Moon and silently change for the grahas.
+        services.TryAddSingleton<GrahaPositionsResolver>();
 
         // The selected provider is part of provenance and is asserted by a test.
         services.TryAddSingleton(new SelectedAstronomyProvider(selection));

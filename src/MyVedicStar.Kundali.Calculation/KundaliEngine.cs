@@ -1,20 +1,32 @@
 using MyVedicDay.Astronomy;
+using MyVedicStar.Astronomy.Core;
+using MyVedicStar.Kundali.Shared;
 using NodaTime;
 using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Calculation;
 
 /// <summary>
-/// KUN-20 slices 1 and 3: sun/moon sidereal longitudes with their signs, and the Vimshottari mahadasha sequence.
+/// KUN-20: sun/moon sidereal longitudes with their signs, the nine-graha positions, and the Vimshottari and Yogini
+/// dasha sequences.
 /// </summary>
 /// <remarks>
 /// <para>Pure calculation. It resolves no profile, no settings, no database and no clock - everything arrives as
 /// plain values, so identical inputs always produce identical output.</para>
-/// <para>Depends on <see cref="IEphemeris"/> and <see cref="IAyanamsa"/>, not on their implementations: a future
-/// higher-precision provider is selected through configuration and this code is unchanged.</para>
+/// <para>Depends on <see cref="IEphemeris"/>, <see cref="IGrahaPositionsProvider"/> and <see cref="IAyanamsa"/>, not on
+/// their implementations: a higher-precision provider is selected through configuration and this code is unchanged.</para>
 /// </remarks>
 public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IKundaliEngine
 {
+    /// <summary>
+    /// Optional graha surface. A caller that only wants Sun/Moon does not have to supply one; when it is absent the graha
+    /// section is withheld with <c>not-implemented</c> rather than omitted, so the absence is still explained.
+    /// </summary>
+    public IGrahaPositionsProvider? GrahaProvider { get; init; }
+
+    /// <summary>Independent reference values the envelope may assert. Supplied by composition, never hard-coded here.</summary>
+    public IReadOnlyList<PlanetaryReference> PlanetaryReferences { get; init; } = [];
+
     /// <summary>Full circle in degrees.</summary>
     private const double CircleDegrees = 360.0;
 
@@ -52,6 +64,8 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
             AddGap(gaps, nameof(KundaliCalculationResult.YoginiPeriods),
                 KundaliCalculationReasons.RequiresExactBirthTime);
             AddGap(gaps, nameof(KundaliCalculationResult.CharaSignPeriods),
+                KundaliCalculationReasons.RequiresExactBirthTime);
+            AddGap(gaps, nameof(KundaliCalculationResult.GrahaPositions),
                 KundaliCalculationReasons.RequiresExactBirthTime);
 
             return new KundaliCalculationResult(conventions, null, null, null, null, null, null, null, gaps);
@@ -93,9 +107,77 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
         AddGap(gaps, nameof(KundaliCalculationResult.CharaSignPeriods),
             KundaliCalculationReasons.UnvalidatedReference);
 
+        var grahas = BuildGrahaPositions(julianDayUt, ayanamsaDegrees, gaps);
+
         return new KundaliCalculationResult(conventions, sunSidereal, moonSidereal,
-            SignOf(sunSidereal), SignOf(moonSidereal), mahadashas, yogini, null, gaps);
+            SignOf(sunSidereal), SignOf(moonSidereal), mahadashas, yogini, null, gaps, grahas);
     }
+
+    /// <summary>
+    /// The nine-graha section. The gate that decides which longitudes may be published lives in
+    /// <see cref="GrahaPositionsResolver"/>, not here: this method only adapts the astronomy vocabulary to the Kundali one.
+    /// </summary>
+    private KundaliGrahaPositions? BuildGrahaPositions(double julianDayUt, double ayanamsaDegrees,
+        List<KundaliCalculationGap> gaps)
+    {
+        if (GrahaProvider is null)
+        {
+            AddGap(gaps, nameof(KundaliCalculationResult.GrahaPositions), KundaliCalculationReasons.NotImplemented);
+            return null;
+        }
+
+        var conventions = new GrahaConventions("Sidereal", "Lahiri", ayanamsaDegrees.ToString("0.######",
+                System.Globalization.CultureInfo.InvariantCulture), KundaliNodeConvention,
+            "analytical", "Grahas are geocentric; house placement needs an ascendant, which is withheld.");
+        var resolved = new GrahaPositionsResolver(GrahaProvider)
+            .Resolve(julianDayUt, ayanamsaDegrees, conventions, PlanetaryReferences);
+
+        AddGrahaGaps(gaps, resolved);
+
+        var positions = resolved.Grahas.Select(graha => new KundaliGrahaPosition(graha.Graha.ToString(),
+            graha.SiderealLongitude,
+            graha.Sign is { } sign ? SignName(sign) : null,
+            graha.DegreeWithinSign is { } degrees ? (decimal)Math.Round(degrees, 4) : null,
+            graha.Retrograde,
+            graha.MeanDailyMotionDegrees,
+            graha.Reason)).ToArray();
+
+        return new KundaliGrahaPositions(positions, KundaliNodeConvention, Summary(resolved.Accuracy));
+    }
+
+    private static void AddGrahaGaps(List<KundaliCalculationGap> gaps, GrahaPositionsResult resolved)
+    {
+        // A graha absent from the envelope's per-body set is reported once, at its own path, so a caller can bind the
+        // reason to the field it chose not to render instead of parsing one aggregate code.
+        foreach (var graha in resolved.Grahas.Where(graha => !graha.SiderealLongitude.HasValue))
+        {
+            AddGap(gaps, $"{nameof(KundaliCalculationResult.GrahaPositions)}.{graha.Graha}",
+                graha.Status == GrahaReasonCodes.NotImplemented
+                    ? KundaliCalculationReasons.NotImplemented
+                    : KundaliCalculationReasons.UnvalidatedReference);
+        }
+    }
+
+    /// <summary>
+    /// One sentence a caller can publish. Built from the envelope rather than restated, so the summary cannot claim more
+    /// than the envelope does.
+    /// </summary>
+    private static string Summary(GrahaAccuracyEnvelope accuracy)
+    {
+        var asserted = accuracy.PerBodyArcseconds
+            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => $"{pair.Key} {pair.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)} arcsec")
+            .ToArray();
+        return asserted.Length == 0
+            ? "No graha tolerance is asserted: no independent reference values are checked in. Longitudes for Mars, "
+              + "Mercury, Jupiter, Venus, Saturn, Rahu and Ketu are withheld as unvalidated-reference."
+            : $"Asserted tolerances: {string.Join(", ", asserted)}. All other grahas are withheld as unvalidated-reference.";
+    }
+
+    /// <summary>Sign name from the wired sign table, so the graha section and a chart cannot disagree about a label.</summary>
+    private static string SignName(int sign) => MyVedicStar.Kundali.Shared.KundaliSigns.NameOf(sign);
+
+    private const string KundaliNodeConvention = "MeanNode";
 
     /// <summary>Zero-based sign index. 0 = Aries. Whole-sign, so the boundary belongs to the later sign.</summary>
     internal static int SignOf(double siderealLongitude) =>

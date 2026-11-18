@@ -37,6 +37,8 @@ public static class AstronomyServiceCollectionExtensions
         services.TryAddSingleton<ISunEventCalculator, SunEventCalculator>();
         services.TryAddSingleton<IMoonEventCalculator, MoonEventCalculator>();
         services.TryAddSingleton<IPlanetEphemeris, KeplerianPlanetEphemeris>();
+        // The graha port is selected with the Sun/Moon port (one configuration key), never independently.
+        services.TryAddSingleton<GrahaPositionsResolver>();
         services.TryAddSingleton<LahiriAyanamsa>();
         // The interface as well as the concrete type: consumers that depend on the abstraction (the Kundali engine
         // does) cannot resolve LahiriAyanamsa by its interface unless it is registered as one. Registering only the

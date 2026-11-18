@@ -51,6 +51,9 @@ public sealed record KundaliCalculationRequest(
 /// Engine output. Every nullable is explained by an entry in <see cref="Gaps"/>; a caller can therefore never see an
 /// absent value without also being told which of the three reasons applies.
 /// </summary>
+/// <param name="GrahaPositions">The publishable nine-graha section. Null only when the birth time is not exact, in which
+/// case <see cref="Gaps"/> carries the matching reason. Present-and-withheld grahas are described inside it with their own
+/// reason codes, so a partial section is still explained.</param>
 public sealed record KundaliCalculationResult(
     KundaliCalculationConventions Conventions,
     double? SiderealSunLongitude,
@@ -60,7 +63,8 @@ public sealed record KundaliCalculationResult(
     IReadOnlyList<KundaliVimshottariPeriod>? VimshottariMahadashas,
     IReadOnlyList<KundaliYoginiPeriod>? YoginiPeriods,
     IReadOnlyList<KundaliCharaPeriod>? CharaSignPeriods,
-    IReadOnlyList<KundaliCalculationGap> Gaps);
+    IReadOnlyList<KundaliCalculationGap> Gaps,
+    KundaliGrahaPositions? GrahaPositions = null);
 
 /// <summary>
 /// One Vimshottari mahadasha period. Both ends are UTC instants; presenting them in the profile's zone is the
@@ -76,3 +80,48 @@ public sealed record KundaliCharaPeriod(string Sign, DateTimeOffset StartUtc, Da
 public sealed record KundaliVimshottariPeriod(string Lord, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
     bool IsRemainder);
 
+
+/// <summary>
+/// Reason codes for graha positions specifically. Deliberately narrower than <see cref="KundaliCalculationReasons"/> so a
+/// consumer of the graha section is told <b>why</b> a graha is absent rather than only that it is.
+/// </summary>
+public static class KundaliGrahaReasons
+{
+    /// <summary>Computed, but no independent reference exists to bound its accuracy. Withheld rather than shipped with a
+    /// guessed tolerance.</summary>
+    public const string UnvalidatedReference = "unvalidated-reference";
+
+    /// <summary>The provider behind the port cannot produce this graha.</summary>
+    public const string NotImplemented = "not-implemented";
+
+    /// <summary>No ayanamsa was resolvable, so no sidereal longitude can be formed.</summary>
+    public const string AyanamsaUnavailable = "ayanamsa-unavailable";
+
+    /// <summary>The birth time is not exact, so the positions are indeterminate.</summary>
+    public const string RequiresExactBirthTime = "requires-exact-birth-time";
+}
+
+/// <summary>One graha's publishable position. <c>SiderealLongitude</c> is null exactly when <c>Reason</c> is non-null.</summary>
+public sealed record KundaliGrahaPosition(
+    string Graha,
+    double? SiderealLongitude,
+    string? Sign,
+    decimal? DegreeWithinSign,
+    bool? Retrograde,
+    double? MeanDailyMotionDegrees,
+    string? Reason);
+
+/// <summary>The nine-graha section, with the accuracy envelope it was produced under.</summary>
+public sealed record KundaliGrahaPositions(
+    IReadOnlyList<KundaliGrahaPosition> Grahas,
+    string NodeConvention,
+    string AccuracySummary)
+{
+    /// <summary>Grahas with a published longitude. A caller counting the chart's placements reads this, not the list.</summary>
+    public IReadOnlyList<KundaliGrahaPosition> Published =>
+        Grahas.Where(graha => graha.SiderealLongitude.HasValue).ToArray();
+
+    /// <summary>Grahas withheld, with reasons, so an absence is never silent.</summary>
+    public IReadOnlyList<KundaliGrahaPosition> Withheld =>
+        Grahas.Where(graha => !graha.SiderealLongitude.HasValue).ToArray();
+}
