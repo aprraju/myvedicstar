@@ -59,6 +59,7 @@ public static class KundaliIntegrationRegistration
         services.AddScoped<IKundaliProfileReader, KundaliProfileReader>();
         services.AddKundaliAstronomyMetadata();
         services.AddKundaliCalculationEngine();
+        services.AddKundaliDivisionalMapper();
         return services;
     }
 }

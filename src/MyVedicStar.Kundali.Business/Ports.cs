@@ -49,6 +49,19 @@ public interface IKundaliRepository
         string payloadJson, bool isFinal, string? failureReasonCode, CancellationToken token);
 
     Task<KundaliPreferences?> GetPreferencesAsync(Guid accountId, Guid profileId, CancellationToken token);
+    /// <summary>
+    /// KUN-23: deletes every Kundali row owned by this account for this profile - preferences, revisions, snapshots
+    /// and the aggregate - in one transaction, and reports how many aggregates were removed.
+    /// </summary>
+    /// <remarks>
+    /// <para>Deliberately a single ordered delete rather than a database cascade. A cascade fires the moment the
+    /// profile row disappears, leaving no place to record the intent, no chance to revoke access first, and no
+    /// idempotency: a retried request would find nothing to do and could not distinguish that from success.</para>
+    /// <para>Returns the count so a caller can tell "there was nothing to delete" from "deletion happened".</para>
+    /// </remarks>
+    Task<int> DeleteForProfileAsync(Guid accountId, Guid profileId, CancellationToken token);
+
+
 
     /// <summary>Upserts display preferences. Presentation-only: never touches revisions or provenance.</summary>
     Task<KundaliPreferences> SavePreferencesAsync(Guid accountId, Guid profileId, string chartStyle,

@@ -14,6 +14,12 @@ public static class KundaliModuleRegistration
     public static IServiceCollection AddKundaliModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddKundaliBusiness(); services.AddKundaliData(); services.AddKundaliIntegration();
+
+        // Profile deletion is extended by registration, not by reference: VedicProfiles must not know Kundali, and
+        // Kundali.Integration must not know VedicProfiles. This project references both, so it is the only place the
+        // two can be joined without inverting a dependency.
+        services.AddScoped<MyVedicStar.VedicProfiles.Business.IVedicProfileDeletionParticipant,
+            MyVedicStar.Kundali.Integration.KundaliProfileDeletionParticipant>();
         return services;
     }
 }

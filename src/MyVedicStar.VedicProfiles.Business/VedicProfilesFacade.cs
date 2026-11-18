@@ -5,7 +5,8 @@ using MyVedicStar.VedicProfiles.Shared;
 namespace MyVedicStar.VedicProfiles.Business;
 
 internal sealed class VedicProfilesFacade(IVedicProfileAccountReader accounts, IVedicProfileRepository repository,
-    VedicProfileValidator validator) : IVedicProfilesFacade
+    VedicProfileValidator validator, IEnumerable<IVedicProfileDeletionParticipant> deletionParticipants)
+    : IVedicProfilesFacade
 {
     public async Task<IReadOnlyList<VedicProfileSummary>> ListAsync(ClaimsPrincipal user, CancellationToken token) =>
         await repository.ListAsync(await accounts.GetRegisteredAccountIdAsync(user, token), token);
@@ -41,6 +42,13 @@ internal sealed class VedicProfilesFacade(IVedicProfileAccountReader accounts, I
     public async Task DeleteAsync(ClaimsPrincipal user, Guid id, CancellationToken token)
     {
         var accountId = await accounts.GetRegisteredAccountIdAsync(user, token);
+
+        // Participants run BEFORE the profile row is removed. If one throws, the profile survives intact - an
+        // orphaned profile is recoverable, whereas rows left behind for a profile that no longer exists are not
+        // reachable by any endpoint and can never be cleaned up by the owner.
+        foreach (var participant in deletionParticipants)
+            await participant.RemoveAsync(accountId, id, token);
+
         if (!await repository.DeleteAsync(accountId, id, token))
             throw new ResourceNotFoundException(VedicProfileErrors.NotFound);
     }
