@@ -59,6 +59,15 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
             await facade.GetChartsAsync(User, profileId, divisional == 0 ? 1 : divisional, token)));
 
 
+
+    /// <summary>KUN-08 planets section. The response separates implemented <c>rules</c> from actual <c>placements</c>:
+    /// dignity and aspect rules cover all nine grahas, but a placement appears only when the engine has a position for
+    /// it. Anything absent is named in <c>unsupported</c> - never an empty cell.</summary>
+    [HttpGet("{profileId:guid}/sections/planets"), ProducesResponseType<KundaliPlanetsSectionResponse>(200)]
+    public async Task<ActionResult<KundaliPlanetsSectionResponse>> Planets(Guid profileId, CancellationToken token) =>
+        Ok(KundaliPlanetsSectionResponse.From(await facade.GetPlanetsAsync(User, profileId, token)));
+
+
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
     [HttpPost("{profileId:guid}/generations"), ProducesResponseType<KundaliViewResponse>(202)]

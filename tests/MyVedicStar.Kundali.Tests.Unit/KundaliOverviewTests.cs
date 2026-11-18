@@ -34,7 +34,22 @@ public sealed class KundaliOverviewTests
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), new FixedClock());
+            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new FixedClock());
+    }
+
+    /// <summary>Real rules over the calculation project: the dignity tests assert the rules, not a stub.</summary>
+    private static IKundaliDignityRules Rules() => new TestDignityRules();
+
+    private sealed class TestDignityRules : IKundaliDignityRules
+    {
+        public IReadOnlyList<string> DignityStates =>
+            MyVedicStar.Kundali.Calculation.PlanetaryDignity.Dignities;
+
+        public string DignityOf(string planet, double siderealLongitude) =>
+            MyVedicStar.Kundali.Calculation.PlanetaryDignity.Of(planet, siderealLongitude);
+
+        public IReadOnlyList<int> AspectedSigns(string planet, int fromSign) =>
+            MyVedicStar.Kundali.Calculation.PlanetaryDignity.AspectedSigns(planet, fromSign);
     }
 
     /// <summary>Real mapper over the calculation project: the divisional tests assert the rule, not a stub.</summary>
@@ -449,6 +464,110 @@ public sealed class KundaliOverviewTests
 
         await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
             facade.GetChartsAsync(user, profileId, 1, Token));
+    }
+
+    [Fact]
+    public async Task Rules_are_reported_for_all_nine_grahas_even_though_only_two_have_positions()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>()));
+
+        var section = await facade.GetPlanetsAsync(user, profileId, Token);
+
+        // The rule capability is chart-independent: all nine bodies are covered by dignity/aspect rules.
+        Assert.Equal(9, section.Rules.BodiesWithPositions.Count + section.Rules.BodiesWithoutPositions.Count);
+        Assert.Equal(2, section.Rules.BodiesWithPositions.Count);
+
+        // Placements exist only for the two the engine could place.
+        Assert.Equal(2, section.Planets.Count);
+        Assert.All(section.Planets, planet => Assert.Contains(planet.Planet, section.Rules.BodiesWithPositions));
+    }
+
+    [Fact]
+    public async Task Every_graha_without_a_position_is_named_rather_than_silently_omitted()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>()));
+
+        var section = await facade.GetPlanetsAsync(user, profileId, Token);
+
+        // A client must be able to tell "no Mars in this chart" from "no Mars position available at all".
+        foreach (var body in new[] { "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu" })
+            Assert.Contains(section.Unsupported, gap => gap.Path == $"Planets.{body}");
+    }
+
+    [Fact]
+    public async Task Dignity_is_computed_from_the_rule_not_defaulted()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // Sun at 10 Aries is exalted. Moon at 105 (Cancer 15) is not - the first attempt used 45, which is Taurus,
+        // the Moon's OWN exaltation sign, so the fixture accidentally asserted the opposite of what it read like.
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 105.0, 0, 3, null, null, null,
+                Array.Empty<KundaliEngineGap>()));
+
+        var section = await facade.GetPlanetsAsync(user, profileId, Token);
+
+        Assert.Equal("Exalted", section.Planets.Single(p => p.Planet == "Sun").Dignity);
+        Assert.NotEqual("Exalted", section.Planets.Single(p => p.Planet == "Moon").Dignity);
+        // Asserted positively too, so the test cannot pass merely because Exalted became unreachable.
+        Assert.Equal("Own", section.Planets.Single(p => p.Planet == "Moon").Dignity);
+    }
+
+    [Fact]
+    public async Task Unknown_retrograde_and_house_are_null_not_false()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>()));
+
+        var section = await facade.GetPlanetsAsync(user, profileId, Token);
+
+        // Reporting false would be a factual claim the engine cannot support.
+        var sun = section.Planets.Single(p => p.Planet == "Sun");
+        Assert.Null(sun.Retrograde);
+        Assert.Null(sun.Combust);
+        Assert.Null(sun.House);
+    }
+
+    [Fact]
+    public async Task An_inexact_birth_time_yields_no_placements_and_says_why()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Approximate, from: new TimeOnly(5, 0), to: new TimeOnly(7, 30)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(null, null, null, null, null, null, null,
+                [new KundaliEngineGap("SunSign", KundaliEngineReasons.RequiresExactBirthTime)]));
+
+        var section = await facade.GetPlanetsAsync(user, profileId, Token);
+
+        Assert.Empty(section.Planets);
+        // The rules are still reported, because they do not depend on the birth time.
+        Assert.NotEmpty(section.Rules.DignityStates);
+        Assert.Contains(section.Unsupported, gap => gap.Path == "Planets.Sun");
+    }
+
+    [Fact]
+    public async Task A_foreign_profile_is_not_found_for_planets()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token).Returns((KundaliProfileDisplay?)null);
+
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            facade.GetPlanetsAsync(user, profileId, Token));
     }
 
 }

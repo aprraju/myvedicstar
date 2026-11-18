@@ -8,6 +8,7 @@ namespace MyVedicStar.Kundali.Business;
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
+    IKundaliDignityRules dignityRules,
     TimeProvider clock) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -313,6 +314,100 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         60 => "Shashtiamsa",
         _ => $"D{divisional}"
     };
+
+
+
+    /// <summary>Bodies the engine can place today. Anything else is listed as rule-only, never as an empty placement.</summary>
+    private static readonly string[] BodiesWithPositions = ["Sun", "Moon"];
+
+    /// <summary>Grahas the dignity and aspect rules cover but for which no position exists yet.</summary>
+    private static readonly string[] BodiesWithoutPositions =
+        ["Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"];
+
+    public async Task<KundaliPlanetsSection> GetPlanetsAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        // The rules exist for every graha; the positions do not. Stating both is the only way a caller can tell
+        // "we cannot compute this" from "we can compute it but not for your chart yet".
+        foreach (var body in BodiesWithoutPositions)
+            unsupported.Add(new KundaliUnsupportedField($"Planets.{body}", KundaliUnsupportedReasons.EngineUnavailable));
+
+        var planets = new List<KundaliPlanetDetail>(BodiesWithPositions.Length);
+
+        AddPlanet(planets, unsupported, "Sun", engine.SiderealSunLongitude);
+        AddPlanet(planets, unsupported, "Moon", engine.SiderealMoonLongitude);
+
+        var hasAnyPosition = planets.Count > 0;
+
+        // With no positions at all, retrograde state and combustion are not "false" - they are unknown. Reporting
+        // false would be a factual claim the engine cannot support.
+        if (!hasAnyPosition)
+        {
+            unsupported.Add(new KundaliUnsupportedField("Planets.Retrograde",
+                KundaliUnsupportedReasons.RequiresExactBirthTime));
+            unsupported.Add(new KundaliUnsupportedField("Planets.Combust",
+                KundaliUnsupportedReasons.RequiresExactBirthTime));
+            unsupported.Add(new KundaliUnsupportedField("Planets.House",
+                KundaliUnsupportedReasons.UnvalidatedReference));
+        }
+
+        return new KundaliPlanetsSection(
+            metadata.HouseSystem,
+            metadata.AspectMethod,
+            new KundaliRuleCapabilities(
+                dignityRules.DignityStates,
+                ["Parashari-WholeSign"],
+                BodiesWithPositions,
+                BodiesWithoutPositions),
+            planets,
+            unsupported);
+    }
+
+    /// <summary>
+    /// Adds one placement. Dignity is computed from the rule, not looked up; the values the rules need but the engine
+    /// cannot supply (retrograde, house) stay null rather than defaulting to a plausible false.
+    /// </summary>
+    private void AddPlanet(List<KundaliPlanetDetail> target, List<KundaliUnsupportedField> unsupported,
+        string planet, double? siderealLongitude)
+    {
+        if (siderealLongitude is not { } longitude)
+        {
+            unsupported.Add(new KundaliUnsupportedField($"Planets.{planet}",
+                KundaliUnsupportedReasons.RequiresExactBirthTime));
+            return;
+        }
+
+        var signIndex = (int)Math.Floor(longitude / 30.0) % 12;
+        var degreeInSign = (decimal)(longitude - (signIndex * 30.0));
+
+        // Aspects are emitted as the signs this planet projects onto; resolving a sign to occupant bodies is a
+        // different question that needs those bodies' positions.
+        var aspects = dignityRules.AspectedSigns(planet, signIndex)
+            .Select(sign => new KundaliPlanetAspect(KundaliSigns.NameOf(sign), "Parashari-WholeSign"))
+            .ToArray();
+
+        target.Add(new KundaliPlanetDetail(
+            planet,
+            longitude,
+            KundaliSigns.NameOf(signIndex),
+            Math.Round(degreeInSign, 4),
+            null,
+            null,
+            null,
+            null,
+            null,
+            dignityRules.DignityOf(planet, longitude),
+            aspects));
+    }
 
 
     private static KundaliDasha ToDasha(KundaliEngineDasha period) =>

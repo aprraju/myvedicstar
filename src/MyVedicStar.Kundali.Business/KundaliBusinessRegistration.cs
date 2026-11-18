@@ -23,6 +23,7 @@ public static class KundaliBusinessRegistration
         // Composition supplies the real engine; this default keeps the facade constructible in isolation.
         services.TryAddScoped<IKundaliCalculationEngine, UnconfiguredKundaliCalculationEngine>();
         services.TryAddScoped<IKundaliDivisionalMapper, UnconfiguredDivisionalMapper>();
+        services.TryAddScoped<IKundaliDignityRules, UnconfiguredDignityRules>();
         return services;
     }
 }
@@ -57,6 +58,24 @@ public interface IKundaliDivisionalMapper
 }
 
 
+
+/// <summary>
+/// Dignity, combustion and aspect rules as a port. The rules live in the calculation project; Business consumes the
+/// abstraction so the layering (Business never references Calculation) holds and the rules stay testable in isolation.
+/// </summary>
+public interface IKundaliDignityRules
+{
+    /// <summary>The published dignity vocabulary, strongest first.</summary>
+    IReadOnlyList<string> DignityStates { get; }
+
+    /// <summary>Dignity of a planet at a sidereal longitude.</summary>
+    string DignityOf(string planet, double siderealLongitude);
+
+    /// <summary>Sign indices this planet aspects from the given sign.</summary>
+    IReadOnlyList<int> AspectedSigns(string planet, int fromSign);
+}
+
+
 internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculationEngine
 {
     public KundaliEngineResult Calculate(KundaliEngineInput input) => new(null, null, null, null, null, null, null,
@@ -80,4 +99,16 @@ internal sealed class UnconfiguredDivisionalMapper : IKundaliDivisionalMapper
     public int SignIn(int divisional, double siderealLongitude) =>
         throw new ArgumentOutOfRangeException(nameof(divisional), divisional,
             "No divisional mapper is registered.");
+}
+
+/// <summary>Fallback used when composition has not supplied the real rules. Reports no dignity states and refuses
+/// to classify, so a missing registration surfaces as unsupported rather than as a silently wrong dignity.</summary>
+internal sealed class UnconfiguredDignityRules : IKundaliDignityRules
+{
+    public IReadOnlyList<string> DignityStates => [];
+
+    public string DignityOf(string planet, double siderealLongitude) =>
+        throw new InvalidOperationException("No dignity rules are registered.");
+
+    public IReadOnlyList<int> AspectedSigns(string planet, int fromSign) => [];
 }

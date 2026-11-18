@@ -96,6 +96,7 @@ public static class KundaliCalculationEngineRegistration
             provider.GetRequiredService<MyVedicDay.Astronomy.IAyanamsa>()));
         services.Replace(ServiceDescriptor.Scoped<IKundaliCalculationEngine, KundaliCalculationEngineAdapter>());
         services.AddKundaliDivisionalMapper();
+        services.AddKundaliDignityRules();
         return services;
     }
 }

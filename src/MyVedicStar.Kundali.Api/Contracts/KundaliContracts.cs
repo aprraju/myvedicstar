@@ -155,6 +155,61 @@ public sealed record KundaliChartPrecisionResponse(string Status, string? Reason
 }
 
 
+
+/// <summary>KUN-08 planets response. <c>Rules</c> and <c>Planets</c> make different claims and must be read
+/// separately: rules are implemented and tested, placements are what the engine could actually produce.</summary>
+public sealed record KundaliPlanetsSectionResponse(
+    string HouseSystem,
+    string AspectMethod,
+    KundaliRuleCapabilitiesResponse Rules,
+    IReadOnlyList<KundaliPlanetDetailResponse> Planets,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliPlanetsSectionResponse From(MyVedicStar.Kundali.Shared.KundaliPlanetsSection value) => new(
+        value.HouseSystem,
+        value.AspectMethod,
+        KundaliRuleCapabilitiesResponse.From(value.Rules),
+        value.Planets.Select(KundaliPlanetDetailResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+public sealed record KundaliRuleCapabilitiesResponse(
+    IReadOnlyList<string> DignityStates,
+    IReadOnlyList<string> AspectMethodIds,
+    IReadOnlyList<string> BodiesWithPositions,
+    IReadOnlyList<string> BodiesWithoutPositions)
+{
+    public static KundaliRuleCapabilitiesResponse From(MyVedicStar.Kundali.Shared.KundaliRuleCapabilities value) =>
+        new(value.DignityStates.ToArray(), value.AspectMethodIds.ToArray(),
+            value.BodiesWithPositions.ToArray(), value.BodiesWithoutPositions.ToArray());
+}
+
+public sealed record KundaliPlanetDetailResponse(
+    string Planet,
+    double Longitude,
+    string Sign,
+    decimal DegreeInSign,
+    string? Nakshatra,
+    int? Pada,
+    int? House,
+    bool? Retrograde,
+    bool? Combust,
+    string Dignity,
+    IReadOnlyList<KundaliPlanetAspectResponse> Aspects)
+{
+    public static KundaliPlanetDetailResponse From(MyVedicStar.Kundali.Shared.KundaliPlanetDetail value) => new(
+        value.Planet, value.Longitude, value.Sign, value.DegreeInSign, value.Nakshatra, value.Pada, value.House,
+        value.Retrograde, value.Combust, value.Dignity,
+        value.Aspects.Select(KundaliPlanetAspectResponse.From).ToArray());
+}
+
+public sealed record KundaliPlanetAspectResponse(string To, string Type)
+{
+    public static KundaliPlanetAspectResponse From(MyVedicStar.Kundali.Shared.KundaliPlanetAspect value) =>
+        new(value.To, value.Type);
+}
+
+
 /// <summary>Time fields are omitted when the mode does not carry them, so no consumer can read a placeholder as a
 /// real birth time.</summary>
 public sealed record KundaliBirthDetailsResponse(

@@ -205,6 +205,51 @@ public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, str
 public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
 /// <summary>
+/// KUN-08 planets section. Two distinct claims are carried in one payload and must not be conflated:
+/// <c>Rules</c> lists the dignity and aspect <b>methods this build implements and tests</b>, while
+/// <c>Planets</c> lists <b>actual placements</b>, which are empty when the engine has no position for a graha.
+/// </summary>
+/// <param name="HouseSystem">The configured house system identifier, echoed rather than assumed.</param>
+/// <param name="AspectMethod">The configured aspect method identifier.</param>
+/// <param name="Rules">Rule capabilities: implemented and tested, independent of any chart.</param>
+/// <param name="Planets">Placements. Empty entries are explained by <paramref name="Unsupported"/>.</param>
+public sealed record KundaliPlanetsSection(
+    string HouseSystem,
+    string AspectMethod,
+    KundaliRuleCapabilities Rules,
+    IReadOnlyList<KundaliPlanetDetail> Planets,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+/// <summary>
+/// What this build can and cannot answer. Separating "rule implemented" from "placement available" is the whole point:
+/// a client must be able to say "we can compute dignity, but not for your chart yet".
+/// </summary>
+public sealed record KundaliRuleCapabilities(
+    IReadOnlyList<string> DignityStates,
+    IReadOnlyList<string> AspectMethodIds,
+    IReadOnlyList<string> BodiesWithPositions,
+    IReadOnlyList<string> BodiesWithoutPositions);
+
+/// <summary>A single placement. Fields that cannot be produced are absent and named in the section's unsupported list.</summary>
+public sealed record KundaliPlanetDetail(
+    string Planet,
+    double Longitude,
+    string Sign,
+    decimal DegreeInSign,
+    string? Nakshatra,
+    int? Pada,
+    int? House,
+    bool? Retrograde,
+    bool? Combust,
+    string Dignity,
+    IReadOnlyList<KundaliPlanetAspect> Aspects);
+
+/// <summary>One whole-sign aspect. There is no orb: whole-sign aspects do not have one.</summary>
+public sealed record KundaliPlanetAspect(string To, string Type);
+
+
+
+/// <summary>
 /// KUN-07 charts section for one divisional chart. The chart style (North/South/East) is deliberately absent: all
 /// three styles render the same placements, so style is a presentation concern and never part of the result.
 /// </summary>
