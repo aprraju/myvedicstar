@@ -12,12 +12,13 @@ public sealed record KundaliRevisionResponse(
     bool IsPartial,
     string[] CompletedSections,
     KundaliProvenanceResponse Provenance,
-    DateTimeOffset CreatedAtUtc)
+    DateTimeOffset CreatedAtUtc,
+    long? SupersededByRevision)
 {
     public static KundaliRevisionResponse From(MyVedicStar.Kundali.Shared.KundaliRevisionSummary value) => new(
         value.RevisionId, value.Revision, value.Status.ToString(), value.FailureReasonCode, value.InputSnapshotHash,
         value.IsStale, value.IsPartial, value.CompletedSections.ToArray(), KundaliProvenanceResponse.From(value.Provenance),
-        value.CreatedAtUtc);
+        value.CreatedAtUtc, value.SupersededByRevision);
 }
 
 public sealed record KundaliProvenanceResponse(
@@ -29,6 +30,12 @@ public sealed record KundaliProvenanceResponse(
 
 /// <summary>Module shell payload. <c>HasResult</c> is false when the profile has no Kundali yet, which is a valid
 /// empty state rather than an error (KUN-01/KUN-02 shell contract).</summary>
+/// <summary>
+/// Module shell payload. `HasResult` is false when the profile has no Kundali yet, which is a valid empty state rather
+/// than an error (KUN-01/KUN-02 shell contract). `IsCurrent`, `ProfileRevision`, `InputRevision` and `RevisionKey`
+/// are the freshness envelope (KUN-21): a client renders a result only when `IsCurrent` is true, and keys its own cache
+/// on `RevisionKey` - never on the aggregate id, which survives edits.
+/// </summary>
 public sealed record KundaliViewResponse(
     Guid ProfileId,
     Guid AggregateId,
@@ -37,6 +44,10 @@ public sealed record KundaliViewResponse(
     KundaliRevisionResponse? CurrentRevision,
     DateTimeOffset? CreatedAtUtc,
     DateTimeOffset? UpdatedAtUtc,
+    long ProfileRevision,
+    long InputRevision,
+    bool IsCurrent,
+    string? RevisionKey,
     KundaliSettingsResponse? Settings)
 {
     public static KundaliViewResponse From(MyVedicStar.Kundali.Shared.KundaliView value) => new(
@@ -44,6 +55,7 @@ public sealed record KundaliViewResponse(
         value.CurrentRevision is null ? null : KundaliRevisionResponse.From(value.CurrentRevision),
         value.Aggregate.CreatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.CreatedAtUtc,
         value.Aggregate.UpdatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.UpdatedAtUtc,
+        value.ProfileRevision, value.InputRevision, value.IsCurrent, value.RevisionKey,
         value.Settings is null ? null : KundaliSettingsResponse.From(value.Settings));
 }
 
@@ -53,6 +65,24 @@ public sealed record KundaliSettingsResponse(string Ayanamsa, string ChartStyle)
 {
     public static KundaliSettingsResponse From(MyVedicStar.Kundali.Shared.KundaliEffectiveSettings value) =>
         new(value.Ayanamsa, value.ChartStyle);
+}
+
+/// <summary>Freshness envelope of a section payload (KUN-21), so a cached copy always says which revision it describes.</summary>
+public sealed record KundaliFreshnessResponse(
+    Guid ProfileId,
+    long ProfileRevision,
+    string RevisionKey,
+    string InputSnapshotHash,
+    KundaliProvenanceResponse Provenance,
+    DateTimeOffset AsOfUtc,
+    DateTimeOffset? CurrentDashaExpiresAtUtc)
+{
+    public static KundaliFreshnessResponse? From(MyVedicStar.Kundali.Shared.KundaliResultFreshness value) =>
+        value.RevisionKey.Length == 0
+            ? null
+            : new KundaliFreshnessResponse(value.ProfileId, value.ProfileRevision, value.RevisionKey,
+                value.InputSnapshotHash, KundaliProvenanceResponse.From(value.Provenance), value.AsOfUtc,
+                value.CurrentDashaExpiresAtUtc);
 }
 
 public sealed record KundaliPreferencesResponse(string ChartStyle, long Revision, DateTimeOffset? UpdatedAtUtc)
@@ -94,7 +124,8 @@ public sealed record KundaliOverviewResponse(
     string? SunSign,
     KundaliDashaResponse? CurrentDasha,
     IReadOnlyList<KundaliPlacementResponse> KeyPlacements,
-    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported,
+    KundaliFreshnessResponse? Freshness)
 {
     public static KundaliOverviewResponse From(MyVedicStar.Kundali.Shared.KundaliOverview value) => new(
         value.ProfileId,
@@ -105,7 +136,8 @@ public sealed record KundaliOverviewResponse(
         value.SunSign,
         value.CurrentDasha is null ? null : KundaliDashaResponse.From(value.CurrentDasha),
         value.KeyPlacements.Select(KundaliPlacementResponse.From).ToArray(),
-        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray(),
+        KundaliFreshnessResponse.From(value.Freshness));
 }
 
 

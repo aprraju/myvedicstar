@@ -45,6 +45,11 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                     b.Property<Guid?>("ActiveRevisionId")
                         .HasColumnType("uuid");
 
+                    b.Property<long>("ProfileRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -151,6 +156,50 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliProfileInvalidationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CancelledRevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangeKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<long>("NewRevision")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("OldRevision")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("PublishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "ProfileId", "NewRevision")
+                        .IsUnique()
+                        .HasDatabaseName("UX_KundaliProfileInvalidations_UserProfileRevision");
+
+                    b.ToTable("KundaliProfileInvalidations", "myvedicstarkundali", t =>
+                        {
+                            t.HasCheckConstraint("CK_KundaliProfileInvalidations_ChangeKind", "\"ChangeKind\" IN ('display', 'birth-input', 'calculation-settings')");
+
+                            t.HasCheckConstraint("CK_KundaliProfileInvalidations_Revision", "\"NewRevision\" > 0 AND \"NewRevision\" > \"OldRevision\"");
+                        });
+                });
+
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliPreferenceEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -252,8 +301,16 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                     b.Property<Guid>("ProfileId")
                         .HasColumnType("uuid");
 
+                    b.Property<long>("ProfileRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.Property<long>("Revision")
                         .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SupersededByProfileRevision")
                         .HasColumnType("bigint");
 
                     b.Property<string>("RuleSetVersion")

@@ -12,6 +12,13 @@ public static class KundaliErrors
     public const string InvalidBirthDate = "The birth date is outside the supported range for Kundali calculations.";
     public const string EngineUnavailable = "The calculation engine is temporarily unavailable. Try again.";
     public const string InvalidGenerationRequest = "The generation request is invalid.";
+
+    /// <summary>The profile was edited while a result was being produced; the result was discarded rather than shown
+    /// against inputs it no longer describes (KUN-22).</summary>
+    public const string ProfileChanged = "The profile changed while the Kundali was being prepared. Reload to see current results.";
+
+    /// <summary>A background result arrived for a revision the profile has already left; it is discarded (KUN-22).</summary>
+    public const string ObsoleteResult = "This result was computed for an earlier profile revision and was discarded.";
 }
 
 /// <summary>Map centrally to HTTP 409; carries no persistence detail and no personal input.</summary>

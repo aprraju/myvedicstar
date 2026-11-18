@@ -43,6 +43,9 @@ public sealed class KundaliPersistenceTests(PostgresDatabaseFixture database) : 
     /// another module's schema directly and the row shape stays whatever Authorize defines.</summary>
     private async Task<Guid> AccountAsync()
     {
+        // The disposable database exists only when the fixture was configured; without it these tests must report a skip
+        // rather than an unhandled failure that hides whether the suite actually ran.
+        Skip.IfNot(database.IsAvailable, "Set MYVEDICSTAR_TEST_POSTGRES to enable disposable PostgreSQL tests.");
         await using var scope = database.Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<IUserRepository>()
             .UpsertAsync(new(Guid.NewGuid().ToString(), "k@example.com", "First", "Last", "https://test.example"),
@@ -109,7 +112,7 @@ public sealed class KundaliPersistenceTests(PostgresDatabaseFixture database) : 
 
         var created = await repository.EnsureAggregateWithRevisionAsync(owner, profile, Snapshot(), Provenance, default);
 
-        Assert.Null(await repository.GetAsync(stranger, profile, default));
+        Assert.Null(await repository.GetAsync(stranger, profile, 1, default));
         await Assert.ThrowsAsync<ResourceNotFoundException>(() => repository.AddRevisionAsync(stranger, profile,
             created.Aggregate.Revision, Snapshot(), Provenance, default));
     }

@@ -9,25 +9,25 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
     IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
-    TimeProvider clock) : IKundaliFacade
+    TimeProvider clock,
+    IKundaliResultCache cache) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
         var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
         // Ownership is proved by reading the profile as this principal, not by trusting the path id: a foreign
-        // profile must be indistinguishable from a missing one.
-        _ = await ReadOwnedSnapshotAsync(user, profileId, token);
-
-        // Effective settings are resolved on every read rather than stored on the aggregate, so a client always sees
-        // what would apply if a generation ran now - not what applied when the last one did. The revision's own
-        // provenance remains the record of what actually produced it.
+        // profile must be indistinguishable from a missing one. The profile's own revision is what the result is
+        // judged against, so it is read on every path rather than cached.
+        var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
+        // Effective settings are resolved on every read rather than stored on the aggregate (KUN-18), so a client
+        // always sees what would apply if a generation ran now. Attached together with the revision verdict (KUN-21)
+        // so neither fact can go stale silently.
         var metadata = await metadataReader.GetAsync(user, token);
         var settings = new KundaliEffectiveSettings(metadata.Ayanamsa,
             (await repository.GetPreferencesAsync(accountId, profileId, token))?.ChartStyle ?? DefaultPreferences().ChartStyle);
-
-        return await repository.GetAsync(accountId, profileId, token) is { } view
-            ? view with { Settings = settings }
-            : EmptyView(profileId) with { Settings = settings };
+        var view = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token)
+            ?? EmptyView(profileId);
+        return Stamped(view, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion) with { Settings = settings };
     }
 
     public async Task<KundaliView> GenerateAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -37,18 +37,19 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         validator.ValidateSnapshot(snapshot);
         var provenance = await BuildProvenanceAsync(user, token);
 
-        var existing = await repository.GetAsync(accountId, profileId, token);
+        var existing = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token);
         if (existing is null)
-            return await repository.EnsureAggregateWithRevisionAsync(accountId, profileId, snapshot, provenance, token);
+            return Stamped(await repository.EnsureAggregateWithRevisionAsync(accountId, profileId, snapshot,
+                provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
 
         // Repeated clicks for identical inputs must not enqueue twice: return the running revision untouched.
         if (existing.CurrentRevision is { Status: KundaliGenerationStatus.Pending or KundaliGenerationStatus.Running }
             && existing.CurrentRevision.InputSnapshotHash == snapshot.ComputeHash()
             && existing.CurrentRevision.Provenance == provenance)
-            return existing;
+            return Stamped(existing, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
 
-        return await repository.AddRevisionAsync(accountId, profileId, existing.Aggregate.Revision,
-            snapshot, provenance, token);
+        return Stamped(await repository.AddRevisionAsync(accountId, profileId, existing.Aggregate.Revision,
+            snapshot, provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
     }
 
     public async Task<KundaliView> RetryAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -56,15 +57,16 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
         var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
         validator.ValidateSnapshot(snapshot);
-        var current = await repository.GetAsync(accountId, profileId, token) ?? EmptyView(profileId);
+        var current = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token)
+            ?? EmptyView(profileId);
         var provenance = await BuildProvenanceAsync(user, token);
 
         // Retry re-uses the snapshot; only a failure is retryable. Success or in-flight work is not silently redone.
         if (current.CurrentRevision is not { Status: KundaliGenerationStatus.Failed })
             throw new KundaliConflictException(KundaliErrors.AlreadyRunning);
 
-        return await repository.AddRevisionAsync(accountId, profileId, current.Aggregate.Revision, snapshot,
-            provenance, token);
+        return Stamped(await repository.AddRevisionAsync(accountId, profileId, current.Aggregate.Revision, snapshot,
+            provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
     }
 
     public async Task<KundaliPreferences> GetPreferencesAsync(ClaimsPrincipal user, Guid profileId,
@@ -87,9 +89,162 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
     public KundaliCapabilityReport GetCapabilities() => KundaliCapabilities.Report();
 
+    /// <summary>
+    /// KUN-22 propagation. The profile revision is not compared here by the caller: the profile is read as the
+    /// principal, the change kind is classified, and the persistence layer applies the compare-and-swap so a concurrent
+    /// edit cannot be silently folded into this one.
+    /// </summary>
+    public async Task<KundaliProfileChangeResult> ApplyProfileChangeAsync(ClaimsPrincipal user, Guid profileId,
+        long profileRevision, string changeKind, CancellationToken token)
+    {
+        if (!KundaliProfileChangeKinds.All.Contains(changeKind, StringComparer.Ordinal))
+            throw new ValidationException(KundaliErrors.InvalidGenerationRequest);
+        if (profileRevision <= 0)
+            throw new ValidationException(KundaliErrors.InvalidGenerationRequest);
+
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+        var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
+
+        // The profile's present revision is read, not assumed: a caller-supplied revision could otherwise cancel work
+        // for a revision the profile has not reached.
+        var result = await repository.ApplyProfileChangeAsync(accountId, profileId,
+            Math.Max(0, snapshot.ProfileRevision - 1), snapshot.ProfileRevision, changeKind, token);
+
+        // A display change does not touch calculated data by construction, so it costs no engine call and no cache work:
+        // a result computed from the same birth inputs is still correct after a rename. Every other kind changes what
+        // the cache key is built from, so the previous entry can never be read again and is removed eagerly rather than
+        // waiting for its lifetime to run out.
+        if (!result.DisplayOnly)
+        {
+            var provenance = await BuildProvenanceAsync(user, token);
+            await cache.RemoveAsync(KundaliCacheKeys.Section(
+                KundaliCacheKeys.RevisionKey(accountId, profileId, snapshot.ProfileRevision, provenance,
+                    RuleSetVersions(provenance, ashtakavargaRules.RulesVersion)), profileId,
+                KundaliSections.Overview), token);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// KUN-22 admission of a background result. The stored revision is compared with the profile as it is now and with
+    /// the present version tuple; a mismatch is discarded with a reason rather than published.
+    /// </summary>
+    public async Task<KundaliBackgroundResultDisposition> DiscardObsoleteResultAsync(ClaimsPrincipal user,
+        Guid profileId, Guid revisionId, CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+        var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
+        var current = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token);
+        var stored = await repository.GetSectionsAsync(accountId, profileId, revisionId, token);
+
+        if (stored is null)
+            return new KundaliBackgroundResultDisposition(false,
+                KundaliBackgroundResultDisposition.Reasons.NotFound, revisionId, 0, 0, snapshot.ProfileRevision);
+
+        if (current?.CurrentRevision is { } active && active.RevisionId != revisionId)
+            return new KundaliBackgroundResultDisposition(false,
+                KundaliBackgroundResultDisposition.Reasons.Superseded, revisionId, stored.Revision,
+                stored.ProfileRevision, snapshot.ProfileRevision);
+
+        if (stored.ProfileRevision != snapshot.ProfileRevision)
+            return new KundaliBackgroundResultDisposition(false,
+                KundaliBackgroundResultDisposition.Reasons.ProfileRevisionChanged, revisionId, stored.Revision,
+                stored.ProfileRevision, snapshot.ProfileRevision);
+
+        var provenance = await BuildProvenanceAsync(user, token);
+        if (current?.CurrentRevision is { } revision && revision.RevisionId == revisionId
+            && revision.Provenance != provenance)
+            return new KundaliBackgroundResultDisposition(false,
+                KundaliBackgroundResultDisposition.Reasons.ProvenanceChanged, revisionId, stored.Revision,
+                stored.ProfileRevision, snapshot.ProfileRevision);
+
+        return new KundaliBackgroundResultDisposition(true, null, revisionId, stored.Revision,
+            stored.ProfileRevision, snapshot.ProfileRevision);
+    }
+
+    /// <summary>
+    /// KUN-21 section read. The result is served from the account-scoped cache when the cached copy belongs to the
+    /// profile's present revision and the versions that produced it, and is recomputed otherwise. A cache failure is a
+    /// miss, never an error, and a cached payload is never trusted for freshness: the freshness envelope is compared
+    /// before the copy is returned and the copy is discarded when it disagrees.
+    /// </summary>
     public async Task<KundaliOverview> GetOverviewAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+        var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
         var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var provenance = await BuildProvenanceAsync(user, token);
+
+        var revisionKey = KundaliCacheKeys.RevisionKey(accountId, profileId, snapshot.ProfileRevision, provenance,
+            RuleSetVersions(provenance, ashtakavargaRules.RulesVersion));
+        var key = KundaliCacheKeys.Section(revisionKey, profileId, KundaliSections.Overview);
+        var now = clock.GetUtcNow();
+
+        // The key already contains the revision and versions, so a copy under this key cannot be another revision's
+        // result; the envelope check additionally rejects a copy whose dasha highlight has crossed its boundary.
+        var cached = await ReadCacheAsync<KundaliOverview>(key, token);
+        if (KundaliFreshness.IsServable(cached, now)) return cached!;
+
+        return await ProjectAndCacheOverviewAsync(user, profileId, snapshot, display, provenance, revisionKey, key,
+            token);
+    }
+
+    /// <summary>Computes a section payload and caches it under its revision key, discarding it when the profile moved
+    /// while it was being computed.</summary>
+    private async Task<KundaliOverview> ProjectAndCacheOverviewAsync(ClaimsPrincipal user, Guid profileId,
+        KundaliInputSnapshot snapshot, KundaliProfileDisplay display, KundaliProvenance provenance,
+        string revisionKey, string key, CancellationToken token)
+    {
+        var computed = await ComputeOverviewAsync(user, profileId, display, provenance, token);
+
+        // Compare-and-swap against the profile as it is now: a payload computed for a revision the profile has since
+        // left is obsolete work (KUN-22) and is discarded, not cached and not returned as current.
+        var latest = await ReadOwnedSnapshotAsync(user, profileId, token);
+        if (latest.ProfileRevision != snapshot.ProfileRevision)
+        {
+            await cache.RemoveAsync(key, token);
+            throw new KundaliConflictException(KundaliErrors.ProfileChanged);
+        }
+
+        var now = clock.GetUtcNow();
+        var boundary = KundaliFreshness.CurrentDashaBoundary(computed.MahadashaChain, now);
+        // The chain is a derivation aid, not part of the published payload (and a cached copy must not carry it twice).
+        var overview = computed with { MahadashaChain = null };
+        var stamped = overview with
+        {
+            Freshness = new KundaliResultFreshness(profileId, snapshot.ProfileRevision, revisionKey,
+                snapshot.ComputeHash(), provenance, now, boundary)
+        };
+
+        // Validity is bounded by the dasha boundary, not by an arbitrary lifetime: the current dasha highlight is the
+        // only part of this payload that changes without a revision change.
+        await WriteCacheAsync(key, stamped, boundary ?? now + CacheCeiling, token);
+        return stamped;
+    }
+
+    /// <summary>Backstop lifetime for a payload that carries no boundary of its own. The revision key, not this
+    /// lifetime, is what prevents a stale revision being served.</summary>
+    private static readonly TimeSpan CacheCeiling = TimeSpan.FromHours(12);
+
+    private const string CachePolicy = "kundali";
+
+    private async Task<T?> ReadCacheAsync<T>(string key, CancellationToken token) where T : class
+    {
+        try { return await cache.GetAsync<T>(key, token); }
+        catch (Exception) { return null; }
+    }
+
+    private async Task WriteCacheAsync<T>(string key, T value, DateTimeOffset validUntil, CancellationToken token)
+        where T : class
+    {
+        try { await cache.SetAsync(key, value, validUntil, CachePolicy, token); }
+        catch (Exception) { /* the persisted result is the source of truth; a cache failure is not a request failure */ }
+    }
+
+    private async Task<KundaliOverview> ComputeOverviewAsync(ClaimsPrincipal user, Guid profileId,
+        KundaliProfileDisplay display, KundaliProvenance provenance, CancellationToken token)
+    {
         var metadata = await metadataReader.GetAsync(user, token);
 
         var unsupported = new List<KundaliUnsupportedField>();
@@ -124,7 +279,14 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             SunSign: engine.SunSign is { } sun ? KundaliSigns.NameOf(sun) : null,
             CurrentDasha: CurrentDashaOf(engine, unsupported),
             KeyPlacements: [],
-            Unsupported: unsupported);
+            Unsupported: unsupported)
+        {
+            // Not part of the wire payload: the mahadasha chain the current highlight was selected from, so the
+            // expiry boundary can be derived from the same periods rather than recomputed differently.
+            MahadashaChain = engine.VimshottariMahadashas?
+                .Select(period => new KundaliDasha(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc))
+                .ToArray()
+        };
     }
 
 
@@ -326,7 +488,95 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     };
 
 
+    private static KundaliDasha ToDasha(KundaliEngineDasha period) =>
 
+        new(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);
+
+
+    /// <summary>
+    /// The mahadasha containing now, or null when the engine supplied no sequence.
+    /// </summary>
+    /// <remarks>
+    /// <para>An engine that withheld the sequence has already recorded its own reason code, so this adds nothing -
+    /// duplicating the reason here would make the same gap appear twice with potentially different wording.</para>
+    /// <para>When the sequence exists but now falls outside it, that is reported as its own gap rather than
+    /// silently returning null: the caller must be able to tell "no dasha for this moment" from "no dashas at
+    /// all".</para>
+    /// </remarks>
+    private KundaliDasha? CurrentDashaOf(KundaliEngineResult engine, List<KundaliUnsupportedField> unsupported)
+    {
+        if (engine.VimshottariMahadashas is not { Count: > 0 } periods)
+            return null;
+
+        var now = clock.GetUtcNow();
+
+        // Half-open [start, end): consecutive periods share a boundary, and the boundary belongs to the later one, so
+        // no instant is ever claimed by two dashas.
+        foreach (var period in periods)
+        {
+            if (now >= period.StartUtc && now < period.EndUtc)
+                return new KundaliDasha(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);
+        }
+
+        AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha),
+            KundaliUnsupportedReasons.RequiresExactBirthTime);
+        return null;
+    }
+    /// <summary>Maps the profile's stored time mode to the wire modes, and carries the window only for a range.
+    /// Absence is the contract, so nothing is ever substituted for a missing time.</summary>
+    private static KundaliBirthDetails ToBirthDetails(KundaliProfileDisplay display) =>
+        display.BirthTimeMode switch
+        {
+            BirthTimeMode.Known => new KundaliBirthDetails(display.Name, display.BirthDate,
+                KundaliBirthTimeMode.Exact, display.BirthTime, null, null, display.PlaceName, display.Latitude,
+                display.Longitude, display.TimezoneId),
+            BirthTimeMode.Approximate => new KundaliBirthDetails(display.Name, display.BirthDate,
+                KundaliBirthTimeMode.Approximate, null, display.BirthTimeFrom, display.BirthTimeTo, display.PlaceName,
+                display.Latitude, display.Longitude, display.TimezoneId),
+            _ => new KundaliBirthDetails(display.Name, display.BirthDate, KundaliBirthTimeMode.Unknown, null, null,
+                null, display.PlaceName, display.Latitude, display.Longitude, display.TimezoneId)
+        };
+
+    private static void AddUnsupported(List<KundaliUnsupportedField> target, string path, string reason) =>
+        target.Add(new KundaliUnsupportedField(path, reason));
+
+    private async Task<KundaliProfileDisplay> ReadOwnedDisplayAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        if (profileId == Guid.Empty) throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
+        return await profiles.GetDisplayAsync(user, profileId, token)
+            ?? throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
+    }
+
+
+    private async Task<KundaliInputSnapshot> ReadOwnedSnapshotAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        if (profileId == Guid.Empty) throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
+        return await profiles.GetSnapshotAsync(user, profileId, token)
+            ?? throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
+    }
+
+    /// <summary>
+    /// Every independently versioned rule set that can change a published number. The cache key binds all of them, so
+    /// a rule change can never be served from a result computed under the previous rules.
+    /// </summary>
+    /// <remarks>Static and taking the Ashtakavarga version explicitly, so the same list is used on the read path (which
+    /// has the registered rules) and in <c>Stamped</c> (which only has the stored provenance). Two ways of building this
+    /// list is how the two would silently diverge.</remarks>
+    private static IReadOnlyList<string> RuleSetVersions(KundaliProvenance provenance, string ashtakavargaRulesVersion) =>
+        [provenance.RuleSetVersion, ashtakavargaRulesVersion];
+
+    private async Task<KundaliProvenance> BuildProvenanceAsync(ClaimsPrincipal user, CancellationToken token)
+    {
+        var provenance = new KundaliProvenance(versions.Engine, versions.Ephemeris, versions.RuleSet,
+            versions.TimezoneData, await profiles.GetAyanamsaAsync(user, token));
+        validator.ValidateProvenance(provenance);
+        return provenance;
+    }
+
+    /// <summary>A profile with no Kundali yet is a valid, empty state, not an error: the module shell uses it to
+    /// render "not generated yet" rather than a failure.</summary>
     /// <summary>Bodies the engine can place today. Anything else is listed as rule-only, never as an empty placement.</summary>
     private static readonly string[] BodiesWithPositions = ["Sun", "Moon"];
 
@@ -430,7 +680,6 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     }
 
 
-
     public async Task<KundaliAshtakavargaSection> GetAshtakavargaAsync(ClaimsPrincipal user, Guid profileId,
         CancellationToken token)
     {
@@ -513,92 +762,38 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
 
 
-    private static KundaliDasha ToDasha(KundaliEngineDasha period) =>
-
-        new(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);
-
+    private static KundaliView EmptyView(Guid profileId) => new(
+        new KundaliAggregate(Guid.Empty, profileId, null, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue),
+        null);
 
     /// <summary>
-    /// The mahadasha containing now, or null when the engine supplied no sequence.
+    /// Stamps the revision identity and the current/stale verdict onto a view (KUN-21). The verdict is decided here, from
+    /// the profile revision the caller just read, so no consumer has to reconstruct the rule from hashes and statuses.
     /// </summary>
-    /// <remarks>
-    /// <para>An engine that withheld the sequence has already recorded its own reason code, so this adds nothing -
-    /// duplicating the reason here would make the same gap appear twice with potentially different wording.</para>
-    /// <para>When the sequence exists but now falls outside it, that is reported as its own gap rather than
-    /// silently returning null: the caller must be able to tell "no dasha for this moment" from "no dashas at
-    /// all".</para>
-    /// </remarks>
-    private KundaliDasha? CurrentDashaOf(KundaliEngineResult engine, List<KundaliUnsupportedField> unsupported)
+    private static KundaliView Stamped(KundaliView view, Guid accountId, long profileRevision,
+        string ashtakavargaRulesVersion)
     {
-        if (engine.VimshottariMahadashas is not { Count: > 0 } periods)
-            return null;
-
-        var now = clock.GetUtcNow();
-
-        // Half-open [start, end): consecutive periods share a boundary, and the boundary belongs to the later one, so
-        // no instant is ever claimed by two dashas.
-        foreach (var period in periods)
+        var revision = view.CurrentRevision;
+        var inputRevision = revision is null ? 0 : view.InputRevision;
+        var isCurrent = revision is
         {
-            if (now >= period.StartUtc && now < period.EndUtc)
-                return new KundaliDasha(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);
-        }
+            Status: KundaliGenerationStatus.Succeeded,
+            SupersededByRevision: null
+        } && inputRevision == profileRevision;
 
-        AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha),
-            KundaliUnsupportedReasons.RequiresExactBirthTime);
-        return null;
-    }
-    /// <summary>Maps the profile's stored time mode to the wire modes, and carries the window only for a range.
-    /// Absence is the contract, so nothing is ever substituted for a missing time.</summary>
-    private static KundaliBirthDetails ToBirthDetails(KundaliProfileDisplay display) =>
-        display.BirthTimeMode switch
+        var revisionKey = revision is null || inputRevision == 0
+            ? null
+            : KundaliCacheKeys.RevisionKey(accountId, view.Aggregate.ProfileId, inputRevision, revision.Provenance,
+                RuleSetVersions(revision.Provenance, ashtakavargaRulesVersion));
+
+        return view with
         {
-            BirthTimeMode.Known => new KundaliBirthDetails(display.Name, display.BirthDate,
-                KundaliBirthTimeMode.Exact, display.BirthTime, null, null, display.PlaceName, display.Latitude,
-                display.Longitude, display.TimezoneId),
-            BirthTimeMode.Approximate => new KundaliBirthDetails(display.Name, display.BirthDate,
-                KundaliBirthTimeMode.Approximate, null, display.BirthTimeFrom, display.BirthTimeTo, display.PlaceName,
-                display.Latitude, display.Longitude, display.TimezoneId),
-            _ => new KundaliBirthDetails(display.Name, display.BirthDate, KundaliBirthTimeMode.Unknown, null, null,
-                null, display.PlaceName, display.Latitude, display.Longitude, display.TimezoneId)
+            ProfileRevision = profileRevision,
+            InputRevision = inputRevision,
+            IsCurrent = isCurrent,
+            RevisionKey = revisionKey
         };
-
-    private static void AddUnsupported(List<KundaliUnsupportedField> target, string path, string reason) =>
-        target.Add(new KundaliUnsupportedField(path, reason));
-
-    private async Task<KundaliProfileDisplay> ReadOwnedDisplayAsync(ClaimsPrincipal user, Guid profileId,
-        CancellationToken token)
-    {
-        if (profileId == Guid.Empty) throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
-        return await profiles.GetDisplayAsync(user, profileId, token)
-            ?? throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
     }
-
-
-
-    private async Task<KundaliInputSnapshot> ReadOwnedSnapshotAsync(ClaimsPrincipal user, Guid profileId,
-        CancellationToken token)
-    {
-        if (profileId == Guid.Empty) throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
-        return await profiles.GetSnapshotAsync(user, profileId, token)
-            ?? throw new ResourceNotFoundException(KundaliErrors.ProfileNotFound);
-    }
-
-    private async Task<KundaliProvenance> BuildProvenanceAsync(ClaimsPrincipal user, CancellationToken token)
-    {
-        var provenance = new KundaliProvenance(versions.Engine, versions.Ephemeris, versions.RuleSet,
-            versions.TimezoneData, await profiles.GetAyanamsaAsync(user, token));
-        validator.ValidateProvenance(provenance);
-        return provenance;
-    }
-
-    /// <summary>A profile with no Kundali yet is a valid, empty state, not an error: the module shell uses it to
-    /// render "not generated yet" rather than a failure.</summary>
-    private static KundaliView EmptyView(Guid profileId, KundaliEffectiveSettings? settings = null) => new(
-        new KundaliAggregate(Guid.Empty, profileId, null, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue),
-        null,
-        // An empty state still reports the settings that would apply, so the shell can render the right style before
-        // anything has been generated.
-        settings ?? new KundaliEffectiveSettings(string.Empty, DefaultPreferences().ChartStyle));
 
     private static KundaliPreferences DefaultPreferences() => new("North", 0, DateTimeOffset.MinValue);
 }

@@ -34,6 +34,7 @@ public sealed class KundaliFacadeTests : IDisposable
         services.AddSingleton(profiles);
         services.AddSingleton(repository);
         services.AddSingleton<TimeProvider>(new FixedClock());
+        services.AddSingleton(Substitute.For<IKundaliResultCache>());
         services.AddKundaliBusiness();
         provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
         facade = provider.GetRequiredService<IKundaliFacade>();
@@ -45,13 +46,13 @@ public sealed class KundaliFacadeTests : IDisposable
         profiles.GetSnapshotAsync(user, profileId, Token).Returns((KundaliInputSnapshot?)null);
 
         await Assert.ThrowsAsync<ResourceNotFoundException>(() => facade.GetAsync(user, profileId, Token));
-        await repository.DidNotReceive().GetAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await repository.DidNotReceive().GetAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Get_for_an_owned_profile_without_a_kundali_returns_an_empty_state_not_an_error()
     {
-        repository.GetAsync(accountId, profileId, Token).Returns((KundaliView?)null);
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Token).Returns((KundaliView?)null);
 
         var view = await facade.GetAsync(user, profileId, Token);
 
@@ -62,7 +63,7 @@ public sealed class KundaliFacadeTests : IDisposable
     [Fact]
     public async Task Generate_creates_the_aggregate_when_none_exists()
     {
-        repository.GetAsync(accountId, profileId, Token).Returns((KundaliView?)null);
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Token).Returns((KundaliView?)null);
         repository.EnsureAggregateWithRevisionAsync(accountId, profileId, Arg.Any<KundaliInputSnapshot>(),
                 Arg.Any<KundaliProvenance>(), Token)
             .Returns(new KundaliView(new KundaliAggregate(aggregateId, profileId, revisionId, 1,
@@ -81,7 +82,7 @@ public sealed class KundaliFacadeTests : IDisposable
         var snapshot = Snapshot();
         var running = new KundaliRevisionSummary(revisionId, 1, KundaliGenerationStatus.Running, null, Provenance,
             snapshot.ComputeHash(), false, true, [], DateTimeOffset.UnixEpoch);
-        repository.GetAsync(accountId, profileId, Token)
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Token)
             .Returns(new KundaliView(new KundaliAggregate(aggregateId, profileId, revisionId, 1,
                 DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch), running));
 
@@ -97,7 +98,7 @@ public sealed class KundaliFacadeTests : IDisposable
     {
         var succeeded = new KundaliRevisionSummary(revisionId, 1, KundaliGenerationStatus.Succeeded, null,
             Provenance, "previoushash", false, false, [], DateTimeOffset.UnixEpoch);
-        repository.GetAsync(accountId, profileId, Token)
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Token)
             .Returns(new KundaliView(new KundaliAggregate(aggregateId, profileId, revisionId, 3,
                 DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch), succeeded));
         repository.AddRevisionAsync(accountId, profileId, 3, Arg.Any<KundaliInputSnapshot>(),
@@ -116,7 +117,7 @@ public sealed class KundaliFacadeTests : IDisposable
     {
         var succeeded = new KundaliRevisionSummary(revisionId, 1, KundaliGenerationStatus.Succeeded, null,
             Provenance, "h", false, false, [], DateTimeOffset.UnixEpoch);
-        repository.GetAsync(accountId, profileId, Token)
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Token)
             .Returns(new KundaliView(new KundaliAggregate(aggregateId, profileId, revisionId, 1,
                 DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch), succeeded));
 
@@ -128,7 +129,7 @@ public sealed class KundaliFacadeTests : IDisposable
     {
         var failed = new KundaliRevisionSummary(revisionId, 1, KundaliGenerationStatus.Failed,
             KundaliFailureReasons.EngineError, Provenance, "h", false, false, [], DateTimeOffset.UnixEpoch);
-        repository.GetAsync(accountId, profileId, Token)
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Token)
             .Returns(new KundaliView(new KundaliAggregate(aggregateId, profileId, revisionId, 1,
                 DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch), failed));
         repository.AddRevisionAsync(accountId, profileId, 1, Arg.Any<KundaliInputSnapshot>(),

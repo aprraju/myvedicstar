@@ -29,12 +29,19 @@ public sealed class KundaliOverviewTests
     public KundaliOverviewTests()
     {
         profiles.GetRegisteredAccountIdAsync(user, Token).Returns(Guid.NewGuid());
+        // The overview read now binds its payload to a profile revision (KUN-21), so the fixture supplies the snapshot as
+        // well as the display. Both describe the same owned profile, exactly as the real reader does.
+        profiles.GetSnapshotAsync(user, profileId, Token).Returns(
+            new KundaliInputSnapshot(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0),
+                new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0), 13.0827m, 80.2707m, "Asia/Kolkata", 1));
         metadata.GetAsync(user, Token).Returns(Metadata);
+        profiles.GetAyanamsaAsync(user, Token).Returns("Lahiri");
         engine = Substitute.For<IKundaliCalculationEngine>();
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(), new FixedClock());
+            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(),
+            new FixedClock(), Substitute.For<IKundaliResultCache>());
     }
 
     /// <summary>Real Ashtakavarga rules over the calculation project.</summary>

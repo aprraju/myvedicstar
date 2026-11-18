@@ -25,7 +25,7 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
 
     /// <summary>Reads the aggregate and current revision for an owned profile. A profile with no Kundali yet returns
     /// 200 with <c>hasResult: false</c>, which the shell renders as "not generated yet".</summary>
-    [HttpGet("{profileId:guid}"), ProducesResponseType<KundaliViewResponse>(200)]
+    [HttpGet("{profileId:guid}"), RevisionCacheHeaders, ProducesResponseType<KundaliViewResponse>(200), ProducesResponseType(304)]
     public async Task<ActionResult<KundaliViewResponse>> Get(Guid profileId, CancellationToken token) =>
         Ok(KundaliViewResponse.From(await facade.GetAsync(User, profileId, token)));
 
@@ -33,7 +33,7 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
     /// currently be produced. Blocks that cannot be computed are omitted and reported in <c>unsupported</c> with a
     /// reason code, so a missing engine is never presented as birth-time uncertainty. A foreign or unknown profile id
     /// returns 404 - never 403 with detail.</summary>
-    [HttpGet("{profileId:guid}/overview"), ProducesResponseType<KundaliOverviewResponse>(200)]
+    [HttpGet("{profileId:guid}/overview"), RevisionCacheHeaders, ProducesResponseType<KundaliOverviewResponse>(200), ProducesResponseType(304)]
     public async Task<ActionResult<KundaliOverviewResponse>> Overview(Guid profileId, CancellationToken token) =>
         Ok(KundaliOverviewResponse.From(await facade.GetOverviewAsync(User, profileId, token)));
 
@@ -79,12 +79,14 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
 
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
-    [HttpPost("{profileId:guid}/generations"), ProducesResponseType<KundaliViewResponse>(202)]
+    [HttpPost("{profileId:guid}/generations"), ResponseCache(NoStore = true, Location = ResponseCacheLocation.None),
+        ProducesResponseType<KundaliViewResponse>(202)]
     public async Task<ActionResult<KundaliViewResponse>> Generate(Guid profileId, CancellationToken token) =>
         Accepted(KundaliViewResponse.From(await facade.GenerateAsync(User, profileId, token)));
 
     /// <summary>Retries a failed generation for the same snapshot and settings.</summary>
-    [HttpPost("{profileId:guid}/retry"), ProducesResponseType<KundaliViewResponse>(202)]
+    [HttpPost("{profileId:guid}/retry"), ResponseCache(NoStore = true, Location = ResponseCacheLocation.None),
+        ProducesResponseType<KundaliViewResponse>(202)]
     public async Task<ActionResult<KundaliViewResponse>> Retry(Guid profileId, CancellationToken token) =>
         Accepted(KundaliViewResponse.From(await facade.RetryAsync(User, profileId, token)));
 
