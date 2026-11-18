@@ -57,5 +57,14 @@ public sealed record KundaliCalculationResult(
     double? SiderealMoonLongitude,
     int? SunSign,
     int? MoonSign,
+    IReadOnlyList<KundaliVimshottariPeriod>? VimshottariMahadashas,
     IReadOnlyList<KundaliCalculationGap> Gaps);
+
+/// <summary>
+/// One Vimshottari mahadasha period. Both ends are UTC instants; presenting them in the profile's zone is the
+/// caller's concern.
+/// </summary>
+/// <param name="IsRemainder">True for the birth period, which began before birth and so is not a full term.</param>
+public sealed record KundaliVimshottariPeriod(string Lord, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
+    bool IsRemainder);
 

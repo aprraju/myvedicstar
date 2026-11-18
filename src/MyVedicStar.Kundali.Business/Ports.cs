@@ -120,7 +120,12 @@ public sealed record KundaliEngineResult(
     double? SiderealMoonLongitude,
     int? SunSign,
     int? MoonSign,
+    IReadOnlyList<KundaliEngineDasha>? VimshottariMahadashas,
     IReadOnlyList<KundaliEngineGap> Gaps);
+
+/// <summary>One Vimshottari mahadasha period, both ends in UTC. Rendering locally belongs to the caller.</summary>
+public sealed record KundaliEngineDasha(string Lord, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
+    bool IsRemainder);
 
 /// <summary>One value the engine withheld, and the capability-specific reason.</summary>
 public sealed record KundaliEngineGap(string Path, string Reason);
