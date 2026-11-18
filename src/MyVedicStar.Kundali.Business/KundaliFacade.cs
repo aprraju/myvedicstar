@@ -8,6 +8,7 @@ namespace MyVedicStar.Kundali.Business;
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
+    IKundaliDignityRules dignityRules,
     TimeProvider clock) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -363,7 +364,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             metadata.HouseSystem,
             metadata.AspectMethod,
             new KundaliRuleCapabilities(
-                PlanetaryDignity.Dignities,
+                dignityRules.DignityStates,
                 ["Parashari-WholeSign"],
                 BodiesWithPositions,
                 BodiesWithoutPositions),
@@ -390,7 +391,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
         // Aspects are emitted as the signs this planet projects onto; resolving a sign to occupant bodies is a
         // different question that needs those bodies' positions.
-        var aspects = PlanetaryDignity.AspectedSigns(planet, signIndex)
+        var aspects = dignityRules.AspectedSigns(planet, signIndex)
             .Select(sign => new KundaliPlanetAspect(KundaliSigns.NameOf(sign), "Parashari-WholeSign"))
             .ToArray();
 
@@ -404,7 +405,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             null,
             null,
             null,
-            PlanetaryDignity.Of(planet, longitude),
+            dignityRules.DignityOf(planet, longitude),
             aspects));
     }
 

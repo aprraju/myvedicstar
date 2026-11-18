@@ -34,7 +34,22 @@ public sealed class KundaliOverviewTests
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), new FixedClock());
+            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new FixedClock());
+    }
+
+    /// <summary>Real rules over the calculation project: the dignity tests assert the rules, not a stub.</summary>
+    private static IKundaliDignityRules Rules() => new TestDignityRules();
+
+    private sealed class TestDignityRules : IKundaliDignityRules
+    {
+        public IReadOnlyList<string> DignityStates =>
+            MyVedicStar.Kundali.Calculation.PlanetaryDignity.Dignities;
+
+        public string DignityOf(string planet, double siderealLongitude) =>
+            MyVedicStar.Kundali.Calculation.PlanetaryDignity.Of(planet, siderealLongitude);
+
+        public IReadOnlyList<int> AspectedSigns(string planet, int fromSign) =>
+            MyVedicStar.Kundali.Calculation.PlanetaryDignity.AspectedSigns(planet, fromSign);
     }
 
     /// <summary>Real mapper over the calculation project: the divisional tests assert the rule, not a stub.</summary>
