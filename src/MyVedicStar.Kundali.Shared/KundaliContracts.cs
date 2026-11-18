@@ -594,3 +594,43 @@ public sealed record KundaliSadeSatiPhase(string Phase, string Sign, DateTimeOff
 /// <summary>A dated transit event in the near future, as the engine computed it. Distinct from an alert: an alert is a
 /// subscription, this is an event.</summary>
 public sealed record KundaliDatedTransit(string Graha, string EventType, string Sign, DateTimeOffset AtUtc);
+/// <summary>
+/// KUN-10 yoga and dosha section.
+/// </summary>
+/// <remarks>
+/// <para>Present, failed and never-evaluated assessments coexist in this one payload. Each carries its own completeness
+/// and its own reason; there is no section-level "partial" flag, because a single footer would let a caller read the
+/// satisfied list and never learn which combinations were not even tested.</para>
+/// <para><paramref name="Evaluated"/> are finished claims about the chart. <paramref name="NotEvaluated"/> are an absence
+/// of a claim, enumerated individually: an empty satisfied list is never a clean bill of health.</para>
+/// </remarks>
+public sealed record KundaliYogasSection(
+    string RulesVersion,
+    IReadOnlyList<KundaliYogaAssessment> Evaluated,
+    IReadOnlyList<KundaliYogaAssessment> NotEvaluated,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+/// <summary>
+/// One assessed combination, or one that was not assessed.
+/// </summary>
+/// <param name="Complete">Per-assessment. False when part of this rule could not be tested even though a verdict was
+/// produced.</param>
+/// <param name="Reason">Present only for <c>indeterminate</c>. A satisfied or failed assessment is explained by its
+/// conditions instead.</param>
+/// <param name="UntestedComponents">Named inputs this rule could not use. Never empty for an indeterminate result.</param>
+public sealed record KundaliYogaAssessment(
+    string Code,
+    string Name,
+    string Scope,
+    string Status,
+    IReadOnlyList<KundaliYogaCondition> Conditions,
+    IReadOnlyList<string> Supporting,
+    IReadOnlyList<string> Opposing,
+    IReadOnlyList<string> Exceptions,
+    IReadOnlyList<string> Cancellations,
+    bool Complete,
+    string? Reason,
+    IReadOnlyList<string> UntestedComponents);
+
+/// <summary>One condition inside a rule, with the fact it was tested against.</summary>
+public sealed record KundaliYogaCondition(string Text, bool Truth);

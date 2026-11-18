@@ -11,6 +11,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
     IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
     IKundaliShadbalaRules shadbalaRules,
+    IKundaliYogaRules yogaRules,
     TimeProvider clock,
     IKundaliResultCache cache) : IKundaliFacade
 {
@@ -29,7 +30,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             (await repository.GetPreferencesAsync(accountId, profileId, token))?.ChartStyle ?? DefaultPreferences().ChartStyle);
         var view = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token)
             ?? EmptyView(profileId);
-        return Stamped(view, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion) with { Settings = settings };
+        return Stamped(view, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion) with { Settings = settings };
     }
 
     public async Task<KundaliView> GenerateAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -42,16 +43,16 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var existing = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token);
         if (existing is null)
             return Stamped(await repository.EnsureAggregateWithRevisionAsync(accountId, profileId, snapshot,
-                provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
+                provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion);
 
         // Repeated clicks for identical inputs must not enqueue twice: return the running revision untouched.
         if (existing.CurrentRevision is { Status: KundaliGenerationStatus.Pending or KundaliGenerationStatus.Running }
             && existing.CurrentRevision.InputSnapshotHash == snapshot.ComputeHash()
             && existing.CurrentRevision.Provenance == provenance)
-            return Stamped(existing, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
+            return Stamped(existing, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion);
 
         return Stamped(await repository.AddRevisionAsync(accountId, profileId, existing.Aggregate.Revision,
-            snapshot, provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
+            snapshot, provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion);
     }
 
     public async Task<KundaliView> RetryAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -68,7 +69,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             throw new KundaliConflictException(KundaliErrors.AlreadyRunning);
 
         return Stamped(await repository.AddRevisionAsync(accountId, profileId, current.Aggregate.Revision, snapshot,
-            provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
+            provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion);
     }
 
     public async Task<KundaliPreferences> GetPreferencesAsync(ClaimsPrincipal user, Guid profileId,
@@ -184,6 +185,85 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             unsupported);
     }
 
+
+    /// <summary>
+    /// KUN-10: yoga and dosha assessments for an owned profile.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Present and withheld coexist.</b> <c>Evaluated</c> carries finished claims - satisfied or failed.
+    /// <c>NotEvaluated</c> carries combinations that were never tested, each enumerated by name with its own reason. Both
+    /// live in one payload and every entry carries its own completeness, because a section-level caveat would let a caller
+    /// read the satisfied list and never learn that half the catalogue was never looked at.</para>
+    /// <para><b>Why some rules are not evaluated.</b> Only sign placements are published for all nine grahas today; the
+    /// ascendant is withheld as unvalidated. Rules that need a house frame - Manglik, in its owner-approved Lagna-only
+    /// form - are therefore reported indeterminate rather than redefined from the Moon, which would be a different
+    /// quantity under the same name.</para>
+    /// </remarks>
+    public async Task<KundaliYogasSection> GetYogasAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
+    {
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        // Only grahas with a published longitude reach the catalogue. A graha that is withheld simply does not appear, so
+        // each rule reports it by name as an untested component rather than the whole section being disabled.
+        var signByGraha = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var position in engine.GrahaPositions ?? [])
+        {
+            if (position.SiderealLongitude is { } longitude && position.Sign is not null)
+                signByGraha[position.Graha] = SignIndex(position.Sign);
+        }
+
+        var evaluation = yogaRules.Evaluate(signByGraha);
+
+        // A withheld graha is surfaced once at the section level too, so a consumer that renders only NotEvaluated still
+        // sees why. The per-assessment reasons remain the authoritative explanation.
+        foreach (var position in (engine.GrahaPositions ?? []).Where(p => !p.SiderealLongitude.HasValue))
+            unsupported.Add(new KundaliUnsupportedField(position.Graha, KundaliUnsupportedReasons.UnvalidatedReference));
+
+        if (evaluation.NotEvaluated.Count > 0)
+            unsupported.Add(new KundaliUnsupportedField(nameof(KundaliYogasSection.NotEvaluated),
+                KundaliUnsupportedReasons.UnvalidatedReference));
+
+        return new KundaliYogasSection(
+            evaluation.RulesVersion,
+            evaluation.Evaluated.Select(MapYoga).ToArray(),
+            evaluation.NotEvaluated.Select(MapYoga).ToArray(),
+            unsupported);
+    }
+
+    private static KundaliYogaAssessment MapYoga(KundaliYogaResult result) => new(
+        result.Code,
+        result.Name,
+        result.Scope,
+        result.Status,
+        result.Conditions.Select(condition => new KundaliYogaCondition(condition.Text, condition.Truth)).ToArray(),
+        result.Supporting,
+        result.Opposing,
+        result.Exceptions,
+        result.Cancellations,
+        result.Complete,
+        result.Reason,
+        result.UntestedComponents);
+
+    /// <summary>Sign index 0..11 from a sign name, matching the engine's vocabulary.</summary>
+    private static int SignIndex(string sign)
+    {
+        for (var index = 0; index < KundaliSigns.All.Count; index++)
+        {
+            if (string.Equals(KundaliSigns.All[index], sign, StringComparison.Ordinal))
+                return index;
+        }
+
+        // An unrecognised sign name is a contract defect, not data: the engine and the shared vocabulary must agree.
+        throw new ArgumentOutOfRangeException(nameof(sign), sign, "Unrecognised sign name from the calculation engine.");
+    }
+
     public KundaliCapabilityReport GetCapabilities() => KundaliCapabilities.Report();
 
     /// <summary>
@@ -216,7 +296,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             var provenance = await BuildProvenanceAsync(user, token);
             await cache.RemoveAsync(KundaliCacheKeys.Section(
                 KundaliCacheKeys.RevisionKey(accountId, profileId, snapshot.ProfileRevision, provenance,
-                    RuleSetVersions(provenance, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion)), profileId,
+                    RuleSetVersions(provenance, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion)), profileId,
                 KundaliSections.Overview), token);
         }
 
@@ -274,7 +354,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var provenance = await BuildProvenanceAsync(user, token);
 
         var revisionKey = KundaliCacheKeys.RevisionKey(accountId, profileId, snapshot.ProfileRevision, provenance,
-            RuleSetVersions(provenance, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion));
+            RuleSetVersions(provenance, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion, yogaRules.RulesVersion));
         var key = KundaliCacheKeys.Section(revisionKey, profileId, KundaliSections.Overview);
         var now = clock.GetUtcNow();
 
@@ -667,8 +747,8 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     /// computed under the old rules - the same staleness the Ashtakavarga entry exists to prevent.
     /// </remarks>
     private static IReadOnlyList<string> RuleSetVersions(KundaliProvenance provenance, string ashtakavargaRulesVersion,
-        string shadbalaRulesVersion) =>
-        [provenance.RuleSetVersion, ashtakavargaRulesVersion, shadbalaRulesVersion];
+        string shadbalaRulesVersion, string yogaRulesVersion) =>
+        [provenance.RuleSetVersion, ashtakavargaRulesVersion, shadbalaRulesVersion, yogaRulesVersion];
 
     private async Task<KundaliProvenance> BuildProvenanceAsync(ClaimsPrincipal user, CancellationToken token)
     {
@@ -1026,7 +1106,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     /// the profile revision the caller just read, so no consumer has to reconstruct the rule from hashes and statuses.
     /// </summary>
     private static KundaliView Stamped(KundaliView view, Guid accountId, long profileRevision,
-        string ashtakavargaRulesVersion, string shadbalaRulesVersion)
+        string ashtakavargaRulesVersion, string shadbalaRulesVersion, string yogaRulesVersion)
     {
         var revision = view.CurrentRevision;
         var inputRevision = revision is null ? 0 : view.InputRevision;
@@ -1039,7 +1119,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var revisionKey = revision is null || inputRevision == 0
             ? null
             : KundaliCacheKeys.RevisionKey(accountId, view.Aggregate.ProfileId, inputRevision, revision.Provenance,
-                RuleSetVersions(revision.Provenance, ashtakavargaRulesVersion, shadbalaRulesVersion));
+                RuleSetVersions(revision.Provenance, ashtakavargaRulesVersion, shadbalaRulesVersion, yogaRulesVersion));
 
         return view with
         {

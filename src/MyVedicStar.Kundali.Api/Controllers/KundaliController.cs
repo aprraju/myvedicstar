@@ -119,9 +119,17 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
     /// <remarks><c>complete</c> is false while any classical component is missing, which is the current state: Kala and
     /// Chesta are not producible, so <c>ratioToThreshold</c> must not be read against the classical required-rupas table.
     /// <c>bhavaBala</c> is empty with an explanation because house cusps need the unvalidated ascendant.</remarks>
+    /// <summary>KUN-10 yoga and dosha assessments. Evaluated and never-evaluated combinations are returned together,
+    /// each with its own completeness and reason - plus every withheld combination enumerated by name, so an empty
+    /// satisfied list is never read as a clean bill of health.</summary>
     [HttpGet("{profileId:guid}/sections/bala"), ProducesResponseType<KundaliBalaResponse>(200)]
     public async Task<ActionResult<KundaliBalaResponse>> Bala(Guid profileId, CancellationToken token) =>
         Ok(KundaliBalaResponse.From(await facade.GetBalaAsync(User, profileId, token)));
+
+    /// <summary>KUN-10 yoga and dosha assessments.</summary>
+    [HttpGet("{profileId:guid}/sections/yogas"), ProducesResponseType<KundaliYogasResponse>(200)]
+    public async Task<ActionResult<KundaliYogasResponse>> Yogas(Guid profileId, CancellationToken token) =>
+        Ok(KundaliYogasResponse.From(await facade.GetYogasAsync(User, profileId, token)));
 
 
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue

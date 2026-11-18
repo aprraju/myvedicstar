@@ -118,6 +118,7 @@ public sealed partial class SharedHostTests
             "GET api/v1/kundali/{profileId:guid}/sections/planets",
             "GET api/v1/kundali/{profileId:guid}/sections/ashtakavarga",
             "GET api/v1/kundali/{profileId:guid}/sections/bala",
+            "GET api/v1/kundali/{profileId:guid}/sections/yogas",
             "GET api/v1/kundali/{profileId:guid}/preferences",
             "PUT api/v1/kundali/{profileId:guid}/preferences",
         ];
