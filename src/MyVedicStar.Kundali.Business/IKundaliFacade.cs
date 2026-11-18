@@ -46,5 +46,10 @@ public interface IKundaliFacade
     Task<KundaliChartsSection> GetChartsAsync(ClaimsPrincipal user, Guid profileId, int divisional,
         CancellationToken token);
 
+
+    /// <summary>KUN-08: planet placements plus the dignity/aspect rule capabilities. A placement is only returned when
+    /// the engine produced a position for it; the rule list is independent of any chart.</summary>
+    Task<KundaliPlanetsSection> GetPlanetsAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }

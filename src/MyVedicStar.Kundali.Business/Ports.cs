@@ -73,7 +73,8 @@ public sealed record KundaliAstronomyMetadata(
     string Ayanamsa,
     string HouseSystem,
     string NodeType,
-    string Zodiac);
+    string Zodiac,
+    string AspectMethod = "Parashari-WholeSign");
 
 /// <summary>Owned birth details as shown back to the user. Never used as calculation input; the immutable
 /// <see cref="KundaliInputSnapshot"/> is. Time fields are null for the modes that do not carry them, and the mapping
