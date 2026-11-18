@@ -261,7 +261,9 @@ public sealed partial class SharedHostTests
         Assert.Contains(options.Registrations, check => check.Name == "authorize-database" && check.Tags.Contains("ready"));
     }
 
-    private sealed class CombinedFactory(bool failStar = false, int globalLimit = 1000, bool persistence = false, bool rejectGeoNames = false) : WebApplicationFactory<HostProgram>
+    // internal, not private: the KUN-24 ownership assertions live in a sibling partial and must reuse this exact
+    // composition rather than build a second, drifting harness.
+    internal sealed class CombinedFactory(bool failStar = false, int globalLimit = 1000, bool persistence = false, bool rejectGeoNames = false) : WebApplicationFactory<HostProgram>
     {
         private const string Issuer = "https://cbece845-e124-4de7-89d3-96a71abb7b83.ciamlogin.com/cbece845-e124-4de7-89d3-96a71abb7b83/v2.0";
         private const string Audience = "fdaa908a-4c0b-4d63-a6d1-de637e0edc4e";
