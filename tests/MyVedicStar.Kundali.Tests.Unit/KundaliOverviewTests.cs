@@ -261,15 +261,15 @@ public sealed class KundaliOverviewTests
             .Returns(new KundaliEngineResult(null, null, null, null, periods, null, null, Array.Empty<KundaliEngineGap>()));
 
     [Fact]
-    public async Task An_unsupported_dasha_system_is_rejected_rather_than_silently_served_as_vimshottari()
+    public async Task An_unknown_dasha_system_is_rejected_rather_than_silently_served_as_vimshottari()
     {
         profiles.GetDisplayAsync(user, profileId, Token)
             .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
 
-        // Returning Vimshottari dates for a Yogini request would be a fabricated answer; refusing is the only
-        // honest response until that system exists.
+        // Yogini is served now, so this uses a system that genuinely does not exist. Returning Vimshottari dates for
+        // an Ashtottari request would be a fabricated answer, and refusing is the only honest response.
         await Assert.ThrowsAsync<ValidationException>(() =>
-            facade.GetDashasAsync(user, profileId, "yogini", null, Token));
+            facade.GetDashasAsync(user, profileId, "ashtottari", null, Token));
 
         // The rejection happens before any provider or engine work.
         await metadata.DidNotReceive().GetAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<CancellationToken>());

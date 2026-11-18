@@ -176,13 +176,34 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             gaps.ToArray());
     }
 
+    /// <summary>Gap paths used by the dasha section. Constants rather than literals so the reason and the field it
+    /// describes cannot drift apart.</summary>
+    private static class DashaPath
+    {
+        internal const string Mahadashas = "Mahadashas";
+        internal const string PeriodPath = "PeriodPath";
+        internal const string Yogini = "YoginiPeriods";
+    }
+
+
     /// <summary>Yogini periods rendered as dasha entries; the path is the single period containing the instant, since
     /// Yogini sub-periods are not implemented.</summary>
     private static (IReadOnlyList<KundaliDasha> Periods, IReadOnlyList<KundaliDasha> Path) BuildYogini(
         KundaliEngineDashaTimeline timeline, DateTimeOffset queryAt, List<KundaliUnsupportedField> gaps)
     {
         if (timeline.YoginiPeriods is not { Count: > 0 } yogini)
+        {
+            // A null list means the engine withheld Yogini entirely and has already given its own reason; a present
+            // but empty list would mean it returned nothing without explaining, which is also a gap we must state.
+            if (timeline.YoginiPeriods is null &&
+                !gaps.Any(gap => gap.Path == DashaPath.Yogini))
+            {
+                gaps.Add(new KundaliUnsupportedField(DashaPath.Yogini,
+                    KundaliUnsupportedReasons.EngineUnavailable));
+            }
+
             return ([], []);
+        }
 
         var periods = yogini
             .Select(period => new KundaliDasha(period.Name, "Yogini", period.StartUtc, period.EndUtc))
@@ -192,7 +213,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
         // Yogini antara periods are a further level we have not built; say so rather than implying the mahadasha is
         // the whole answer.
-        gaps.Add(new KundaliUnsupportedField("PeriodPath", KundaliUnsupportedReasons.EngineUnavailable));
+        gaps.Add(new KundaliUnsupportedField(DashaPath.PeriodPath, KundaliUnsupportedReasons.EngineUnavailable));
 
         return (periods, current is null
             ? []
@@ -206,8 +227,8 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         // The engine supplies the sign progression, but publishing it as Chara dasha would present an equal-duration
         // simplification as the classical result. Withheld, with the reason naming the real dependency.
         _ = timeline;
-        gaps.Add(new KundaliUnsupportedField("Mahadashas", KundaliUnsupportedReasons.UnvalidatedReference));
-        gaps.Add(new KundaliUnsupportedField("PeriodPath", KundaliUnsupportedReasons.UnvalidatedReference));
+        gaps.Add(new KundaliUnsupportedField(DashaPath.Mahadashas, KundaliUnsupportedReasons.UnvalidatedReference));
+        gaps.Add(new KundaliUnsupportedField(DashaPath.PeriodPath, KundaliUnsupportedReasons.UnvalidatedReference));
         return ([], []);
     }
 

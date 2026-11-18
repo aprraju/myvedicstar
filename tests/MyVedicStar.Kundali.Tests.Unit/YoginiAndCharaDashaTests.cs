@@ -73,11 +73,14 @@ public sealed class YoginiAndCharaDashaTests
     }
 
     [Fact]
-    public void The_yogini_cycle_is_three_full_turns_of_the_vimshottari_cycle()
+    public void The_yogini_and_vimshottari_cycles_share_a_year_length_but_not_a_period()
     {
-        // A structural relation between the two systems, not a coincidence: 36 x 3 = 120.
-        Assert.Equal(VimshottariDasha.CycleYears, YoginiDasha.CycleYears * 3.0);
-        // And both use the same year length, so their timelines cannot disagree about a year.
+        // 36 does not divide 120: three Yogini cycles cover 108 years, not 120, so the two systems drift apart by
+        // 12 years per Vimshottari cycle. An earlier version of this test asserted 3 x 36 = 120 and was simply wrong.
+        Assert.NotEqual(VimshottariDasha.CycleYears, YoginiDasha.CycleYears * 3.0);
+        Assert.Equal(108.0, YoginiDasha.CycleYears * 3.0);
+
+        // The year length IS shared, so the two timelines cannot disagree about how long a year is.
         Assert.Equal(VimshottariDasha.DaysPerDashaYear, YoginiDasha.DaysPerDashaYear);
     }
 
