@@ -19,6 +19,12 @@ public static class KundaliErrors
 
     /// <summary>A background result arrived for a revision the profile has already left; it is discarded (KUN-22).</summary>
     public const string ObsoleteResult = "This result was computed for an earlier profile revision and was discarded.";
+    /// <summary>KUN-13: an alias subscription named an event type or channel this build does not produce.</summary>
+    public const string InvalidAlertSubscription =
+        "The alert subscription is invalid: unknown event type or unsupported delivery channel.";
+
+    /// <summary>KUN-13: the requested timezone is not a resolvable IANA zone.</summary>
+    public const string InvalidTimezone = "The timezone is invalid or unsupported.";
 }
 
 /// <summary>Map centrally to HTTP 409; carries no persistence detail and no personal input.</summary>

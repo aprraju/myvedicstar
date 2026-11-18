@@ -61,3 +61,25 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- 4. Schema-qualified DML re-grant for tables that exist BEFORE this script runs.
+--    The loop above also sets ALTER DEFAULT PRIVILEGES, which covers every table a later migration creates. That is
+--    insufficient in one case: a role that already existed was not covered by a default privilege set before the
+--    table was created, and GRANT ... ON ALL TABLES only sees tables that exist AT THE TIME IT RUNS. Re-running this
+--    grant after migrations therefore makes the app role's DML rights converge, whatever order the server was
+--    provisioned in. KUN-13's KundaliAlertPreferences table depends on this: without it the alerts endpoints return
+--    500 with a permission error, which is exactly the failure the vedic-profiles outage produced.
+DO $$
+DECLARE
+  s             text;
+  app_role      text := current_setting('bootstrap.app_role');
+BEGIN
+  FOREACH s IN ARRAY ARRAY['myvedicstar', 'myvedicstarsettings', 'myvedicstarvedicprofiles', 'myvedicstarkundali'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = s) THEN
+      EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', s, app_role);
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', s, app_role);
+      EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', s, app_role);
+    END IF;
+  END LOOP;
+END
+$$;

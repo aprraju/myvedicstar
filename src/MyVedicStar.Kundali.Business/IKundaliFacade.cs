@@ -51,6 +51,27 @@ public interface IKundaliFacade
     /// the engine produced a position for it; the rule list is independent of any chart.</summary>
     Task<KundaliPlanetsSection> GetPlanetsAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+    /// <summary>
+    /// KUN-13: the transit section for an owned profile at an explicit reference instant.
+    /// </summary>
+    /// <param name="at">The instant to describe. Null means the server clock, and the resolved instant is echoed in the
+    /// response so a caller never has to assume which one was used.</param>
+    /// <param name="timezone">IANA zone to echo for display. Null means the profile's own zone.</param>
+    /// <remarks>An unresolvable timezone is rejected here rather than in the controller, so the rule has one home.</remarks>
+    Task<KundaliTransitsSection> GetTransitsAsync(ClaimsPrincipal user, Guid profileId, DateTimeOffset? at, string? timezone,
+        CancellationToken token);
+
+    /// <summary>KUN-13: the reader's alert consents for an owned profile. Empty when they have opted out of everything.</summary>
+    Task<IReadOnlyList<KundaliAlertPreference>> GetAlertsAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token);
+
+    /// <summary>KUN-13: grants consent for the supplied event types over the supplied channel, idempotently.</summary>
+    Task<IReadOnlyList<KundaliAlertPreference>> GrantAlertsAsync(ClaimsPrincipal user, Guid profileId,
+        IReadOnlyList<string> eventTypes, string channel, CancellationToken token);
+
+    /// <summary>KUN-13: revokes every consent for this profile. Returns the number removed.</summary>
+    Task<int> RevokeAlertsAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     /// <summary>KUN-23: removes this account's Kundali data for a profile. Called as part of profile deletion so a
     /// deleted profile leaves no Kundali rows behind and every Kundali endpoint then returns 404.</summary>
     /// <returns>The number of aggregates removed; zero means the profile had no Kundali data.</returns>

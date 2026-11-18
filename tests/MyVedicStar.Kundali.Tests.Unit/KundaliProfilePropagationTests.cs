@@ -23,6 +23,7 @@ public sealed class KundaliProfilePropagationTests
     private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
     private readonly IKundaliCalculationEngine engine = Substitute.For<IKundaliCalculationEngine>();
     private readonly IKundaliResultCache cache = Substitute.For<IKundaliResultCache>();
+    private readonly IKundaliAlertRepository alerts = Substitute.For<IKundaliAlertRepository>();
     private static readonly CancellationToken Token = CancellationToken.None;
 
     private static readonly KundaliAstronomyMetadata Metadata =
@@ -36,7 +37,7 @@ public sealed class KundaliProfilePropagationTests
         metadata.GetAsync(user, Token).Returns(Metadata);
     }
 
-    private KundaliFacade Facade() => new(profiles, repository,
+    private KundaliFacade Facade() => new(profiles, repository, alerts,
         new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation,
         metadata, engine, new NoDivisions(), new NoDignityRules(), new NoAshtakavargaRulesPropagation(), new NoShadbalaRulesPropagation(), new FixedClock(), cache);
 

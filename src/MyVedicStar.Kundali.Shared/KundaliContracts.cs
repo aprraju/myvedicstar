@@ -209,6 +209,13 @@ public static class KundaliUnsupportedReasons
     /// both "not built" and "cannot know": this is a validation task, and the UI must be able to say
     /// "computed but not yet proven" rather than "unavailable".</summary>
     public const string UnvalidatedReference = "unvalidated-reference";
+
+    /// <summary>KUN-13: the interval exists but has not begun at the reference instant. Not a gap in the calculation -
+    /// a fact about the date, told apart from "not known" so a reader is never told the engine failed.</summary>
+    public const string NotYetActive = "not-yet-active";
+
+    /// <summary>KUN-13: no transit interval falls in the searched span for this profile's Moon sign.</summary>
+    public const string NoIntervalInSpan = "no-interval-in-span";
 }
 
 /// <summary>One field that could not be computed, with a reason code. The path is the response property name so a
@@ -469,7 +476,7 @@ public sealed record KundaliBalaSection(
 /// <summary>One planet's Shadbala. <paramref name="ComponentsWithheld"/> names the classical components that are
 /// missing so the total is never mistaken for a six-fold score.</summary>
 /// <param name="ComponentStates">Machine-readable state per component (computed / withheld / placeholder). A client
-/// summing <paramref name="Components"/> must consult this rather than treat every number as strength — a placeholder
+/// summing <paramref name="Components"/> must consult this rather than treat every number as strength   a placeholder
 /// zero and a computed zero are identical numerically.</param>
 /// <param name="ComponentsInTotal">Exactly which components the total sums, so the total is never correct only for a
 /// reader who also read a prose list.</param>
@@ -494,3 +501,96 @@ public sealed record KundaliBhavaBalaHouse(
 /// <summary>One component's value, its basis, and its machine-readable state, so a number is never bare and a
 /// placeholder is never mistaken for a measurement.</summary>
 public sealed record KundaliBalaComponent(string Component, double Rupas, string Basis, string State);
+/// KUN-13: a reader's opt-in consent for one alert event type on one profile.
+/// </summary>
+/// <param name="EventType">Event type id from <see cref="KundaliAlertEventTypes"/>.</param>
+/// <param name="Channel">Delivery channel. Email only in this phase; the set is closed.</param>
+/// <param name="ConsentedAtUtc">When consent for this event type was first granted. Preserved across later updates so
+/// the audit trail is not reset by an unrelated change.</param>
+public sealed record KundaliAlertPreference(string EventType, string Channel, DateTimeOffset ConsentedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
+/// <summary>
+/// The alert event catalogue. Published as data so the API, the UI and the delivery path agree on the identifiers, and
+/// so a client cannot subscribe to an event this build does not produce.
+/// </summary>
+public static class KundaliAlertEventTypes
+{
+    /// <summary>Saturn's entry into the 12th sign from the natal Moon.</summary>
+    public const string SadeSatiRising = "sade-sati-rising";
+
+    /// <summary>Saturn's entry into the natal Moon sign.</summary>
+    public const string SadeSatiPeak = "sade-sati-peak";
+
+    /// <summary>Saturn's entry into the 2nd sign from the natal Moon.</summary>
+    public const string SadeSatiSetting = "sade-sati-setting";
+
+    /// <summary>Saturn's ingress into any sidereal sign.</summary>
+    public const string SaturnIngress = "saturn-ingress";
+
+    /// <summary>Jupiter's ingress into any sidereal sign.</summary>
+    public const string JupiterIngress = "jupiter-ingress";
+
+    public static readonly IReadOnlyList<string> All =
+        [SadeSatiRising, SadeSatiPeak, SadeSatiSetting, SaturnIngress, JupiterIngress];
+
+    /// <summary>Delivery channels approved for this phase. Owner decision #23: email only, no push and no SMS.</summary>
+    public static readonly IReadOnlyList<string> Channels = ["email"];
+}
+
+/// <summary>
+/// KUN-13 transit section for an explicit reference instant.
+/// </summary>
+/// <remarks>
+/// Every value is dated: <c>ReferenceInstant</c> is the instant the reader asked about, <c>ComputedAt</c> when it was
+/// computed, and <c>ExpiresAt</c> the point after which the reader should recompute. A transit answer with no reference
+/// instant is not an answer, it is a claim about "now" that silently changes.
+/// </remarks>
+/// <param name="ReferenceInstant">The instant the transit positions describe.</param>
+/// <param name="Timezone">The IANA zone the reader asked to see it in, echoed so a display cannot disagree.</param>
+/// <param name="Saturn">Saturn's current sign and the ingress windows around the reference instant.</param>
+/// <param name="Jupiter">Jupiter's current sign and the ingress windows around the reference instant.</param>
+/// <param name="SadeSati">The Sade Sati interval covering or following the reference instant, or null with a reason in
+/// <paramref name="Unsupported"/>.</param>
+public sealed record KundaliTransitsSection(
+    DateTimeOffset ReferenceInstant,
+    string Timezone,
+    DateTimeOffset ComputedAt,
+    DateTimeOffset ExpiresAt,
+    KundaliTransitGraha? Saturn,
+    KundaliTransitGraha? Jupiter,
+    KundaliSadeSati? SadeSati,
+    IReadOnlyList<KundaliDatedTransit> DatedTransit,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+/// <summary>One slow graha's transit: the sign occupied now and the windows either side of the reference instant.</summary>
+/// <param name="IsRetrograde">Whether the graha's longitude is decreasing at the reference instant. A retrograde ingress
+/// is still an ingress, but a reader planning around it needs to know the graha may re-cross.</param>
+public sealed record KundaliTransitGraha(
+    string Graha,
+    string Sign,
+    double? Longitude,
+    bool? IsRetrograde,
+    IReadOnlyList<KundaliTransitWindow> Windows);
+
+/// <summary>One ingress window, start inclusive and end exclusive so a boundary instant belongs to one window only.</summary>
+public sealed record KundaliTransitWindow(string Sign, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
+/// <summary>The Sade Sati interval covering the reference instant, with its three phases dated individually.</summary>
+/// <param name="IsPartial">True when the interval is clipped by the search span, so its start or end is not a real
+/// ingress. Stated rather than hidden: a clipped interval presented as complete would report a phase that has not
+/// begun.</param>
+public sealed record KundaliSadeSati(
+    string Phase,
+    bool Active,
+    string MoonSign,
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc,
+    bool IsPartial,
+    IReadOnlyList<KundaliSadeSatiPhase> Phases);
+
+public sealed record KundaliSadeSatiPhase(string Phase, string Sign, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
+/// <summary>A dated transit event in the near future, as the engine computed it. Distinct from an alert: an alert is a
+/// subscription, this is an event.</summary>
+public sealed record KundaliDatedTransit(string Graha, string EventType, string Sign, DateTimeOffset AtUtc);
