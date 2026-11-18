@@ -323,4 +323,40 @@ internal sealed class NoAshtakavargaRules : IKundaliAshtakavargaRules
     public IReadOnlyList<string> ScoredPlanets => [];
     public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) => [];
     public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
+
+    // ---- rule-set registration (KUN-12) ---------------------------------------------------------------------
+
+    [Fact]
+    public void A_shadbala_rule_change_produces_a_different_cache_key()
+    {
+        // KUN-12 registers Shadbala's own rule set alongside Ashtakavarga's. If that registration is ever dropped during
+        // a merge, a Shadbala rule change would silently reuse strengths computed under the old rules - the section
+        // would look current while being stale. This pins the behaviour the registration exists for: the version tuple
+        // is part of the key, so changing it MUST change the key.
+        var provenance = KundaliProvenance();
+
+        var key = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
+            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1"]);
+        var changed = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
+            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-2"]);
+
+        Assert.NotEqual(key, changed);
+    }
+
+    [Fact]
+    public void Omitting_the_shadbala_rule_set_changes_the_key()
+    {
+        // Guards the fan-out rather than a single version: a key built without the Shadbala rule set (the pre-rebase
+        // shape) must not collide with one that includes it. If this ever passes as EQUAL, the registration has been
+        // lost and stale bala results would be served as current.
+        var provenance = KundaliProvenance();
+
+        var withShadbala = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
+            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1"]);
+        var withoutShadbala = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
+            ["foundation-0", "ashtakavarga-0"]);
+
+        Assert.NotEqual(withShadbala, withoutShadbala);
+        Assert.True(KundaliCacheKeys.IsWellFormed(withShadbala));
+    }
 }
