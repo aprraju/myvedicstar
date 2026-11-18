@@ -544,3 +544,44 @@ public sealed record KundaliYogaConditionResponse(string Text, bool Truth)
     public static KundaliYogaConditionResponse From(MyVedicStar.Kundali.Shared.KundaliYogaCondition value) =>
         new(value.Text, value.Truth);
 }
+
+/// <summary>KUN-17 report request as it arrives. `Sections` is validated against the published closed set, so an
+/// unknown id is a 400 rather than something silently dropped.</summary>
+public sealed record KundaliReportRequestResponse(
+    string Variant,
+    string[] Sections,
+    string? Locale)
+{
+    public MyVedicStar.Kundali.Shared.KundaliReportRequest ToRequest() =>
+        new(Variant, Sections ?? [], Locale);
+}
+
+/// <summary>KUN-17 report state. `DownloadUrl` is owner-scoped and `DownloadExpiresAtUtc` is the EFFECTIVE expiry -
+/// the minimum of the issue window and the report's own lifetime - so a client that checks the field and a server
+/// that enforces validity agree by construction.</summary>
+public sealed record KundaliReportResponse(
+    Guid ReportId,
+    Guid ProfileId,
+    string Variant,
+    string[] Sections,
+    string Status,
+    long Revision,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    string? DownloadUrl,
+    DateTimeOffset? DownloadExpiresAtUtc,
+    KundaliReportFailureResponse[] Failures)
+{
+    public static KundaliReportResponse From(MyVedicStar.Kundali.Shared.KundaliReport value) => new(
+        value.ReportId, value.ProfileId, value.Variant, value.Sections.ToArray(), value.Status, value.Revision,
+        value.RequestedAtUtc, value.CompletedAtUtc, value.DownloadUrl, value.DownloadExpiresAtUtc,
+        value.Failures.Select(KundaliReportFailureResponse.From).ToArray());
+}
+
+/// <summary>Where a generation failure happened and what happened. The pair is the contract; the reason string is
+/// open, so an unrecognised reason still renders with its path instead of collapsing to silence.</summary>
+public sealed record KundaliReportFailureResponse(string Path, string Reason)
+{
+    public static KundaliReportFailureResponse From(MyVedicStar.Kundali.Shared.KundaliReportFailure value) =>
+        new(value.Path, value.Reason);
+}

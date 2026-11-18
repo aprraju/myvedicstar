@@ -1154,4 +1154,18 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         /// <summary>A following interval exists, but every phase of it starts after the reference instant.</summary>
         public const string AfterInterval = "not-yet-active";
     }
+
+    /// <summary>KUN-17 report generation is not wired yet. This is an honest unsupported state, not a stub that
+    /// pretends: it refuses rather than returning a report that will never become ready, because a caller holding a
+    /// `queued` id that never settles cannot distinguish "slow" from "never implemented".</summary>
+    public Task<KundaliReport> RequestReportAsync(
+        ClaimsPrincipal user, Guid profileId, KundaliReportRequest request, CancellationToken token) =>
+        throw new NotSupportedException(
+            "Report generation is not configured in this host. KUN-17 delivery requires the report store and renderer.");
+
+    public Task<KundaliReport> GetReportAsync(
+        ClaimsPrincipal user, Guid profileId, Guid reportId, CancellationToken token) =>
+        throw new NotSupportedException(
+            "Report generation is not configured in this host. KUN-17 delivery requires the report store and renderer.");
+
 }

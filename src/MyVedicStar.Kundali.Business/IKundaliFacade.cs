@@ -100,4 +100,15 @@ public interface IKundaliFacade
     Task<KundaliYogasSection> GetYogasAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
     KundaliCapabilityReport GetCapabilities();
+
+    /// <summary>KUN-17: request a report for the named sections. Returns the created report in `queued` state; the
+    /// caller polls <see cref="GetReportAsync"/>. A report binds the source revision at request time.</summary>
+    Task<KundaliReport> RequestReportAsync(
+        ClaimsPrincipal user, Guid profileId, KundaliReportRequest request, CancellationToken token);
+
+    /// <summary>KUN-17: report state and, once ready, an owner-scoped download URL whose expiry is the effective
+    /// minimum of the issue window and the report's lifetime.</summary>
+    Task<KundaliReport> GetReportAsync(
+        ClaimsPrincipal user, Guid profileId, Guid reportId, CancellationToken token);
 }
+

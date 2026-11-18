@@ -40,6 +40,109 @@ public static class KundaliSections
         [Overview, Charts, Planets, Dashas, Yogas, Ashtakavarga, Bala, Transits, Interpretations];
 }
 
+
+/// <summary>KUN-17 report variant. Short and detailed differ in how much of a section is rendered, never in which
+/// sections are available - so a variant can never silently drop a section the caller asked for.</summary>
+public static class KundaliReportVariants
+{
+    public const string Short = "short";
+    public const string Detailed = "detailed";
+
+    public static readonly IReadOnlyList<string> All = [Short, Detailed];
+}
+
+/// <summary>KUN-17 report lifecycle. Deliberately has no `stale` member: a report generated from a superseded
+/// revision is not a new state, it is a <see cref="KundaliReportStatus"/> that no longer matches the profile's current
+/// revision, which the caller detects by comparing `Revision` with the profile. Adding a state here would make the
+/// same fact expressible two ways and neither authoritative.</summary>
+public static class KundaliReportStatus
+{
+    public const string Queued = "queued";
+    public const string Running = "running";
+    public const string Ready = "ready";
+    public const string Failed = "failed";
+
+    public static readonly IReadOnlyList<string> All = [Queued, Running, Ready, Failed];
+}
+
+/// <summary>A reason a report could not be generated. `Path` names the thing that failed and `Reason` says what
+/// happened, so an unlisted reason still renders as a reason with its location rather than collapsing to silence.
+/// The pair is the contract; the set of reason strings is not closed.</summary>
+public sealed record KundaliReportFailure(string Path, string Reason);
+
+/// <summary>KUN-17 report request. `Sections` must be a non-empty subset of the published closed set; `Variant`
+/// must be one of <see cref="KundaliReportVariants"/>. An empty selection is a caller error, not a request for a
+/// complete report - defaulting it would make a mistaken input look like a deliberate one.</summary>
+public sealed record KundaliReportRequest(
+    string Variant,
+    IReadOnlyList<string> Sections,
+    string? Locale = null);
+
+/// <summary>KUN-17 report state. `Revision` is the source profile revision the report was generated from, published
+/// on every read so the caller can tell a current report from a superseded one without a second lookup.</summary>
+public sealed record KundaliReport(
+    Guid ReportId,
+    Guid ProfileId,
+    string Variant,
+    IReadOnlyList<string> Sections,
+    string Status,
+    long Revision,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    string? DownloadUrl,
+    DateTimeOffset? DownloadExpiresAtUtc,
+    IReadOnlyList<KundaliReportFailure> Failures)
+{
+    /// <summary>The report has finished generating, successfully or not. A caller polls until this is true.</summary>
+    public bool IsSettled => Status is KundaliReportStatus.Ready or KundaliReportStatus.Failed;
+}
+
+
+/// <summary>
+/// Decides when a report download URL stops being readable (KUN-17). Two independent clocks bound it, and the
+/// effective expiry is the EARLIER of the two:
+/// <list type="number">
+/// <item>the short issue window, so a copied URL stops working soon after it is shared;</item>
+/// <item>the report's own lifetime, so deleting the report or the profile revokes the URL immediately.</item>
+/// </list>
+/// <para>
+/// The second boundary is the one that matters. An issue-window-only URL leaves a report generated from revision 41
+/// readable for the whole window after revision 42 lands - which is precisely the stale-artifact-readable failure the
+/// URL exists to prevent. So <b>expiry is a ceiling, not a promise</b>: the published expiry is the minimum, never the
+/// issue window on its own. Publishing the window and enforcing something shorter would be the same lie the field
+/// exists to correct.
+/// </para>
+/// <para>
+/// Validity is re-checked against live report state at download time rather than cached at issue time. That is what
+/// makes revocation stateless: no denylist to consult and no distributed invalidation to broadcast, so the design
+/// cannot rot as instances are added.
+/// </para>
+/// </summary>
+public static class KundaliReportDownloadLease
+{
+    /// <summary>The short issue window. A duration, not an instant - the caller supplies the issue time so the
+    /// boundary is a pure function and can be tested without a clock.</summary>
+    public static readonly TimeSpan IssueWindow = TimeSpan.FromMinutes(15);
+
+    /// <summary>The effective expiry, published to the caller and enforced at download. The earlier boundary wins;
+    /// a null report lifetime means the report no longer exists and the URL is already dead.</summary>
+    public static DateTimeOffset? EffectiveExpiry(DateTimeOffset issuedAtUtc, DateTimeOffset? reportExpiresAtUtc)
+    {
+        if (reportExpiresAtUtc is not { } reportExpiry) return null;
+        var issuedExpiry = issuedAtUtc + IssueWindow;
+        return issuedExpiry < reportExpiry ? issuedExpiry : reportExpiry;
+    }
+
+    /// <summary>True only when the URL is inside BOTH boundaries at <paramref name="nowUtc"/>. The live report expiry
+    /// is passed in on every check rather than captured at issue, so a revoked report fails here immediately.</summary>
+    public static bool IsReadable(
+        DateTimeOffset issuedAtUtc, DateTimeOffset? reportExpiresAtUtc, DateTimeOffset nowUtc)
+    {
+        if (EffectiveExpiry(issuedAtUtc, reportExpiresAtUtc) is not { } expiry) return false;
+        return nowUtc < expiry;
+    }
+}
+
 /// <summary>
 /// Provenance stamped on every persisted result. A result is only serviceable when all of these still match the
 /// current snapshot and effective settings; otherwise it is stale and never served as current.

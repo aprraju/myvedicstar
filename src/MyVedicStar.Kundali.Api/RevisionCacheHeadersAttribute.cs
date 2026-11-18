@@ -19,6 +19,10 @@ namespace MyVedicStar.API.Controllers;
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class RevisionCacheHeadersAttribute : ActionFilterAttribute
 {
+    /// <summary>The exact value written on every revision-keyed payload. Exposed so a test can pin it: "no-store"
+    /// without "private" still permits a private cache to store the body.</summary>
+    public const string CacheControlValue = "private, no-store";
+
     public override void OnActionExecuted(ActionExecutedContext context)
     {
         if (context.Result is not ObjectResult { Value: not null } result) return;
@@ -29,7 +33,7 @@ public sealed class RevisionCacheHeadersAttribute : ActionFilterAttribute
         var etag = new EntityTagHeaderValue('"' + Tag(revisionKey) + '"');
         var headers = context.HttpContext.Response.Headers;
         headers[HeaderNames.ETag] = etag.ToString();
-        headers[HeaderNames.CacheControl] = "private, no-store";
+        headers[HeaderNames.CacheControl] = CacheControlValue;
 
         var supplied = context.HttpContext.Request.Headers.IfNoneMatch;
         if (supplied.Count > 0 && EntityTagHeaderValue.TryParseList(supplied, out var candidates)
