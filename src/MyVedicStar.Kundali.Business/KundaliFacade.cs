@@ -132,10 +132,10 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
                 .ToArray();
 
             foreach (var planet in missing)
-                unsupported.Add(new KundaliUnsupportedField(planet, KundaliUnsupportedReasons.NotImplemented));
+                unsupported.Add(new KundaliUnsupportedField(planet, KundaliUnsupportedReasons.EngineUnavailable));
 
             unsupported.Add(new KundaliUnsupportedField(nameof(KundaliBalaSection.Shadbala),
-                KundaliUnsupportedReasons.NotImplemented));
+                KundaliUnsupportedReasons.EngineUnavailable));
         }
 
         // Bhava Bala depends on house cusps, hence on the ascendant, which is withheld as unvalidated. The cause is our

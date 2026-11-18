@@ -692,7 +692,7 @@ public sealed class KundaliOverviewTests
 
         var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason, StringComparer.Ordinal);
         Assert.Equal(KundaliUnsupportedReasons.RequiresExactBirthTime, reasons["Kala"]);
-        Assert.Equal(KundaliUnsupportedReasons.NotImplemented, reasons["Chesta"]);
+        Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["Chesta"]);
 
         foreach (var planet in section.Shadbala)
         {
@@ -756,8 +756,8 @@ public sealed class KundaliOverviewTests
         Assert.False(section.Complete);
 
         var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason, StringComparer.Ordinal);
-        Assert.Equal(KundaliUnsupportedReasons.NotImplemented, reasons["Saturn"]);
-        Assert.Equal(KundaliUnsupportedReasons.NotImplemented, reasons[nameof(KundaliBalaSection.Shadbala)]);
+        Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["Saturn"]);
+        Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons[nameof(KundaliBalaSection.Shadbala)]);
     }
 
     private static IReadOnlyList<KundaliEngineGrahaPosition> FullGrahaPositions() =>
