@@ -71,6 +71,7 @@ public static class KundaliIntegrationRegistration
         // (KUN-21 Architect refinement). Registered as TryAdd so a host that has already registered an implementation -
         // or a test that supplies a fake - keeps it.
         services.TryAddScoped<IKundaliResultCache, KundaliResultCacheAdapter>();
+        services.AddKundaliShadbalaRules();
         return services;
     }
 }

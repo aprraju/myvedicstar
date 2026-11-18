@@ -25,6 +25,7 @@ public static class KundaliBusinessRegistration
         services.TryAddScoped<IKundaliDivisionalMapper, UnconfiguredDivisionalMapper>();
         services.TryAddScoped<IKundaliDignityRules, UnconfiguredDignityRules>();
         services.TryAddScoped<IKundaliAshtakavargaRules, UnconfiguredAshtakavargaRules>();
+        services.TryAddScoped<IKundaliShadbalaRules, UnconfiguredShadbalaRules>();
         return services;
     }
 }
@@ -84,6 +85,40 @@ public interface IKundaliAshtakavargaRules
     IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet);
 }
 
+/// <summary>
+/// Shadbala computation as a port. The component rules live in the calculation project; Business consumes the
+/// abstraction so the layering holds and the rules stay testable without a host.
+/// </summary>
+public interface IKundaliShadbalaRules
+{
+    /// <summary>Identifies the exact component rules and threshold table in use.</summary>
+    string RulesVersion { get; }
+
+    /// <summary>The strength unit, echoed rather than assumed.</summary>
+    string Unit { get; }
+
+    /// <summary>The seven scored planets.</summary>
+    IReadOnlyList<string> ScoredPlanets { get; }
+
+    /// <summary>Classical components this build cannot produce, with a reason each.</summary>
+    IReadOnlyDictionary<string, string> WithheldComponents { get; }
+
+    /// <summary>Per-planet strength from sidereal longitudes.</summary>
+    IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet);
+}
+
+/// <summary>One planet's computed strength, with every component's basis attached.</summary>
+public sealed record KundaliShadbalaResult(
+    string Planet,
+    IReadOnlyList<KundaliShadbalaComponent> Components,
+    double TotalRupas,
+    IReadOnlyList<string> ComponentsWithheld,
+    double? RequiredRupas,
+    double? RatioToThreshold);
+
+/// <summary>One component's value and the basis it was computed on.</summary>
+public sealed record KundaliShadbalaComponent(string Component, double Rupas, string Basis);
+
 
 public interface IKundaliDignityRules
 {
@@ -141,6 +176,24 @@ internal sealed class UnconfiguredAshtakavargaRules : IKundaliAshtakavargaRules
         throw new InvalidOperationException("No Ashtakavarga rules are registered.");
 }
 
+
+/// <summary>Fallback used when composition has not supplied the real rules. Reports nothing as producible and
+/// refuses to compute, so a missing registration surfaces as an unsupported section rather than as a silently wrong
+/// strength.</summary>
+internal sealed class UnconfiguredShadbalaRules : IKundaliShadbalaRules
+{
+    public string RulesVersion => "unconfigured";
+
+    public string Unit => "rupas";
+
+    public IReadOnlyList<string> ScoredPlanets => [];
+
+    public IReadOnlyDictionary<string, string> WithheldComponents =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) =>
+        throw new InvalidOperationException("No Shadbala rules are registered.");
+}
 
 internal sealed class UnconfiguredDignityRules : IKundaliDignityRules
 {

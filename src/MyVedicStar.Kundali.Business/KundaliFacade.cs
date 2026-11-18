@@ -9,6 +9,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
     IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
+    IKundaliShadbalaRules shadbalaRules,
     TimeProvider clock,
     IKundaliResultCache cache) : IKundaliFacade
 {
@@ -27,7 +28,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             (await repository.GetPreferencesAsync(accountId, profileId, token))?.ChartStyle ?? DefaultPreferences().ChartStyle);
         var view = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token)
             ?? EmptyView(profileId);
-        return Stamped(view, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion) with { Settings = settings };
+        return Stamped(view, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion) with { Settings = settings };
     }
 
     public async Task<KundaliView> GenerateAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -40,16 +41,16 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var existing = await repository.GetAsync(accountId, profileId, snapshot.ProfileRevision, token);
         if (existing is null)
             return Stamped(await repository.EnsureAggregateWithRevisionAsync(accountId, profileId, snapshot,
-                provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
+                provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
 
         // Repeated clicks for identical inputs must not enqueue twice: return the running revision untouched.
         if (existing.CurrentRevision is { Status: KundaliGenerationStatus.Pending or KundaliGenerationStatus.Running }
             && existing.CurrentRevision.InputSnapshotHash == snapshot.ComputeHash()
             && existing.CurrentRevision.Provenance == provenance)
-            return Stamped(existing, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
+            return Stamped(existing, accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
 
         return Stamped(await repository.AddRevisionAsync(accountId, profileId, existing.Aggregate.Revision,
-            snapshot, provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
+            snapshot, provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
     }
 
     public async Task<KundaliView> RetryAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -66,7 +67,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             throw new KundaliConflictException(KundaliErrors.AlreadyRunning);
 
         return Stamped(await repository.AddRevisionAsync(accountId, profileId, current.Aggregate.Revision, snapshot,
-            provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion);
+            provenance, token), accountId, snapshot.ProfileRevision, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion);
     }
 
     public async Task<KundaliPreferences> GetPreferencesAsync(ClaimsPrincipal user, Guid profileId,
@@ -85,6 +86,95 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         validator.ValidateChartStyle(chartStyle);
         if (revision < 0) throw new ValidationException(KundaliErrors.InvalidConfig);
         return await repository.SavePreferencesAsync(accountId, profileId, chartStyle, revision, token);
+    }
+
+
+    /// <summary>
+    /// KUN-12: Shadbala per planet and Bhava Bala per house for an owned profile.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Shadbala is reported as explicitly partial.</b> Kala needs the birth moment's diurnal division and Chesta
+    /// needs a true velocity series; neither is available, so four of the six classical components are produced and the
+    /// result says <c>Complete = false</c> with both missing components named per planet. A total silently missing two
+    /// components would be compared against a six-component threshold and read as a weak chart.</para>
+    /// <para><b>Bhava Bala is withheld entirely.</b> Every classical Bhava Bala scheme requires the house cusps, which
+    /// require the ascendant, which is not validated. It is returned as an explained empty list rather than as twelve
+    /// zeros - zero would read as "computed and weak", which is a different and false statement.</para>
+    /// </remarks>
+    public async Task<KundaliBalaSection> GetBalaAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
+    {
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        var longitudeByPlanet = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (var planet in shadbalaRules.ScoredPlanets)
+        {
+            var position = engine.GrahaPositions?.FirstOrDefault(p =>
+                string.Equals(p.Graha, planet, StringComparison.Ordinal) && p.SiderealLongitude.HasValue);
+
+            if (position?.SiderealLongitude is { } longitude)
+                longitudeByPlanet[planet] = longitude;
+        }
+
+        // A planet with no position is a gap, not a zero. If any scored planet is missing, Shadbala is withheld whole:
+        // computing seven planets' totals from six positions would rank a missing planet at the bottom for no reason
+        // other than the engine not having looked at it.
+        if (longitudeByPlanet.Count < shadbalaRules.ScoredPlanets.Count)
+        {
+            var missing = shadbalaRules.ScoredPlanets
+                .Where(planet => !longitudeByPlanet.ContainsKey(planet))
+                .ToArray();
+
+            foreach (var planet in missing)
+                unsupported.Add(new KundaliUnsupportedField(planet, KundaliUnsupportedReasons.NotImplemented));
+
+            unsupported.Add(new KundaliUnsupportedField(nameof(KundaliBalaSection.Shadbala),
+                KundaliUnsupportedReasons.NotImplemented));
+        }
+
+        // Bhava Bala depends on house cusps, hence on the ascendant, which is withheld as unvalidated. The cause is our
+        // own confidence, not the user's birth time, so the code says so.
+        unsupported.Add(new KundaliUnsupportedField(nameof(KundaliBalaSection.BhavaBala),
+            KundaliUnsupportedReasons.UnvalidatedReference));
+
+        if (longitudeByPlanet.Count < shadbalaRules.ScoredPlanets.Count)
+        {
+            return new KundaliBalaSection(shadbalaRules.RulesVersion, shadbalaRules.Unit, false, [], [], unsupported);
+        }
+
+        var computed = shadbalaRules.Compute(longitudeByPlanet);
+
+        var planets = computed
+            .Select(planet => new KundaliShadbalaPlanet(
+                planet.Planet,
+                planet.Components.ToDictionary(
+                    component => component.Component,
+                    component => component.Rupas,
+                    StringComparer.Ordinal),
+                planet.TotalRupas,
+                planet.RequiredRupas,
+                planet.RatioToThreshold,
+                planet.ComponentsWithheld))
+            .ToArray();
+
+        // Each withheld component is named on the section too, so a consumer reading only the top level still learns why
+        // Complete is false without walking every planet.
+        foreach (var withheld in shadbalaRules.WithheldComponents)
+            unsupported.Add(new KundaliUnsupportedField(withheld.Key, withheld.Value));
+
+        return new KundaliBalaSection(
+            shadbalaRules.RulesVersion,
+            shadbalaRules.Unit,
+            Complete: false,
+            planets,
+            [],
+            unsupported);
     }
 
     public KundaliCapabilityReport GetCapabilities() => KundaliCapabilities.Report();
@@ -119,7 +209,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             var provenance = await BuildProvenanceAsync(user, token);
             await cache.RemoveAsync(KundaliCacheKeys.Section(
                 KundaliCacheKeys.RevisionKey(accountId, profileId, snapshot.ProfileRevision, provenance,
-                    RuleSetVersions(provenance, ashtakavargaRules.RulesVersion)), profileId,
+                    RuleSetVersions(provenance, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion)), profileId,
                 KundaliSections.Overview), token);
         }
 
@@ -177,7 +267,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var provenance = await BuildProvenanceAsync(user, token);
 
         var revisionKey = KundaliCacheKeys.RevisionKey(accountId, profileId, snapshot.ProfileRevision, provenance,
-            RuleSetVersions(provenance, ashtakavargaRules.RulesVersion));
+            RuleSetVersions(provenance, ashtakavargaRules.RulesVersion, shadbalaRules.RulesVersion));
         var key = KundaliCacheKeys.Section(revisionKey, profileId, KundaliSections.Overview);
         var now = clock.GetUtcNow();
 
@@ -564,8 +654,14 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     /// <remarks>Static and taking the Ashtakavarga version explicitly, so the same list is used on the read path (which
     /// has the registered rules) and in <c>Stamped</c> (which only has the stored provenance). Two ways of building this
     /// list is how the two would silently diverge.</remarks>
-    private static IReadOnlyList<string> RuleSetVersions(KundaliProvenance provenance, string ashtakavargaRulesVersion) =>
-        [provenance.RuleSetVersion, ashtakavargaRulesVersion];
+    /// <remarks>
+    /// Every independently versioned rule set that can change a published number must appear here. Shadbala carries its
+    /// own component/threshold rule set (KUN-12), so omitting it would let a Shadbala rule change reuse a cached strength
+    /// computed under the old rules - the same staleness the Ashtakavarga entry exists to prevent.
+    /// </remarks>
+    private static IReadOnlyList<string> RuleSetVersions(KundaliProvenance provenance, string ashtakavargaRulesVersion,
+        string shadbalaRulesVersion) =>
+        [provenance.RuleSetVersion, ashtakavargaRulesVersion, shadbalaRulesVersion];
 
     private async Task<KundaliProvenance> BuildProvenanceAsync(ClaimsPrincipal user, CancellationToken token)
     {
@@ -771,7 +867,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     /// the profile revision the caller just read, so no consumer has to reconstruct the rule from hashes and statuses.
     /// </summary>
     private static KundaliView Stamped(KundaliView view, Guid accountId, long profileRevision,
-        string ashtakavargaRulesVersion)
+        string ashtakavargaRulesVersion, string shadbalaRulesVersion)
     {
         var revision = view.CurrentRevision;
         var inputRevision = revision is null ? 0 : view.InputRevision;
@@ -784,7 +880,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         var revisionKey = revision is null || inputRevision == 0
             ? null
             : KundaliCacheKeys.RevisionKey(accountId, view.Aggregate.ProfileId, inputRevision, revision.Provenance,
-                RuleSetVersions(revision.Provenance, ashtakavargaRulesVersion));
+                RuleSetVersions(revision.Provenance, ashtakavargaRulesVersion, shadbalaRulesVersion));
 
         return view with
         {

@@ -41,7 +41,41 @@ public sealed class KundaliOverviewTests
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
             KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(),
-            new FixedClock(), Substitute.For<IKundaliResultCache>());
+            new TestShadbalaRules(), new FixedClock(), Substitute.For<IKundaliResultCache>());
+    }
+
+    /// <summary>Decorative Shadbala rules for facade-level tests. The arithmetic is tested exhaustively in
+    /// ShadbalaTests against the calculation project; these tests exist to prove the facade's reporting contract - what
+    /// it publishes, what it withholds, and why.</summary>
+    private sealed class TestShadbalaRules : IKundaliShadbalaRules
+    {
+        public string RulesVersion => "shadbala-test-1";
+
+        public string Unit => "rupas";
+
+        public IReadOnlyList<string> ScoredPlanets => ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
+
+        public IReadOnlyDictionary<string, string> WithheldComponents =>
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Kala"] = KundaliUnsupportedReasons.RequiresExactBirthTime,
+                ["Chesta"] = KundaliUnsupportedReasons.EngineUnavailable
+            };
+
+        public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) =>
+            ScoredPlanets.Select(planet => new KundaliShadbalaResult(
+                planet,
+                [
+                    new KundaliShadbalaComponent("Sthana", 0.5, "test basis", "computed"),
+                    new KundaliShadbalaComponent("Dig", 0.0, "test placeholder", "placeholder")
+                ],
+                0.5,
+                ["Kala", "Chesta"],
+                5.0,
+                0.1,
+                ["Sthana"],
+                ["Dig"])).ToArray();
+    }
     }
 
     /// <summary>Real Ashtakavarga rules over the calculation project.</summary>
@@ -636,5 +670,106 @@ public sealed class KundaliOverviewTests
         await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
             facade.GetPlanetsAsync(user, profileId, Token));
     }
+
+
+    [Fact]
+    public async Task Bala_reports_that_it_is_incomplete_and_names_both_missing_components()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>())
+            {
+                GrahaPositions = FullGrahaPositions()
+            });
+
+        var section = await facade.GetBalaAsync(user, profileId, Token);
+
+        // The central claim of this section: it must not be possible to read the total as a six-fold score.
+        Assert.False(section.Complete);
+
+        var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason, StringComparer.Ordinal);
+        Assert.Equal(KundaliUnsupportedReasons.RequiresExactBirthTime, reasons["Kala"]);
+        Assert.Equal(KundaliUnsupportedReasons.NotImplemented, reasons["Chesta"]);
+
+        foreach (var planet in section.Shadbala)
+        {
+            Assert.Contains("Kala", planet.ComponentsWithheld);
+            Assert.Contains("Chesta", planet.ComponentsWithheld);
+        }
+
+        Assert.NotEmpty(section.Shadbala);
+        Assert.Equal("shadbala-test-1", section.RulesVersion);
+        Assert.Equal("rupas", section.Unit);
+    }
+
+    [Fact]
+    public async Task Bhava_bala_is_withheld_because_the_ascendant_is_unvalidated()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>())
+            {
+                GrahaPositions = FullGrahaPositions()
+            });
+
+        var section = await facade.GetBalaAsync(user, profileId, Token);
+
+        // Twelve zeros would read as "computed and weak", which is a different and false statement from "not computed".
+        Assert.Empty(section.BhavaBala);
+
+        var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason, StringComparer.Ordinal);
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons[nameof(KundaliBalaSection.BhavaBala)]);
+
+        // And it must NOT blame the user's birth time, which is exact in this test.
+        Assert.NotEqual(KundaliUnsupportedReasons.RequiresExactBirthTime,
+            reasons[nameof(KundaliBalaSection.BhavaBala)]);
+    }
+
+    [Fact]
+    public async Task Bala_withholds_shadbala_when_a_scored_planet_has_no_position()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // Saturn withheld: six planets present. Ranking six planets while the seventh is simply unlooked-at would put
+        // Saturn at the bottom for a reason that has nothing to do with the chart.
+        var partial = FullGrahaPositions()
+            .Where(graha => !string.Equals(graha.Graha, "Saturn", StringComparison.Ordinal))
+            .ToArray();
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>())
+            {
+                GrahaPositions = partial
+            });
+
+        var section = await facade.GetBalaAsync(user, profileId, Token);
+
+        Assert.Empty(section.Shadbala);
+        Assert.False(section.Complete);
+
+        var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason, StringComparer.Ordinal);
+        Assert.Equal(KundaliUnsupportedReasons.NotImplemented, reasons["Saturn"]);
+        Assert.Equal(KundaliUnsupportedReasons.NotImplemented, reasons[nameof(KundaliBalaSection.Shadbala)]);
+    }
+
+    private static IReadOnlyList<KundaliEngineGrahaPosition> FullGrahaPositions() =>
+        new[]
+        {
+            new KundaliEngineGrahaPosition("Sun", 10.0, "Aries", 10.0m, false, 0.98, null),
+            new KundaliEngineGrahaPosition("Moon", 100.0, "Cancer", 10.0m, false, 13.2, null),
+            new KundaliEngineGrahaPosition("Mars", 200.0, "Libra", 20.0m, false, 0.52, null),
+            new KundaliEngineGrahaPosition("Mercury", 250.0, "Sagittarius", 10.0m, true, 1.2, null),
+            new KundaliEngineGrahaPosition("Jupiter", 300.0, "Capricorn", 0.0m, false, 0.08, null),
+            new KundaliEngineGrahaPosition("Venus", 60.0, "Gemini", 0.0m, false, 1.2, null),
+            new KundaliEngineGrahaPosition("Saturn", 330.0, "Pisces", 0.0m, true, 0.03, null)
+        };
 
 }

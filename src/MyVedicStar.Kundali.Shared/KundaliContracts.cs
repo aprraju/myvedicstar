@@ -446,3 +446,41 @@ public static class KundaliSigns
             : throw new ArgumentOutOfRangeException(nameof(index), index, "A sign index must be 0-11.");
 }
 
+
+/// <summary>
+/// KUN-12 Shadbala and Bhava Bala. Two separate top-level objects, never merged into one score: Shadbala measures
+/// planetary strength, Bhava Bala measures house strength, and adding them together would be a meaningless number.
+/// </summary>
+/// <param name="RulesVersion">Identifies the exact component rules and threshold table used.</param>
+/// <param name="Unit">The strength unit, echoed so a consumer never assumes.</param>
+/// <param name="Complete">False whenever any classical component is missing. A caller must check this before comparing
+/// <c>RatioToThreshold</c> to the classical required-rupas table.</param>
+/// <param name="Shadbala">Per-planet strength. Empty with an explanation when it cannot be computed.</param>
+/// <param name="BhavaBala">Per-house strength. Separate from Shadbala by contract.</param>
+/// <param name="Unsupported">Every withheld element and why. Never an unexplained absence.</param>
+public sealed record KundaliBalaSection(
+    string RulesVersion,
+    string Unit,
+    bool Complete,
+    IReadOnlyList<KundaliShadbalaPlanet> Shadbala,
+    IReadOnlyList<KundaliBhavaBalaHouse> BhavaBala,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+/// <summary>One planet's Shadbala. <paramref name="ComponentsWithheld"/> names the classical components that are
+/// missing so the total is never mistaken for a six-fold score.</summary>
+public sealed record KundaliShadbalaPlanet(
+    string Planet,
+    IReadOnlyDictionary<string, double> Components,
+    double Total,
+    double? RequiredRupas,
+    double? RatioToThreshold,
+    IReadOnlyList<string> ComponentsWithheld);
+
+/// <summary>One house's Bhava Bala, with its own component breakdown.</summary>
+public sealed record KundaliBhavaBalaHouse(
+    int House,
+    IReadOnlyDictionary<string, double> Components,
+    double Total);
+
+/// <summary>One component's value and the basis it was computed on, so a number is never bare.</summary>
+public sealed record KundaliBalaComponent(string Component, double Rupas, string Basis);
