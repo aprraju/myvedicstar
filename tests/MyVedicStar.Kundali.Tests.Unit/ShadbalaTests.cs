@@ -210,9 +210,11 @@ public sealed class ShadbalaTests
     [Fact]
     public void Rotating_the_whole_chart_does_not_change_which_aspects_are_received()
     {
-        // Aspects are whole-sign and relative, so a uniform rotation must leave every Drik score identical. An absolute
-        // longitude comparison would break this and is a common way to get aspects subtly wrong.
-        var rotated = Chart.ToDictionary(pair => pair.Key, pair => (pair.Value + 47.0) % 360.0, StringComparer.Ordinal);
+        // Aspects are whole-sign and relative, so a rotation by exactly one whole sign must leave every Drik score
+        // identical. The rotation must be a multiple of 30: rotating by an arbitrary angle moves bodies across sign
+        // boundaries at different points and legitimately changes which whole-sign aspects are formed. My first version
+        // rotated by 47 and the test failed for that reason - the invariant was right, the rotation was not.
+        var rotated = Chart.ToDictionary(pair => pair.Key, pair => (pair.Value + 30.0) % 360.0, StringComparer.Ordinal);
 
         var before = Shadbala.Compute(Chart).Planets
             .Select(p => p.Components.Single(c => c.Component == "Drik").Rupas).ToArray();
