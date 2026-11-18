@@ -8,10 +8,11 @@ namespace MyVedicStar.Kundali.Integration;
 /// never references Kundali - the dependency runs one way only.
 /// </summary>
 /// <remarks>
-/// Idempotent by construction: the underlying delete is account-scoped and removes whatever exists, so a second run
+/// Public because it is registered from the composition project, which references both modules but must not be
+/// bypassed by a module-level reference. Idempotent by construction: the underlying delete is account-scoped and removes whatever exists, so a second run
 /// removes nothing and succeeds. That matters because deletion can be retried after a transient failure.
 /// </remarks>
-internal sealed class KundaliProfileDeletionParticipant(IKundaliRepository repository)
+public sealed class KundaliProfileDeletionParticipant(IKundaliRepository repository)
     : IVedicProfileDeletionParticipant
 {
     public async Task RemoveAsync(Guid accountId, Guid profileId, CancellationToken token)
