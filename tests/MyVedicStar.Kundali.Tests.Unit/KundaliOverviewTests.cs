@@ -510,15 +510,18 @@ public sealed class KundaliOverviewTests
         profiles.GetDisplayAsync(user, profileId, Token)
             .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
 
-        // Sun at 10 Aries is exalted; Moon at 45 Taurus is not.
+        // Sun at 10 Aries is exalted. Moon at 105 (Cancer 15) is not - the first attempt used 45, which is Taurus,
+        // the Moon's OWN exaltation sign, so the fixture accidentally asserted the opposite of what it read like.
         engine.Calculate(Arg.Any<KundaliEngineInput>())
-            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+            .Returns(new KundaliEngineResult(10.0, 105.0, 0, 3, null, null, null,
                 Array.Empty<KundaliEngineGap>()));
 
         var section = await facade.GetPlanetsAsync(user, profileId, Token);
 
         Assert.Equal("Exalted", section.Planets.Single(p => p.Planet == "Sun").Dignity);
         Assert.NotEqual("Exalted", section.Planets.Single(p => p.Planet == "Moon").Dignity);
+        // Asserted positively too, so the test cannot pass merely because Exalted became unreachable.
+        Assert.Equal("Own", section.Planets.Single(p => p.Planet == "Moon").Dignity);
     }
 
     [Fact]
