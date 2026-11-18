@@ -204,6 +204,27 @@ public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, str
 
 public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
+/// <summary>
+/// KUN-09 dasha timeline. Every period is an absolute UTC instant pair; <c>DisplayTimezone</c> states the zone a
+/// client should render them in, and is carried explicitly rather than inferred at render time.
+/// </summary>
+/// <remarks>
+/// <para><c>MoonLongitude</c> is the sidereal longitude the starting lord was derived from. It is published so a
+/// reader can verify the selection instead of trusting it.</para>
+/// <para><c>PeriodPath</c> is the mahadasha/antara/pratyantar chain at the query instant, outermost first. It is
+/// empty rather than partial when the instant falls outside the generated span.</para>
+/// </remarks>
+public sealed record KundaliDashaTimeline(
+    string System,
+    string DisplayTimezone,
+    double? MoonLongitude,
+    DateTimeOffset? At,
+    IReadOnlyList<KundaliDasha> Mahadashas,
+    IReadOnlyList<KundaliDasha> PeriodPath,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+
+
 public sealed record KundaliPlacement(string Graha, string Sign, int House, bool Retrograde);
 
 /// <summary>

@@ -32,7 +32,7 @@ public sealed class KundaliOverviewTests
         metadata.GetAsync(user, Token).Returns(Metadata);
         engine = Substitute.For<IKundaliCalculationEngine>();
         engine.Calculate(Arg.Any<KundaliEngineInput>())
-            .Returns(new KundaliEngineResult(null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
             KundaliEngineVersions.Foundation, metadata, engine, new FixedClock());
     }
@@ -136,7 +136,7 @@ public sealed class KundaliOverviewTests
         // Sign indices from the engine: 2 = Gemini, 9 = Capricorn. Names are asserted so a mistake in the
         // index-to-name mapping cannot pass as a correct sign.
         engine.Calculate(Arg.Any<KundaliEngineInput>())
-            .Returns(new KundaliEngineResult(280.0, 70.0, 9, 2, null, Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineResult(280.0, 70.0, 9, 2, null, null, null, Array.Empty<KundaliEngineGap>()));
 
         var overview = await facade.GetOverviewAsync(user, profileId, Token);
 
@@ -157,7 +157,7 @@ public sealed class KundaliOverviewTests
         // The engine reports the suppression; the facade must surface its reason verbatim rather than re-labelling
         // it, or "we cannot know your birth time" would be flattened into "not implemented".
         engine.Calculate(Arg.Any<KundaliEngineInput>()).Returns(new KundaliEngineResult(
-            null, null, null, null, null,
+            null, null, null, null, null, null, null,
             [
                 new KundaliEngineGap("SunSign", KundaliEngineReasons.RequiresExactBirthTime),
                 new KundaliEngineGap("MoonSign", KundaliEngineReasons.RequiresExactBirthTime)
@@ -258,5 +258,118 @@ public sealed class KundaliOverviewTests
 
     private void ReturnDashaSequence(params KundaliEngineDasha[] periods) =>
         engine.Calculate(Arg.Any<KundaliEngineInput>())
-            .Returns(new KundaliEngineResult(null, null, null, null, periods, Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineResult(null, null, null, null, periods, null, null, Array.Empty<KundaliEngineGap>()));
+
+    [Fact]
+    public async Task An_unsupported_dasha_system_is_rejected_rather_than_silently_served_as_vimshottari()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // Returning Vimshottari dates for a Yogini request would be a fabricated answer; refusing is the only
+        // honest response until that system exists.
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            facade.GetDashasAsync(user, profileId, "yogini", null, Token));
+
+        // The rejection happens before any provider or engine work.
+        await metadata.DidNotReceive().GetAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<CancellationToken>());
+        engine.DidNotReceive().CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>());
+    }
+
+    [Fact]
+    public async Task The_resolved_query_instant_is_echoed_so_the_caller_never_assumes_server_now()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>())
+            .Returns(new KundaliDashaTimeline(87.3, [], [], Array.Empty<KundaliEngineGap>()));
+
+        var timeline = await facade.GetDashasAsync(user, profileId, "vimshottari", null, Token);
+
+        // Omitted "at" resolves to the clock, and the same instant comes back in the payload.
+        Assert.Equal(new FixedClock().GetUtcNow(), timeline.At);
+        Assert.Equal("vimshottari", timeline.System);
+        Assert.Equal("Asia/Kolkata", timeline.DisplayTimezone);
+    }
+
+    [Fact]
+    public async Task An_explicit_instant_is_honoured_instead_of_being_replaced_by_the_clock()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        var past = new DateTimeOffset(2015, 3, 1, 0, 0, 0, TimeSpan.Zero);
+        engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>())
+            .Returns(new KundaliDashaTimeline(87.3, [], [], Array.Empty<KundaliEngineGap>()));
+
+        var timeline = await facade.GetDashasAsync(user, profileId, "vimshottari", past, Token);
+
+        Assert.Equal(past, timeline.At);
+        engine.Received(1).CalculateDashaTimeline(Arg.Is<KundaliDashaQuery>(query => query.At == past));
+    }
+
+    [Fact]
+    public async Task A_foreign_profile_is_not_found_for_dashas_too()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token).Returns((KundaliProfileDisplay?)null);
+
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            facade.GetDashasAsync(user, profileId, "vimshottari", null, Token));
+    }
+
+    [Fact]
+    public async Task A_known_but_unavailable_system_is_answered_with_a_reason_not_a_rejection()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>())
+            .Returns(new KundaliDashaTimeline(87.3, [], [], Array.Empty<KundaliEngineGap>()));
+
+        // "chara" exists as a concept, so it is not an unknown-system error. It is withheld because its period
+        // lengths need an ascendant we have not validated.
+        var timeline = await facade.GetDashasAsync(user, profileId, "chara", null, Token);
+
+        Assert.Equal("chara", timeline.System);
+        Assert.Empty(timeline.Mahadashas);
+        var reasons = timeline.Unsupported.ToDictionary(u => u.Path, u => u.Reason);
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons["Mahadashas"]);
+    }
+
+    [Fact]
+    public async Task A_genuinely_unknown_system_is_a_validation_error()
+    {
+        // Distinct from "chara": a system that does not exist is caller error, not a capability gap.
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            facade.GetDashasAsync(user, profileId, "ashtottari", null, Token));
+    }
+
+    [Fact]
+    public async Task Yogini_periods_are_served_with_the_current_one_selected()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        var firstStart = new DateTimeOffset(1989, 6, 1, 0, 0, 0, TimeSpan.Zero);
+        var firstEnd = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var secondEnd = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>()).Returns(new KundaliDashaTimeline(
+            87.3,
+            [],
+            [],
+            new KundaliEngineYoginiPeriod("Mangala", "Moon", firstStart, firstEnd, true),
+            null,
+            Array.Empty<KundaliEngineGap>()));
+
+        var timeline = await facade.GetDashasAsync(user, profileId, "yogini", null, Token);
+
+        Assert.Equal("yogini", timeline.System);
+        Assert.Single(timeline.Mahadashas);
+        Assert.Equal("Mangala", timeline.Mahadashas[0].Lord);
+        // The current path is the single containing period; Yogini sub-periods are not built, and that is reported.
+        Assert.Single(timeline.PeriodPath);
+        Assert.Contains(timeline.Unsupported, u => u.Path == "PeriodPath");
+    }
+
 }

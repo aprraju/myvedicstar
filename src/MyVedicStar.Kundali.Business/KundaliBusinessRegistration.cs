@@ -42,11 +42,16 @@ internal sealed class UnconfiguredAstronomyMetadataReader : IKundaliAstronomyMet
 /// </summary>
 internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculationEngine
 {
-    public KundaliEngineResult Calculate(KundaliEngineInput input) => new(null, null, null, null, null,
+    public KundaliEngineResult Calculate(KundaliEngineInput input) => new(null, null, null, null, null, null, null,
     [
         new KundaliEngineGap("SunSign", KundaliEngineReasons.NotImplemented),
         new KundaliEngineGap("MoonSign", KundaliEngineReasons.NotImplemented),
-        new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented)
+        new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented),
+        new KundaliEngineGap("YoginiPeriods", KundaliEngineReasons.NotImplemented),
+        new KundaliEngineGap("CharaSignPeriods", KundaliEngineReasons.NotImplemented)
     ]);
+
+    public KundaliDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query) =>
+        new(null, [], [], [new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented)]);
 }
 

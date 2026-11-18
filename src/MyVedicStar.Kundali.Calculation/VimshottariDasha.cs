@@ -47,6 +47,35 @@ public static class VimshottariDasha
     /// <summary>Total of one full Vimshottari cycle, in dasha years.</summary>
     public const double CycleYears = 120.0;
 
+    /// <summary>The lord sequence, in cycle order. Exposed so sub-period decomposition uses this table rather than a
+    /// second copy that could drift from it.</summary>
+    public static IReadOnlyList<string> Lords { get; } = [.. Periods.Select(period => period.Lord)];
+
+    /// <summary>Full period length of one lord, in dasha years.</summary>
+    /// <exception cref="ArgumentException">The lord is not part of the Vimshottari sequence.</exception>
+    public static double YearsOf(string lord)
+    {
+        foreach (var (name, years) in Periods)
+        {
+            if (string.Equals(name, lord, StringComparison.Ordinal))
+                return years;
+        }
+
+        throw new ArgumentException($"'{lord}' is not a Vimshottari lord.", nameof(lord));
+    }
+
+    /// <summary>Position of a lord in the cycle, 0 = Ketu.</summary>
+    public static int IndexOf(string lord)
+    {
+        for (var i = 0; i < Periods.Length; i++)
+        {
+            if (string.Equals(Periods[i].Lord, lord, StringComparison.Ordinal))
+                return i;
+        }
+
+        throw new ArgumentException($"'{lord}' is not a Vimshottari lord.", nameof(lord));
+    }
+
     /// <summary>
     /// Builds the mahadasha sequence covering the birth instant onward, one full cycle.
     /// </summary>

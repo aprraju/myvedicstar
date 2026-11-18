@@ -99,6 +99,9 @@ public interface IKundaliCalculationEngine
 {
     /// <summary>Computes the sign-bearing values for one immutable input. Pure: no clock, no store, no ambient state.</summary>
     KundaliEngineResult Calculate(KundaliEngineInput input);
+
+    /// <summary>Builds the dasha timeline for one input, with the current path at the supplied instant.</summary>
+    KundaliDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query);
 }
 
 /// <summary>Plain engine input. Built from the owned snapshot; contains no identity and no settings lookups.</summary>
@@ -115,12 +118,41 @@ public sealed record KundaliEngineInput(
 /// Engine output. Nullable values are always explained by a matching <see cref="Gaps"/> entry, so the caller never
 /// has to guess whether absence means "cannot compute" or "not built".
 /// </summary>
+/// <summary>
+/// Dasha section input. Carries an explicit query instant when one was supplied, plus the profile timezone so the
+/// response can state which zone the display times belong to.
+/// </summary>
+public sealed record KundaliDashaQuery(KundaliEngineInput Input, DateTimeOffset? At);
+
+/// <summary>
+/// Dasha section output: the mahadasha chain, the three-level path at the query instant, and the sidereal moon
+/// longitude the starting point was derived from.
+/// </summary>
+public sealed record KundaliDashaTimeline(
+    double? MoonSiderealLongitude,
+    IReadOnlyList<KundaliEngineDasha> Mahadashas,
+    IReadOnlyList<KundaliEngineDashaLevel> PeriodPath,
+    IReadOnlyList<KundaliEngineGap> Gaps);
+
+/// <summary>One level of the current period path: Mahadasha, Antara or Pratyantar.</summary>
+public sealed record KundaliEngineDashaLevel(string Lord, string Level, DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc);
+
+/// <summary>One Yogini period as the engine produced it.</summary>
+public sealed record KundaliEngineYoginiPeriod(string Name, string Ruler, DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc, bool IsRemainder);
+
+/// <summary>One equal-duration sign period from the Chara progression. Not a validated Chara dasha period.</summary>
+public sealed record KundaliEngineCharaPeriod(string Sign, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
 public sealed record KundaliEngineResult(
     double? SiderealSunLongitude,
     double? SiderealMoonLongitude,
     int? SunSign,
     int? MoonSign,
     IReadOnlyList<KundaliEngineDasha>? VimshottariMahadashas,
+    IReadOnlyList<KundaliEngineYoginiPeriod>? YoginiPeriods,
+    IReadOnlyList<KundaliEngineCharaPeriod>? CharaSignPeriods,
     IReadOnlyList<KundaliEngineGap> Gaps);
 
 /// <summary>One Vimshottari mahadasha period, both ends in UTC. Rendering locally belongs to the caller.</summary>

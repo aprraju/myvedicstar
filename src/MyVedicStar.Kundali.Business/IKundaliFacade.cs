@@ -32,5 +32,12 @@ public interface IKundaliFacade
 
     /// <summary>The published capability boundary (ADR-0016 section 3). Account-independent; exposed through the
     /// facade so the API has a single business entry point.</summary>
+
+    /// <summary>KUN-09: the dasha timeline for an owned profile, with the mahadasha chain and the period path at the
+    /// query instant. An unsupported system is rejected here rather than in the controller, so the rule has one home.
+    /// </summary>
+    Task<KundaliDashaTimeline> GetDashasAsync(ClaimsPrincipal user, Guid profileId, string system,
+        DateTimeOffset? at, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }
