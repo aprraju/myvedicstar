@@ -232,7 +232,8 @@ public sealed record KundaliAshtakavargaResponse(
 {
     public static KundaliAshtakavargaResponse From(MyVedicStar.Kundali.Shared.KundaliAshtakavargaSection value) => new(
         value.RulesVersion,
-        value.Bhinna.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal),
+        value.Bhinna.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<int>)pair.Value.ToArray(),
+            StringComparer.Ordinal),
         value.Sarva.ToArray(),
         KundaliAshtakavargaTotalsResponse.From(value.Totals),
         value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
