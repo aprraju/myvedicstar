@@ -91,9 +91,16 @@ public static class KundaliCalculationEngineRegistration
     /// </summary>
     public static IServiceCollection AddKundaliCalculationEngine(this IServiceCollection services)
     {
+        // The graha surface is wired from the same container, so the selected provider decides both the Sun/Moon port
+        // and the nine grahas. The reference set is read from the deployed astronomy assets rather than compiled in,
+        // so adding a published reference is a data change with a visible diff, never a code edit.
         services.AddScoped<Calculation.IKundaliEngine>(provider => new Calculation.KundaliEngine(
             provider.GetRequiredService<MyVedicDay.Astronomy.IEphemeris>(),
-            provider.GetRequiredService<MyVedicDay.Astronomy.IAyanamsa>()));
+            provider.GetRequiredService<MyVedicDay.Astronomy.IAyanamsa>())
+        {
+            GrahaProvider = provider.GetService<MyVedicDay.Astronomy.IGrahaPositionsProvider>(),
+            PlanetaryReferences = GrahaReferences.Load(provider),
+        });
         services.Replace(ServiceDescriptor.Scoped<IKundaliCalculationEngine, KundaliCalculationEngineAdapter>());
         services.AddKundaliDivisionalMapper();
         services.AddKundaliDignityRules();
