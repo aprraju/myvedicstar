@@ -121,6 +121,40 @@ public sealed record KundaliDashaTimelineResponse(
 }
 
 
+
+/// <summary>KUN-07 charts response. Style is absent by design: North/South/East render the same placements.</summary>
+public sealed record KundaliChartsSectionResponse(
+    int Divisional,
+    string Method,
+    IReadOnlyList<KundaliChartHouseResponse> Houses,
+    KundaliChartPrecisionResponse Precision)
+{
+    public static KundaliChartsSectionResponse From(MyVedicStar.Kundali.Shared.KundaliChartsSection value) => new(
+        value.Divisional,
+        value.Method,
+        value.Houses.Select(KundaliChartHouseResponse.From).ToArray(),
+        KundaliChartPrecisionResponse.From(value.Precision));
+}
+
+public sealed record KundaliChartHouseResponse(string Sign, IReadOnlyList<KundaliChartPlacementResponse> Placements)
+{
+    public static KundaliChartHouseResponse From(MyVedicStar.Kundali.Shared.KundaliChartHouse value) => new(
+        value.Sign, value.Placements.Select(KundaliChartPlacementResponse.From).ToArray());
+}
+
+public sealed record KundaliChartPlacementResponse(string Planet, string Sign, decimal DegreeWithinSign)
+{
+    public static KundaliChartPlacementResponse From(MyVedicStar.Kundali.Shared.KundaliChartPlacement value) =>
+        new(value.Planet, value.Sign, value.DegreeWithinSign);
+}
+
+public sealed record KundaliChartPrecisionResponse(string Status, string? Reason)
+{
+    public static KundaliChartPrecisionResponse From(MyVedicStar.Kundali.Shared.KundaliChartPrecision value) =>
+        new(value.Status, value.Reason);
+}
+
+
 /// <summary>Time fields are omitted when the mode does not carry them, so no consumer can read a placeholder as a
 /// real birth time.</summary>
 public sealed record KundaliBirthDetailsResponse(

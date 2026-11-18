@@ -232,6 +232,88 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         return ([], []);
     }
 
+
+    public async Task<KundaliChartsSection> GetChartsAsync(ClaimsPrincipal user, Guid profileId, int divisional,
+        CancellationToken token)
+    {
+        // Rejected here rather than in the controller so the rule has one home, and rejected rather than approximated:
+        // a wrong divisional sign is indistinguishable from a right one once it leaves this method.
+        if (!KundaliCapabilities.IsSupportedDivisional(divisional) &&
+            !KundaliCapabilities.IsProvisionalDivisional(divisional))
+        {
+            throw new ValidationException(
+                "Unknown divisional chart. See the capabilities endpoint for the supported divisions.");
+        }
+
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        // A chart needs a longitude per planet. We have two, and only when the birth time is exact. The houses are
+        // therefore built from sun and moon only - not a placeholder for the other seven, which would look like a
+        // complete chart with five planets silently missing.
+        var precision = engine.SiderealSunLongitude is not null && engine.SiderealMoonLongitude is not null
+            ? new KundaliChartPrecision(ValidatedStatus, null)
+            : new KundaliChartPrecision(UnvalidatedReferenceStatus,
+                KundaliUnsupportedReasons.RequiresExactBirthTime);
+
+        return new KundaliChartsSection(
+            divisional,
+            DivisionalMethodName(divisional),
+            precision.Status == ValidatedStatus ? BuildHouses(divisional, engine) : [],
+            precision);
+    }
+
+    /// <summary>Builds the twelve sign houses and places whichever bodies the engine produced.</summary>
+    private static IReadOnlyList<KundaliChartHouse> BuildHouses(int divisional, KundaliEngineResult engine)
+    {
+        var placements = new List<KundaliChartPlacement>(2);
+
+        AddPlacement(placements, "Sun", divisional, engine.SiderealSunLongitude);
+        AddPlacement(placements, "Moon", divisional, engine.SiderealMoonLongitude);
+
+        // Every sign appears exactly once, even when empty: a chart with missing houses is not a chart, and a client
+        // should not have to synthesise them.
+        return KundaliSigns.All
+            .Select(sign => new KundaliChartHouse(sign,
+                placements.Where(placement => placement.Sign == sign).ToArray()))
+            .ToArray();
+    }
+
+    private static void AddPlacement(List<KundaliChartPlacement> target, string planet, int divisional,
+        double? siderealLongitude)
+    {
+        if (siderealLongitude is not { } longitude)
+            return;
+
+        var signIndex = DivisionalCharts.SignIn(divisional, longitude);
+        var degreeWithinSign = (decimal)(longitude - (Math.Floor(longitude / 30.0) * 30.0));
+
+        target.Add(new KundaliChartPlacement(planet, DivisionalCharts.NameOf(signIndex),
+            Math.Round(degreeWithinSign, 4)));
+    }
+
+    private const string ValidatedStatus = "validated";
+    private const string UnvalidatedReferenceStatus = "unvalidated-reference";
+
+    private static string DivisionalMethodName(int divisional) => divisional switch
+    {
+        1 => "Rasi",
+        2 => "Hora",
+        3 => "Drekkana",
+        7 => "Saptamsa",
+        9 => "Navamsa",
+        10 => "Dasamsa",
+        12 => "Dwadasamsa",
+        30 => "Trimsamsa",
+        60 => "Shashtiamsa",
+        _ => $"D{divisional}"
+    };
+
+
     private static KundaliDasha ToDasha(KundaliEngineDasha period) =>
 
         new(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);

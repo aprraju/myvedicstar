@@ -39,5 +39,12 @@ public interface IKundaliFacade
     Task<KundaliDashaTimeline> GetDashasAsync(ClaimsPrincipal user, Guid profileId, string system,
         DateTimeOffset? at, CancellationToken token);
 
+
+    /// <summary>KUN-07: one divisional chart for an owned profile. A division whose rule is not implemented is rejected
+    /// here; a division that is implemented but whose placements need unvalidated inputs is returned with a precision
+    /// status that says so.</summary>
+    Task<KundaliChartsSection> GetChartsAsync(ClaimsPrincipal user, Guid profileId, int divisional,
+        CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }
