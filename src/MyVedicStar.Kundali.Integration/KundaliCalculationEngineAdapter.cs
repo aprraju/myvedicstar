@@ -40,7 +40,7 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
             result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
     }
 
-    public KundaliDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query)
+    public KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
 
@@ -49,7 +49,7 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
         if (result.VimshottariMahadashas is not { Count: > 0 } periods)
         {
             // The engine withheld the sequence and already explained why; carry its reasons through unchanged.
-            return new KundaliDashaTimeline(result.SiderealMoonLongitude, [], [],
+            return new KundaliEngineDashaTimeline(result.SiderealMoonLongitude, [], [], null, null,
                 result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
         }
 
@@ -69,7 +69,7 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
                 sub.StartUtc.ToDateTimeOffset(), sub.EndUtc.ToDateTimeOffset()))
             .ToArray();
 
-        return new KundaliDashaTimeline(result.SiderealMoonLongitude, mahadashas, path,
+        return new KundaliEngineDashaTimeline(result.SiderealMoonLongitude, mahadashas, path, null, null,
             result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
     }
 

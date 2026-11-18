@@ -283,7 +283,7 @@ public sealed class KundaliOverviewTests
             .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
 
         engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>())
-            .Returns(new KundaliDashaTimeline(87.3, [], [], Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineDashaTimeline(87.3, [], [], null, null, Array.Empty<KundaliEngineGap>()));
 
         var timeline = await facade.GetDashasAsync(user, profileId, "vimshottari", null, Token);
 
@@ -301,7 +301,7 @@ public sealed class KundaliOverviewTests
 
         var past = new DateTimeOffset(2015, 3, 1, 0, 0, 0, TimeSpan.Zero);
         engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>())
-            .Returns(new KundaliDashaTimeline(87.3, [], [], Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineDashaTimeline(87.3, [], [], null, null, Array.Empty<KundaliEngineGap>()));
 
         var timeline = await facade.GetDashasAsync(user, profileId, "vimshottari", past, Token);
 
@@ -325,7 +325,7 @@ public sealed class KundaliOverviewTests
             .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
 
         engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>())
-            .Returns(new KundaliDashaTimeline(87.3, [], [], Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineDashaTimeline(87.3, [], [], null, null, Array.Empty<KundaliEngineGap>()));
 
         // "chara" exists as a concept, so it is not an unknown-system error. It is withheld because its period
         // lengths need an ascendant we have not validated.
@@ -354,10 +354,12 @@ public sealed class KundaliOverviewTests
         var firstStart = new DateTimeOffset(1989, 6, 1, 0, 0, 0, TimeSpan.Zero);
         var firstEnd = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var secondEnd = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>()).Returns(new KundaliDashaTimeline(
+        engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>()).Returns(new KundaliEngineDashaTimeline(
             87.3,
             [],
             [],
+            null,
+            null,
             new KundaliEngineYoginiPeriod("Mangala", "Moon", firstStart, firstEnd, true),
             null,
             Array.Empty<KundaliEngineGap>()));

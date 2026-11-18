@@ -51,7 +51,7 @@ internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculation
         new KundaliEngineGap("CharaSignPeriods", KundaliEngineReasons.NotImplemented)
     ]);
 
-    public KundaliDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query) =>
-        new(null, [], [], [new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented)]);
+    public KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query) =>
+        new KundaliEngineDashaTimeline(null, [], [], null, null, [new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented)]);
 }
 

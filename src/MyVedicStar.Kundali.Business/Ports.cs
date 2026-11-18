@@ -101,7 +101,7 @@ public interface IKundaliCalculationEngine
     KundaliEngineResult Calculate(KundaliEngineInput input);
 
     /// <summary>Builds the dasha timeline for one input, with the current path at the supplied instant.</summary>
-    KundaliDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query);
+    KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query);
 }
 
 /// <summary>Plain engine input. Built from the owned snapshot; contains no identity and no settings lookups.</summary>
@@ -128,10 +128,12 @@ public sealed record KundaliDashaQuery(KundaliEngineInput Input, DateTimeOffset?
 /// Dasha section output: the mahadasha chain, the three-level path at the query instant, and the sidereal moon
 /// longitude the starting point was derived from.
 /// </summary>
-public sealed record KundaliDashaTimeline(
+public sealed record KundaliEngineDashaTimeline(
     double? MoonSiderealLongitude,
     IReadOnlyList<KundaliEngineDasha> Mahadashas,
     IReadOnlyList<KundaliEngineDashaLevel> PeriodPath,
+    IReadOnlyList<KundaliEngineYoginiPeriod>? YoginiPeriods,
+    IReadOnlyList<KundaliEngineCharaPeriod>? CharaSignPeriods,
     IReadOnlyList<KundaliEngineGap> Gaps);
 
 /// <summary>One level of the current period path: Mahadasha, Antara or Pratyantar.</summary>

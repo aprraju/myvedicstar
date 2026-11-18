@@ -31,21 +31,21 @@ public static class VimshottariSubPeriods
         var parentDays = (end - start).TotalDays;
         var lords = VimshottariDasha.Lords;
 
-        var result = new List<VimshottariSubPeriod>(lords.Length);
+        var result = new List<VimshottariSubPeriod>(lords.Count);
         var cursorDays = 0.0;
 
-        for (var step = 0; step < lords.Length; step++)
+        for (var step = 0; step < lords.Count; step++)
         {
-            var lord = lords[(startIndex + step) % lords.Length];
+            var lord = lords[(startIndex + step) % lords.Count];
             var share = VimshottariDasha.YearsOf(lord) / VimshottariDasha.CycleYears;
 
             // The final sub-period takes whatever remains, so rounding cannot leave a gap or overflow past the parent.
-            var subDays = step == lords.Length - 1
+            var subDays = step == lords.Count - 1
                 ? parentDays - cursorDays
                 : parentDays * share;
 
             var subStart = cursorDays == 0.0 ? start : start + Duration.FromDays(cursorDays);
-            var subEnd = step == lords.Length - 1 ? end : start + Duration.FromDays(cursorDays + subDays);
+            var subEnd = step == lords.Count - 1 ? end : start + Duration.FromDays(cursorDays + subDays);
 
             result.Add(new VimshottariSubPeriod(lord, subStart, subEnd));
             cursorDays += subDays;
