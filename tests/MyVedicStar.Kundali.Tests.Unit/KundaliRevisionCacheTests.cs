@@ -324,3 +324,31 @@ internal sealed class NoAshtakavargaRules : IKundaliAshtakavargaRules
     public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) => [];
     public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
 }
+
+
+/// <summary>
+/// The fallback rules report the version "unconfigured". This proves that string can never back a cacheable payload:
+/// with no rules registered the section is returned empty and explanation-only, and the scoring path is never reached.
+/// </summary>
+public sealed class KundaliUnconfiguredAshtakavargaTests
+{
+    [Fact]
+    public async Task The_unconfigured_rules_never_produce_scored_data_under_the_unconfigured_version()
+    {
+        var rules = new UnconfiguredAshtakavargaRules();
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        // Empty scored-planets is what makes the facade take its cannot-build branch before any Bhinna/Sarva call.
+        Assert.Empty(rules.ScoredPlanets);
+
+        // And the scoring calls themselves refuse rather than return zero-filled tables, so a future caller that
+        // bypasses the branch fails loudly instead of publishing a plausible all-zero Ashtakavarga.
+        Assert.Throws<InvalidOperationException>(() => rules.Bhinna("Sun", new Dictionary<string, int>()));
+        Assert.Throws<InvalidOperationException>(() =>
+            rules.Sarva(new Dictionary<string, int[]>()));
+
+        Assert.Equal("unconfigured", rules.RulesVersion);
+        _ = unsupported;
+        await Task.CompletedTask;
+    }
+}
