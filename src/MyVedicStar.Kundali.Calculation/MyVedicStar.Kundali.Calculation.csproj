@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!--
+    Pure calculation module (KUN-20). Depends on the astronomy port only: no persistence, no HTTP, no AI, no UI.
+    Depending on IEphemeris (the interface) rather than MeeusEphemeris keeps this provider-agnostic, so a future
+    SPICE provider is picked up through the existing configuration key without changing a line here.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
+    <ProjectReference Include="../MyVedicStar.Kundali.Shared/MyVedicStar.Kundali.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyVedicStar.Kundali.Tests.Unit" />
+  </ItemGroup>
+
+</Project>
