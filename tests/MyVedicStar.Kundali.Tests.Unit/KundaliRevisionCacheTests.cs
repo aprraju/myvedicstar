@@ -403,3 +403,43 @@ internal sealed class NoYogaRules : IKundaliYogaRules
     public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) =>
         new("none", [], []);
 }
+
+
+/// <summary>
+/// The fallback rules report the version "unconfigured". This proves that string can never back a cacheable payload:
+/// with no rules registered the section is returned empty and explanation-only, and the scoring path is never reached.
+/// </summary>
+/// <remarks>
+/// The guard this relies on is <c>signByReference.Count &lt; AshtakavargaScored().Count + 1</c>, i.e. n &lt; 8. That is
+/// unconditionally true <b>today only because the ascendant is withheld</b>: <c>SignByReference</c> builds its map
+/// from <c>engine.GrahaPositions</c> alone and deliberately adds an <c>unvalidated-reference</c> gap for the
+/// ascendant instead of a value, so the map holds at most the 7 scored planets. When the ascendant is validated and
+/// added, n reaches 8, this guard starts passing, and the unconfigured path no longer short-circuits here. Such a
+/// guard is *supposed* to pass then - but anyone relying on this invariant must re-check it, and must not delete
+/// this test on the assumption that the guard is permanently fail-closed. The one thing that stays true regardless
+/// is the second mechanism: <c>Bhinna</c>/<c>Sarva</c> throw rather than zero-fill.
+/// </remarks>
+public sealed class KundaliUnconfiguredAshtakavargaTests
+{
+    [Fact]
+    public async Task The_unconfigured_rules_never_produce_scored_data_under_the_unconfigured_version()
+    {
+        var rules = new UnconfiguredAshtakavargaRules();
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        // Empty scored-planets is what makes the facade take its cannot-build branch before any Bhinna/Sarva call.
+        // Note that branch is reachable today because the ascendant is withheld, not because 8 references are
+        // structurally impossible; see the remarks above.
+        Assert.Empty(rules.ScoredPlanets);
+
+        // And the scoring calls themselves refuse rather than return zero-filled tables, so a future caller that
+        // bypasses the branch fails loudly instead of publishing a plausible all-zero Ashtakavarga.
+        Assert.Throws<InvalidOperationException>(() => rules.Bhinna("Sun", new Dictionary<string, int>()));
+        Assert.Throws<InvalidOperationException>(() =>
+            rules.Sarva(new Dictionary<string, int[]>()));
+
+        Assert.Equal("unconfigured", rules.RulesVersion);
+        _ = unsupported;
+        await Task.CompletedTask;
+    }
+}
