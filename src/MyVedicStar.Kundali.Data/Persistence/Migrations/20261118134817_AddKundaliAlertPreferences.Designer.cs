@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyVedicStar.Kundali.Data.Persistence.Migrations
 {
     [DbContext(typeof(KundaliDbContext))]
-    [Migration("20261118131417_AddKundaliAlertPreferences")]
+    [Migration("20261118134817_AddKundaliAlertPreferences")]
     partial class AddKundaliAlertPreferences
     {
         /// <inheritdoc />
