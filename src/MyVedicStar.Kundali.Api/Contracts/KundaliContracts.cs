@@ -334,3 +334,63 @@ public sealed record KundaliUnsupportedResponse(string Path, string Reason)
         new(value.Path, value.Reason);
 }
 
+
+/// <summary>KUN-12 Shadbala and Bhava Bala. Two separate top-level objects by contract: planetary strength and house
+/// strength are different quantities and merging them into one score would produce a meaningless number.</summary>
+/// <param name="Complete">False while any classical component is missing. A consumer must check this before comparing
+/// <c>ratioToThreshold</c> to the classical required-rupas table.</param>
+public sealed record KundaliBalaResponse(
+    string RulesVersion,
+    string Unit,
+    bool Complete,
+    IReadOnlyList<KundaliShadbalaPlanetResponse> Shadbala,
+    IReadOnlyList<KundaliBhavaBalaHouseResponse> BhavaBala,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliBalaResponse From(MyVedicStar.Kundali.Shared.KundaliBalaSection value) => new(
+        value.RulesVersion,
+        value.Unit,
+        value.Complete,
+        value.Shadbala.Select(KundaliShadbalaPlanetResponse.From).ToArray(),
+        value.BhavaBala.Select(KundaliBhavaBalaHouseResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+/// <summary>One planet's strength. <c>componentsWithheld</c> names the classical components that are missing, so a
+/// partial total is never mistaken for a six-fold score.</summary>
+public sealed record KundaliShadbalaPlanetResponse(
+    string Planet,
+    IReadOnlyDictionary<string, double> Components,
+    IReadOnlyDictionary<string, string> ComponentStates,
+    double Total,
+    double? RequiredRupas,
+    double? RatioToThreshold,
+    IReadOnlyList<string> ComponentsWithheld,
+    IReadOnlyList<string> ComponentsInTotal,
+    IReadOnlyList<string> ComponentsExcludedFromTotal)
+{
+    public static KundaliShadbalaPlanetResponse From(
+        MyVedicStar.Kundali.Shared.KundaliShadbalaPlanet value) => new(
+        value.Planet,
+        value.Components,
+        value.ComponentStates,
+        value.Total,
+        value.RequiredRupas,
+        value.RatioToThreshold,
+        value.ComponentsWithheld,
+        value.ComponentsInTotal,
+        value.ComponentsExcludedFromTotal);
+}
+
+/// <summary>One house's strength, with its own component breakdown.</summary>
+public sealed record KundaliBhavaBalaHouseResponse(
+    int House,
+    IReadOnlyDictionary<string, double> Components,
+    double Total)
+{
+    public static KundaliBhavaBalaHouseResponse From(
+        MyVedicStar.Kundali.Shared.KundaliBhavaBalaHouse value) => new(
+        value.House,
+        value.Components,
+        value.Total);
+}

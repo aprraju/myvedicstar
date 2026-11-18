@@ -71,5 +71,8 @@ public interface IKundaliFacade
     /// <summary>KUN-11: bhinnashtakavarga per planet and the sarvashtakavarga aggregate for an owned profile.</summary>
     Task<KundaliAshtakavargaSection> GetAshtakavargaAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+    /// <summary>KUN-12: Shadbala per planet and Bhava Bala per house, as two separate objects, for an owned profile.</summary>
+    Task<KundaliBalaSection> GetBalaAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }
