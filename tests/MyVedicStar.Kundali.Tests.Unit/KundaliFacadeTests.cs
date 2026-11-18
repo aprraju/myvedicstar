@@ -223,11 +223,6 @@ public sealed class KundaliFacadeTests : IDisposable
         Provenance, Snapshot().ComputeHash(), false, false, [], DateTimeOffset.UnixEpoch);
 
     public void Dispose() => provider.Dispose();
-}
-
-internal sealed class FixedClock : TimeProvider
-{
-    public override DateTimeOffset GetUtcNow() => new(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public async Task A_read_reports_the_effective_settings_that_would_apply_now()
@@ -268,5 +263,9 @@ internal sealed class FixedClock : TimeProvider
         await repository.DidNotReceive().EnsureAggregateWithRevisionAsync(Arg.Any<Guid>(), Arg.Any<Guid>(),
             Arg.Any<KundaliInputSnapshot>(), Arg.Any<KundaliProvenance>(), Arg.Any<CancellationToken>());
     }
+}
 
+internal sealed class FixedClock : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => new(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
 }
