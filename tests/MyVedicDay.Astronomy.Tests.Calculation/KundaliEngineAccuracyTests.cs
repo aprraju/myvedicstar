@@ -98,6 +98,21 @@ public sealed class KundaliEngineAccuracyTests
         Assert.Equal(133.162655 + PublishedDrikOffsetArcseconds / ArcsecondsPerDegree, engine, 0.0005);
     }
 
+    [Fact]
+    public void The_unoffset_lunar_series_matches_meeus_47a_to_the_published_precision()
+    {
+        // The unoffset series asserted directly, rather than inferred by subtracting the offset in another test. This
+        // is the claim that makes the 28 arcsec auditable: the series alone lands on Meeus, so the offset is a
+        // declared correction ON TOP of an accurate series and not a fudge covering a series that misses.
+        //
+        // 133.162655 is Meeus example 47.a's stated mean-equinox longitude. The band is 0.0005 degrees, about 1.8
+        // arcsec - the published precision of that worked example, and tighter than the composed 3 arcsec budget
+        // because nothing but the series contributes here.
+        var series = LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(MoonReferenceJdUt));
+
+        Assert.Equal(133.162655, series, 0.0005);
+    }
+
     /// <summary>The budget for a body, read from the fixture so the published precision is the only source.</summary>
     private static double ToleranceArcseconds(CelestialBody body) =>
         ParityFixtures.Load(FindSolutionRoot())
