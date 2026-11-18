@@ -574,7 +574,12 @@ public sealed class KundaliOverviewTests
         // different and false claim from "cannot be computed".
         Assert.Empty(section.Houses);
         Assert.Equal("unvalidated-reference", section.Precision.Status);
-        Assert.Equal(KundaliUnsupportedReasons.RequiresExactBirthTime, section.Precision.Reason);
+
+        // #113: the reason follows the STATUS. This chart is withheld because it would rest on two positions, not
+        // because the birth time is unusable - and the status it is published under already says so. The old assertion
+        // here pinned "requires-exact-birth-time" beside a status of "unvalidated-reference", which made the two
+        // fields contradict each other and told the reader to correct an input that was not the problem.
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, section.Precision.Reason);
     }
 
     [Fact]

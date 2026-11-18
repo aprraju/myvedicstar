@@ -606,10 +606,14 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         // A chart needs a longitude per planet. We have two, and only when the birth time is exact. The houses are
         // therefore built from sun and moon only - not a placeholder for the other seven, which would look like a
         // complete chart with five planets silently missing.
+        // Status and reason must agree: both describe the same fact. A chart needs a longitude per planet, we have two
+        // (and only when the birth time is exact), so a chart built from two bodies is unvalidated rather than
+        // complete - that is the unvalidated-reference case, not a birth-time case. Emitting status
+        // "unvalidated-reference" beside reason "requires-exact-birth-time" made the two fields contradict.
         var precision = engine.SiderealSunLongitude is not null && engine.SiderealMoonLongitude is not null
             ? new KundaliChartPrecision(ValidatedStatus, null)
             : new KundaliChartPrecision(UnvalidatedReferenceStatus,
-                KundaliUnsupportedReasons.RequiresExactBirthTime);
+                KundaliUnsupportedReasons.UnvalidatedReference);
 
         return new KundaliChartsSection(
             divisional,
@@ -695,8 +699,11 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
                 return new KundaliDasha(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);
         }
 
+        // Reached only with a sequence in hand: the chain was computed, but this instant falls outside it. That is not
+        // birth-time uncertainty - an inexact birth time withholds the whole sequence upstream - and it is not an
+        // unvalidated reference either, because the numbers are the engine's own. It is a range fact, stated as such.
         AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha),
-            KundaliUnsupportedReasons.RequiresExactBirthTime);
+            KundaliUnsupportedReasons.OutsideDashaSpan);
         return null;
     }
     /// <summary>Maps the profile's stored time mode to the wire modes, and carries the window only for a range.
@@ -795,10 +802,14 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         // false would be a factual claim the engine cannot support.
         if (!hasAnyPosition)
         {
+            // Neither is a birth-time problem. Retrograde is a derivative of a position, and combustion needs the
+            // Sun's and the planet's longitudes; with no published positions there is nothing to derive either from.
+            // The cause is the withheld reference, so that is what the reader is told - pointing at a birth time that
+            // may already be correct sends them to fix the wrong input.
             unsupported.Add(new KundaliUnsupportedField("Planets.Retrograde",
-                KundaliUnsupportedReasons.RequiresExactBirthTime));
+                KundaliUnsupportedReasons.UnvalidatedReference));
             unsupported.Add(new KundaliUnsupportedField("Planets.Combust",
-                KundaliUnsupportedReasons.RequiresExactBirthTime));
+                KundaliUnsupportedReasons.UnvalidatedReference));
             unsupported.Add(new KundaliUnsupportedField("Planets.House",
                 KundaliUnsupportedReasons.UnvalidatedReference));
         }
@@ -824,8 +835,11 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     {
         if (siderealLongitude is not { } longitude)
         {
+            // Reached only when the engine produced no longitude for this body. The engine's own reason travels in the
+            // section's gaps, so this is the per-planet echo of it; it must not claim birth-time uncertainty when the
+            // real cause is an engine that could not compute the body or a provider whose value is unproven.
             unsupported.Add(new KundaliUnsupportedField($"Planets.{planet}",
-                KundaliUnsupportedReasons.RequiresExactBirthTime));
+                KundaliUnsupportedReasons.UnvalidatedReference));
             return;
         }
 
