@@ -58,6 +58,7 @@ public static class KundaliIntegrationRegistration
     {
         services.AddScoped<IKundaliProfileReader, KundaliProfileReader>();
         services.AddKundaliAstronomyMetadata();
+        services.AddKundaliCalculationEngine();
         return services;
     }
 }

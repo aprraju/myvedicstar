@@ -6,7 +6,8 @@ using MyVedicStar.Shared.Exceptions;
 namespace MyVedicStar.Kundali.Business;
 
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
-    KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader) : IKundaliFacade
+    KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
+    IKundaliCalculationEngine calculationEngine) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
@@ -81,14 +82,28 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
         var unsupported = new List<KundaliUnsupportedField>();
 
-        // No calculation engine is wired into this module yet (#60). Every astrological block is therefore
-        // unreachable, and each is reported with engine-unavailable rather than being rendered as birth-time
-        // uncertainty - the two are different claims and the UI must be able to separate them.
-        AddUnsupported(unsupported, nameof(KundaliOverview.Ascendant), KundaliUnsupportedReasons.EngineUnavailable);
-        AddUnsupported(unsupported, nameof(KundaliOverview.MoonSign), KundaliUnsupportedReasons.EngineUnavailable);
-        AddUnsupported(unsupported, nameof(KundaliOverview.SunSign), KundaliUnsupportedReasons.EngineUnavailable);
-        AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha), KundaliUnsupportedReasons.EngineUnavailable);
-        AddUnsupported(unsupported, nameof(KundaliOverview.KeyPlacements), KundaliUnsupportedReasons.EngineUnavailable);
+        // The engine computes sun and moon signs when the birth time is exact; anything it withholds is reported
+        // with the engine's own capability-specific reason rather than a blanket engine-unavailable.
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        // Ascendant stays withheld as unvalidated-reference even though the engine can compute it: no independent
+        // reference exists to validate against, so it is published only when we can defend the number.
+        AddUnsupported(unsupported, nameof(KundaliOverview.Ascendant),
+            KundaliUnsupportedReasons.UnvalidatedReference);
+
+        // Slice 3 work: the engine does not produce these yet, so they are honestly reported as not built rather
+        // than as a property of the birth time.
+        AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha),
+            KundaliUnsupportedReasons.EngineUnavailable);
+        AddUnsupported(unsupported, nameof(KundaliOverview.KeyPlacements),
+            KundaliUnsupportedReasons.EngineUnavailable);
+
+        // Anything the engine itself withheld (for example because the birth time is not exact) is surfaced with
+        // its own reason, so a caller can distinguish an indeterminate value from an unimplemented one.
+        foreach (var gap in engine.Gaps)
+            AddUnsupported(unsupported, gap.Path, gap.Reason);
 
         return new KundaliOverview(
             profileId,
@@ -96,8 +111,8 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             new KundaliOverviewConventions(metadata.EphemerisProvider, metadata.EphemerisVersion, metadata.Ayanamsa,
                 metadata.HouseSystem, metadata.NodeType, metadata.Zodiac),
             Ascendant: null,
-            MoonSign: null,
-            SunSign: null,
+            MoonSign: engine.MoonSign is { } moon ? KundaliSigns.NameOf(moon) : null,
+            SunSign: engine.SunSign is { } sun ? KundaliSigns.NameOf(sun) : null,
             CurrentDasha: null,
             KeyPlacements: [],
             Unsupported: unsupported);

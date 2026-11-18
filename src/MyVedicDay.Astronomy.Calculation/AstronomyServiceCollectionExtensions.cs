@@ -38,6 +38,11 @@ public static class AstronomyServiceCollectionExtensions
         services.TryAddSingleton<IMoonEventCalculator, MoonEventCalculator>();
         services.TryAddSingleton<IPlanetEphemeris, KeplerianPlanetEphemeris>();
         services.TryAddSingleton<LahiriAyanamsa>();
+        // The interface as well as the concrete type: consumers that depend on the abstraction (the Kundali engine
+        // does) cannot resolve LahiriAyanamsa by its interface unless it is registered as one. Registering only the
+        // concrete type made IAyanamsa unresolvable everywhere, which surfaced as a null rather than a clear
+        // failure because GetService returns null for an unregistered service.
+        services.TryAddSingleton<IAyanamsa>(provider => provider.GetRequiredService<LahiriAyanamsa>());
         services.TryAddSingleton<ILunisolarCalendar, LunisolarCalendar>();
 
         return services;

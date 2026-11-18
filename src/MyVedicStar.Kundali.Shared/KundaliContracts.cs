@@ -140,6 +140,15 @@ public static class KundaliUnsupportedReasons
 
     /// <summary>The birth time is a range, so time-dependent values cannot be pinned to one instant.</summary>
     public const string BirthTimeApproximate = "birth-time-approximate";
+
+    /// <summary>The engine withheld a time-dependent value because the birth time is not exact. Emitted by the
+    /// engine itself, carried through unchanged so the API vocabulary matches the calculation vocabulary.</summary>
+    public const string RequiresExactBirthTime = "requires-exact-birth-time";
+
+    /// <summary>Computable, but no independent reference exists to validate it against. Distinct from
+    /// both "not built" and "cannot know": this is a validation task, and the UI must be able to say
+    /// "computed but not yet proven" rather than "unavailable".</summary>
+    public const string UnvalidatedReference = "unvalidated-reference";
 }
 
 /// <summary>One field that could not be computed, with a reason code. The path is the response property name so a
@@ -196,4 +205,23 @@ public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, str
 public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
 public sealed record KundaliPlacement(string Graha, string Sign, int House, bool Retrograde);
+
+/// <summary>
+/// The twelve rashis (sidereal signs) in order. Index 0 is Aries, matching the engine's zero-based output, so a sign
+/// index crossing a module boundary is never ambiguous about its origin.
+/// </summary>
+public static class KundaliSigns
+{
+    private static readonly string[] Names =
+    [
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    ];
+
+    /// <summary>Maps a zero-based sign index to its name. Out-of-range input is a programming error, not data.</summary>
+    public static string NameOf(int index) =>
+        index is >= 0 and < 12
+            ? Names[index]
+            : throw new ArgumentOutOfRangeException(nameof(index), index, "A sign index must be 0-11.");
+}
 

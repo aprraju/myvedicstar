@@ -89,3 +89,52 @@ public sealed record KundaliProfileDisplay(
     decimal Latitude,
     decimal Longitude,
     string TimezoneId);
+
+/// <summary>
+/// The Kundali calculation engine, as seen by the business layer. Declared here rather than referenced directly so
+/// Business does not take a dependency on the calculation project - the implementation is supplied by composition,
+/// exactly like the profile reader and repository ports.
+/// </summary>
+public interface IKundaliCalculationEngine
+{
+    /// <summary>Computes the sign-bearing values for one immutable input. Pure: no clock, no store, no ambient state.</summary>
+    KundaliEngineResult Calculate(KundaliEngineInput input);
+}
+
+/// <summary>Plain engine input. Built from the owned snapshot; contains no identity and no settings lookups.</summary>
+public sealed record KundaliEngineInput(
+    DateOnly BirthDate,
+    BirthTimeMode BirthTimeMode,
+    TimeOnly? BirthTime,
+    decimal Latitude,
+    decimal Longitude,
+    string TimezoneId,
+    string Ayanamsa);
+
+/// <summary>
+/// Engine output. Nullable values are always explained by a matching <see cref="Gaps"/> entry, so the caller never
+/// has to guess whether absence means "cannot compute" or "not built".
+/// </summary>
+public sealed record KundaliEngineResult(
+    double? SiderealSunLongitude,
+    double? SiderealMoonLongitude,
+    int? SunSign,
+    int? MoonSign,
+    IReadOnlyList<KundaliEngineGap> Gaps);
+
+/// <summary>One value the engine withheld, and the capability-specific reason.</summary>
+public sealed record KundaliEngineGap(string Path, string Reason);
+
+/// <summary>Reason codes produced by the engine, mirrored in the API's unsupported vocabulary.</summary>
+public static class KundaliEngineReasons
+{
+    /// <summary>The birth time is not exact, so a time-dependent value is genuinely indeterminate.</summary>
+    public const string RequiresExactBirthTime = "requires-exact-birth-time";
+
+    /// <summary>Computable, but no independent reference exists to validate it against.</summary>
+    public const string UnvalidatedReference = "unvalidated-reference";
+
+    /// <summary>Not implemented yet.</summary>
+    public const string NotImplemented = "not-implemented";
+}
+
