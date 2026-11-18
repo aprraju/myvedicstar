@@ -13,6 +13,13 @@ namespace MyVedicDay.Astronomy;
 internal sealed class MeeusEphemeris : IEphemeris
 {
     /// <summary>Added to the lunar longitude so Panchang element times follow Drik Panchang (28″).</summary>
+    /// <remarks>
+    /// <b>Changing this constant breaks two tests on purpose.</b> <c>KundaliEngineAccuracyTests</c> is the only place
+    /// that pins the COMPOSED output of <see cref="GetMoonLongitude"/> - the series plus this offset - so it fails
+    /// here rather than silently accepting a new lunar longitude. <c>PanchangCalculatorTests</c> pins the effect this
+    /// offset exists to produce: agreement with published Drik element times to the minute. A change must satisfy
+    /// both; satisfying only the first would trade Panchang accuracy for series accuracy without saying so.
+    /// </remarks>
     internal const double DrikPanchangLunarOffsetDegrees = 28d / 3600d;
 
     public double GetSunLongitude(double julianDayUt) =>
