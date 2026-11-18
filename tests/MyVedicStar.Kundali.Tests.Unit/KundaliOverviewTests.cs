@@ -34,9 +34,22 @@ public sealed class KundaliOverviewTests
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new FixedClock());
+            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(), new FixedClock());
     }
 
+    /// <summary>Real Ashtakavarga rules over the calculation project.</summary>
+    private sealed class TestAshtakavargaRules : IKundaliAshtakavargaRules
+{
+        public string RulesVersion => MyVedicStar.Kundali.Calculation.Ashtakavarga.RulesVersion;
+
+        public IReadOnlyList<string> ScoredPlanets => MyVedicStar.Kundali.Calculation.Ashtakavarga.ScoredPlanets;
+
+        public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) =>
+            MyVedicStar.Kundali.Calculation.Ashtakavarga.Bhinna(planet, signByReference);
+
+        public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) =>
+            MyVedicStar.Kundali.Calculation.Ashtakavarga.Sarva(bhinnaByPlanet);
+}
     /// <summary>Real rules over the calculation project: the dignity tests assert the rules, not a stub.</summary>
     private static IKundaliDignityRules Rules() => new TestDignityRules();
 
@@ -50,6 +63,53 @@ public sealed class KundaliOverviewTests
 
         public IReadOnlyList<int> AspectedSigns(string planet, int fromSign) =>
             MyVedicStar.Kundali.Calculation.PlanetaryDignity.AspectedSigns(planet, fromSign);
+    }
+
+
+    [Fact]
+    public async Task Ashtakavarga_is_withheld_while_the_ascendant_is_unvalidated()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>()));
+
+        var section = await facade.GetAshtakavargaAsync(user, profileId, Token);
+
+        // Every classical table is counted from the ascendant as one of its eight references. Without it the whole
+        // table is wrong rather than partial, so nothing is scored.
+        Assert.Empty(section.Bhinna);
+        Assert.Empty(section.Sarva);
+        Assert.Equal(0, section.Totals.GrandTotal);
+
+        var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason);
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons["Ascendant"]);
+
+        // Pinned to the ACCURATE code, not merely 'is present'. The birth time here is exact, so labelling the gap
+        // requires-exact-birth-time would send a user to correct a birth time that is already correct. The cause is the
+        // unvalidated ascendant, and the reason must say so.
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference,
+            reasons[nameof(KundaliAshtakavargaSection.Bhinna)]);
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference,
+            reasons[nameof(KundaliAshtakavargaSection.Sarva)]);
+
+        // And it must NOT claim the birth time is the problem.
+        Assert.NotEqual(KundaliUnsupportedReasons.RequiresExactBirthTime,
+            reasons[nameof(KundaliAshtakavargaSection.Bhinna)]);
+
+        // The rules version is still reported, so a client can see which tables WOULD have been used.
+        Assert.False(string.IsNullOrWhiteSpace(section.RulesVersion));
+    }
+
+    [Fact]
+    public async Task A_foreign_profile_is_not_found_for_ashtakavarga()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token).Returns((KundaliProfileDisplay?)null);
+
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            facade.GetAshtakavargaAsync(user, profileId, Token));
     }
 
     /// <summary>Real mapper over the calculation project: the divisional tests assert the rule, not a stub.</summary>

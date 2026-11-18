@@ -56,5 +56,9 @@ public interface IKundaliFacade
     /// <returns>The number of aggregates removed; zero means the profile had no Kundali data.</returns>
     Task<int> DeleteForProfileAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+
+    /// <summary>KUN-11: bhinnashtakavarga per planet and the sarvashtakavarga aggregate for an owned profile.</summary>
+    Task<KundaliAshtakavargaSection> GetAshtakavargaAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }

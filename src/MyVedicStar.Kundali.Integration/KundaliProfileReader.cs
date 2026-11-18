@@ -60,6 +60,8 @@ public static class KundaliIntegrationRegistration
         services.AddKundaliAstronomyMetadata();
         services.AddKundaliCalculationEngine();
         services.AddKundaliDivisionalMapper();
+        services.AddKundaliDignityRules();
+        services.AddKundaliAshtakavargaRules();
         return services;
     }
 }

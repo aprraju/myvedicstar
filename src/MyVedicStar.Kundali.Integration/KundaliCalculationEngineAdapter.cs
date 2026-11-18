@@ -37,7 +37,11 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
             result.CharaSignPeriods?
                 .Select(period => new KundaliEngineCharaPeriod(period.Sign, period.StartUtc, period.EndUtc))
                 .ToArray(),
-            result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
+            result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray(),
+            result.GrahaPositions?.Grahas
+                .Select(graha => new KundaliEngineGrahaPosition(graha.Graha, graha.SiderealLongitude,
+                    graha.Sign, graha.Reason))
+                .ToArray());
     }
 
     public KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query)
@@ -50,7 +54,11 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
         {
             // The engine withheld the sequence and already explained why; carry its reasons through unchanged.
             return new KundaliEngineDashaTimeline(result.SiderealMoonLongitude, [], [], null, null,
-                result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
+                result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray(),
+            result.GrahaPositions?.Grahas
+                .Select(graha => new KundaliEngineGrahaPosition(graha.Graha, graha.SiderealLongitude,
+                    graha.Sign, graha.Reason))
+                .ToArray());
         }
 
         var mahadashas = periods
@@ -70,7 +78,11 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
             .ToArray();
 
         return new KundaliEngineDashaTimeline(result.SiderealMoonLongitude, mahadashas, path, null, null,
-            result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
+            result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray(),
+            result.GrahaPositions?.Grahas
+                .Select(graha => new KundaliEngineGrahaPosition(graha.Graha, graha.SiderealLongitude,
+                    graha.Sign, graha.Reason))
+                .ToArray());
     }
 
     /// <summary>Path position to level name. Indexed because the engine returns the chain outermost first.</summary>

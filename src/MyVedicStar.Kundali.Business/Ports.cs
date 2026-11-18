@@ -148,7 +148,14 @@ public sealed record KundaliEngineDashaTimeline(
     IReadOnlyList<KundaliEngineDashaLevel> PeriodPath,
     IReadOnlyList<KundaliEngineYoginiPeriod>? YoginiPeriods,
     IReadOnlyList<KundaliEngineCharaPeriod>? CharaSignPeriods,
-    IReadOnlyList<KundaliEngineGap> Gaps);
+    IReadOnlyList<KundaliEngineGap> Gaps,
+    IReadOnlyList<KundaliEngineGrahaPosition>? GrahaPositions = null);
+
+/// <summary>One graha's placement as the engine produced it. <c>Sign</c> is null when no longitude is available.</summary>
+public sealed record KundaliEngineGrahaPosition(string Graha, double? SiderealLongitude, string? Sign,
+    string? Reason);
+
+
 
 /// <summary>One level of the current period path: Mahadasha, Antara or Pratyantar.</summary>
 public sealed record KundaliEngineDashaLevel(string Lord, string Level, DateTimeOffset StartUtc,
@@ -169,7 +176,8 @@ public sealed record KundaliEngineResult(
     IReadOnlyList<KundaliEngineDasha>? VimshottariMahadashas,
     IReadOnlyList<KundaliEngineYoginiPeriod>? YoginiPeriods,
     IReadOnlyList<KundaliEngineCharaPeriod>? CharaSignPeriods,
-    IReadOnlyList<KundaliEngineGap> Gaps);
+    IReadOnlyList<KundaliEngineGap> Gaps,
+    IReadOnlyList<KundaliEngineGrahaPosition>? GrahaPositions = null);
 
 /// <summary>One Vimshottari mahadasha period, both ends in UTC. Rendering locally belongs to the caller.</summary>
 public sealed record KundaliEngineDasha(string Lord, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
