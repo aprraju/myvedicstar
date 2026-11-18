@@ -54,8 +54,11 @@ public static class MyVedicStarApiModule
         // An absent Astronomy:Provider is not a silent default: absence resolves to the analytical key by name,
         // matching PanchangBusinessServiceCollectionExtensions, and stays that way until #77 flips the default
         // after the parity gate. An UNKNOWN value still fails at composition.
-        services.AddAstronomyProvider(
-            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey);
+        // AddAstronomy (not AddAstronomyProvider alone) because it registers the satellite services the engine and
+        // calendar need alongside the port - notably IAyanamsa. AddAstronomyProvider binds IEphemeris only, so calling
+        // it alone leaves IAyanamsa unregistered and the engine unresolvable at request time.
+        services.AddAstronomy(ProviderSelectionParser.Parse(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey));
         services.AddOptions<HealthEndpointOptions>()
             .Bind(configuration.GetSection(HealthEndpointOptions.SectionName))
             .ValidateDataAnnotations()
