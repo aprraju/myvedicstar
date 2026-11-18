@@ -86,7 +86,18 @@ public sealed class KundaliOverviewTests
 
         var reasons = section.Unsupported.ToDictionary(gap => gap.Path, gap => gap.Reason);
         Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons["Ascendant"]);
-        Assert.True(reasons.ContainsKey(nameof(KundaliAshtakavargaSection.Bhinna)));
+
+        // Pinned to the ACCURATE code, not merely 'is present'. The birth time here is exact, so labelling the gap
+        // requires-exact-birth-time would send a user to correct a birth time that is already correct. The cause is the
+        // unvalidated ascendant, and the reason must say so.
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference,
+            reasons[nameof(KundaliAshtakavargaSection.Bhinna)]);
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference,
+            reasons[nameof(KundaliAshtakavargaSection.Sarva)]);
+
+        // And it must NOT claim the birth time is the problem.
+        Assert.NotEqual(KundaliUnsupportedReasons.RequiresExactBirthTime,
+            reasons[nameof(KundaliAshtakavargaSection.Bhinna)]);
 
         // The rules version is still reported, so a client can see which tables WOULD have been used.
         Assert.False(string.IsNullOrWhiteSpace(section.RulesVersion));

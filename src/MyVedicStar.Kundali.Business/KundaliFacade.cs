@@ -450,10 +450,14 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
         if (signByReference.Count < AshtakavargaScored().Count + 1)
         {
+            // The cause is an unvalidated ascendant, not an inexact birth time: the birth time may be perfectly
+            // exact and the table still cannot be built. Labelling it requires-exact-birth-time would tell a user to
+            // go and fix a birth time that is already correct, in the one place this module is trying hardest to be
+            // honest about why something is missing.
             unsupported.Add(new KundaliUnsupportedField(nameof(KundaliAshtakavargaSection.Bhinna),
-                KundaliUnsupportedReasons.RequiresExactBirthTime));
+                KundaliUnsupportedReasons.UnvalidatedReference));
             unsupported.Add(new KundaliUnsupportedField(nameof(KundaliAshtakavargaSection.Sarva),
-                KundaliUnsupportedReasons.RequiresExactBirthTime));
+                KundaliUnsupportedReasons.UnvalidatedReference));
 
             return new KundaliAshtakavargaSection(ashtakavargaRules.RulesVersion,
                 new Dictionary<string, IReadOnlyList<int>>(StringComparer.Ordinal), [],
