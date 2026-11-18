@@ -1,3 +1,4 @@
+namespace MyVedicStar.VedicProfiles.Business;
 
 /// <summary>
 /// A participant in profile deletion. VedicProfiles owns the profile lifecycle; other modules own their own rows and
