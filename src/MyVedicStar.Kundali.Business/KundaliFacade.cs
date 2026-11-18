@@ -179,7 +179,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     /// <summary>Yogini periods rendered as dasha entries; the path is the single period containing the instant, since
     /// Yogini sub-periods are not implemented.</summary>
     private static (IReadOnlyList<KundaliDasha> Periods, IReadOnlyList<KundaliDasha> Path) BuildYogini(
-        KundaliDashaTimeline timeline, DateTimeOffset queryAt, List<KundaliUnsupportedField> gaps)
+        KundaliEngineDashaTimeline timeline, DateTimeOffset queryAt, List<KundaliUnsupportedField> gaps)
     {
         if (timeline.YoginiPeriods is not { Count: > 0 } yogini)
             return ([], []);
@@ -201,7 +201,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
     /// <summary>Chara is withheld: its period lengths need an ascendant, and the ascendant is itself unvalidated.</summary>
     private static (IReadOnlyList<KundaliDasha> Periods, IReadOnlyList<KundaliDasha> Path) BuildChara(
-        KundaliDashaTimeline timeline, List<KundaliUnsupportedField> gaps)
+        KundaliEngineDashaTimeline timeline, List<KundaliUnsupportedField> gaps)
     {
         // The engine supplies the sign progression, but publishing it as Chara dasha would present an equal-duration
         // simplification as the classical result. Withheld, with the reason naming the real dependency.
