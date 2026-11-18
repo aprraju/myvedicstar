@@ -19,6 +19,7 @@ public sealed class KundaliOverviewTests
     private readonly IKundaliProfileReader profiles = Substitute.For<IKundaliProfileReader>();
     private readonly IKundaliRepository repository = Substitute.For<IKundaliRepository>();
     private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
+    private readonly IKundaliCalculationEngine engine;
     private readonly KundaliFacade facade;
     private static readonly CancellationToken Token = CancellationToken.None;
 
@@ -29,8 +30,11 @@ public sealed class KundaliOverviewTests
     {
         profiles.GetRegisteredAccountIdAsync(user, Token).Returns(Guid.NewGuid());
         metadata.GetAsync(user, Token).Returns(Metadata);
+        engine = Substitute.For<IKundaliCalculationEngine>();
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata);
+            KundaliEngineVersions.Foundation, metadata, engine);
     }
 
     private static KundaliProfileDisplay Display(BirthTimeMode mode, TimeOnly? time = null,
@@ -107,19 +111,67 @@ public sealed class KundaliOverviewTests
 
         var overview = await facade.GetOverviewAsync(user, profileId, Token);
 
-        // No engine is wired yet, so every astrological block must be null AND explained.
+        // Ascendant is computed-capable but unproven, dasha and placements are not built yet. Both are absent, but
+        // the reasons must differ: "not yet proven" is a different claim from "not implemented".
         Assert.Null(overview.Ascendant);
-        Assert.Null(overview.MoonSign);
-        Assert.Null(overview.SunSign);
         Assert.Null(overview.CurrentDasha);
         Assert.Empty(overview.KeyPlacements);
 
-        var paths = overview.Unsupported.Select(u => u.Path).OrderBy(p => p).ToArray();
-        Assert.Equal(["Ascendant", "CurrentDasha", "KeyPlacements", "MoonSign", "SunSign"], paths);
+        var reasons = overview.Unsupported.ToDictionary(u => u.Path, u => u.Reason);
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons["Ascendant"]);
+        Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["CurrentDasha"]);
+        Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["KeyPlacements"]);
+        // Sun and moon are produced by the engine now, so they must NOT appear as unsupported.
+        Assert.DoesNotContain("MoonSign", reasons.Keys);
+        Assert.DoesNotContain("SunSign", reasons.Keys);
+    }
 
-        // The reason must distinguish "not built yet" from "birth time unknown"; conflating them would tell the
-        // user we cannot know something that is actually just not implemented.
-        Assert.All(overview.Unsupported, u => Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, u.Reason));
+
+    [Fact]
+    public async Task An_exact_birth_time_returns_real_moon_and_sun_signs_from_the_engine()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+        // Sign indices from the engine: 2 = Gemini, 9 = Capricorn. Names are asserted so a mistake in the
+        // index-to-name mapping cannot pass as a correct sign.
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(280.0, 70.0, 9, 2, Array.Empty<KundaliEngineGap>()));
+
+        var overview = await facade.GetOverviewAsync(user, profileId, Token);
+
+        Assert.Equal("Gemini", overview.MoonSign);
+        Assert.Equal("Capricorn", overview.SunSign);
+        Assert.DoesNotContain(overview.Unsupported, u => u.Path is "MoonSign" or "SunSign");
+    }
+
+    [Theory]
+    [InlineData(BirthTimeMode.Approximate)]
+    [InlineData(BirthTimeMode.Unknown)]
+    public async Task A_non_exact_birth_time_suppresses_the_signs_with_the_exact_time_reason(BirthTimeMode mode)
+    {
+        profiles.GetDisplayAsync(user, profileId, Token).Returns(
+            mode == BirthTimeMode.Approximate
+                ? Display(BirthTimeMode.Approximate, from: new TimeOnly(5, 0), to: new TimeOnly(7, 30))
+                : Display(BirthTimeMode.Unknown));
+        // The engine reports the suppression; the facade must surface its reason verbatim rather than re-labelling
+        // it, or "we cannot know your birth time" would be flattened into "not implemented".
+        engine.Calculate(Arg.Any<KundaliEngineInput>()).Returns(new KundaliEngineResult(
+            null, null, null, null,
+            [
+                new KundaliEngineGap("SunSign", KundaliEngineReasons.RequiresExactBirthTime),
+                new KundaliEngineGap("MoonSign", KundaliEngineReasons.RequiresExactBirthTime)
+            ]));
+
+        var overview = await facade.GetOverviewAsync(user, profileId, Token);
+
+        Assert.Null(overview.SunSign);
+        Assert.Null(overview.MoonSign);
+        var reasons = overview.Unsupported.ToDictionary(u => u.Path, u => u.Reason);
+        Assert.Equal(KundaliUnsupportedReasons.RequiresExactBirthTime, reasons["SunSign"]);
+        Assert.Equal(KundaliUnsupportedReasons.RequiresExactBirthTime, reasons["MoonSign"]);
+        // Ascendant keeps its own distinct reason even when the time is also inexact - it is withheld for a
+        // different cause and the two must not be conflated.
+        Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons["Ascendant"]);
     }
 
     [Fact]

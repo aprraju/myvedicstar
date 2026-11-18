@@ -139,6 +139,10 @@ public static class KundaliUnsupportedReasons
     public const string BirthTimeUnknown = "birth-time-unknown";
 
     /// <summary>The birth time is a range, so time-dependent values cannot be pinned to one instant.</summary>
+    /// <summary>Computable, but no independent reference exists to validate it against. Distinct from
+    /// both "not built" and "cannot know": this is a validation task, and the UI must be able to say
+    /// "computed but not yet proven" rather than "unavailable".</summary>
+    public const string UnvalidatedReference = "unvalidated-reference";
     public const string BirthTimeApproximate = "birth-time-approximate";
 }
 
@@ -196,4 +200,23 @@ public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, str
 public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
 public sealed record KundaliPlacement(string Graha, string Sign, int House, bool Retrograde);
+
+/// <summary>
+/// The twelve rashis (sidereal signs) in order. Index 0 is Aries, matching the engine's zero-based output, so a sign
+/// index crossing a module boundary is never ambiguous about its origin.
+/// </summary>
+public static class KundaliSigns
+{
+    private static readonly string[] Names =
+    [
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    ];
+
+    /// <summary>Maps a zero-based sign index to its name. Out-of-range input is a programming error, not data.</summary>
+    public static string NameOf(int index) =>
+        index is >= 0 and < 12
+            ? Names[index]
+            : throw new ArgumentOutOfRangeException(nameof(index), index, "A sign index must be 0-11.");
+}
 

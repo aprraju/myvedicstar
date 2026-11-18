@@ -6,5 +6,6 @@
     <ProjectReference Include="../MyVedicStar.VedicProfiles.Business/MyVedicStar.VedicProfiles.Business.csproj" />
     <ProjectReference Include="../MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
     <ProjectReference Include="../MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
+    <ProjectReference Include="../MyVedicStar.Kundali.Calculation/MyVedicStar.Kundali.Calculation.csproj" />
   </ItemGroup>
 </Project>

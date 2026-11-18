@@ -19,6 +19,9 @@ public static class KundaliBusinessRegistration
         // or host that does not wire astronomy still resolves. It reports the analytical provider's identity, which
         // is the documented default until AST-12 flips it, and never fabricates a version.
         services.TryAddScoped<IKundaliAstronomyMetadataReader, UnconfiguredAstronomyMetadataReader>();
+
+        // Composition supplies the real engine; this default keeps the facade constructible in isolation.
+        services.TryAddScoped<IKundaliCalculationEngine, UnconfiguredKundaliCalculationEngine>();
         return services;
     }
 }
@@ -32,3 +35,17 @@ internal sealed class UnconfiguredAstronomyMetadataReader : IKundaliAstronomyMet
         Task.FromResult(new KundaliAstronomyMetadata("analytical", "analytical", "Lahiri", "WholeSign", "Mean",
             "Sidereal"));
 }
+
+/// <summary>
+/// Fallback used when composition has not supplied the real engine. Reports everything as not-implemented rather than
+/// inventing values, so a host that forgets to wire the engine degrades visibly instead of silently producing signs.
+/// </summary>
+internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculationEngine
+{
+    public KundaliEngineResult Calculate(KundaliEngineInput input) => new(null, null, null, null,
+    [
+        new KundaliEngineGap("SunSign", KundaliEngineReasons.NotImplemented),
+        new KundaliEngineGap("MoonSign", KundaliEngineReasons.NotImplemented)
+    ]);
+}
+

@@ -1,3 +1,5 @@
+using MyVedicDay.Astronomy;
+using MyVedicStar.Astronomy.Core;
 using MyVedicStar.API.Authorization.ErrorHandling;
 using MyVedicStar.Authorize.Business.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -42,6 +44,18 @@ public static class MyVedicStarApiModule
         MyVedicStar.Settings.Business.SettingsBusinessRegistration.AddSettingsBusiness(services, configuration);
         MyVedicStar.Infrastructure.DependencyInjection.VedicProfilesModuleRegistration.AddVedicProfilesModule(services, configuration);
         MyVedicStar.Infrastructure.DependencyInjection.KundaliModuleRegistration.AddKundaliModule(services, configuration);
+
+        // The Kundali engine reads astronomy through the IEphemeris port, so this host must compose that port
+        // itself. Registration previously lived only in the Day host (via AddPanchangBusiness), which meant the
+        // port was absent here: Kundali.Integration compiled against astronomy but nothing provided it, so the
+        // first request needing a position would have failed at runtime with CI green. Composing it here keeps
+        // port/adapter ownership with the host rather than inside a module registration.
+        //
+        // An absent Astronomy:Provider is not a silent default: absence resolves to the analytical key by name,
+        // matching PanchangBusinessServiceCollectionExtensions, and stays that way until #77 flips the default
+        // after the parity gate. An UNKNOWN value still fails at composition.
+        services.AddAstronomyProvider(
+            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey);
         services.AddOptions<HealthEndpointOptions>()
             .Bind(configuration.GetSection(HealthEndpointOptions.SectionName))
             .ValidateDataAnnotations()
