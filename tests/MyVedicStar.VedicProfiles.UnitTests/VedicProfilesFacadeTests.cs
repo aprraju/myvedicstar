@@ -43,8 +43,15 @@ public sealed class VedicProfilesFacadeTests : IDisposable
         {
             BirthTimeMode = mode,
             BirthTime = mode == BirthTimeMode.Known ? Noon : null,
+            // An approximate window must run strictly forward (decision #16), so it cannot reuse the exact time as
+            // both bounds - equal bounds are a zero-length window, which is an exact time claiming uncertainty.
             BirthTimeFrom = mode == BirthTimeMode.Unknown ? null : Noon,
-            BirthTimeTo = mode == BirthTimeMode.Unknown ? null : Noon
+            BirthTimeTo = mode switch
+            {
+                BirthTimeMode.Unknown => null,
+                BirthTimeMode.Approximate => Noon.AddHours(2),
+                _ => Noon
+            }
         };
         var result = await facade.CreateAsync(user, details, Token);
         Assert.Equal(details, result.Details);
