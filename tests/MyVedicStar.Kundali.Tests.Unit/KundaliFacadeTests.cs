@@ -228,4 +228,45 @@ public sealed class KundaliFacadeTests : IDisposable
 internal sealed class FixedClock : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => new(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task A_read_reports_the_effective_settings_that_would_apply_now()
+    {
+        // An empty profile still reports settings, so the shell can render the right style before anything is
+        // generated. A null here would force the client to guess.
+        var view = await facade.GetAsync(user, profileId, Token);
+
+        Assert.NotNull(view.Settings);
+        Assert.Equal("Lahiri", view.Settings!.Ayanamsa);
+        Assert.Equal("North", view.Settings.ChartStyle);
+    }
+
+    [Fact]
+    public async Task A_stored_chart_style_preference_is_reported_rather_than_the_default()
+    {
+        repository.GetPreferencesAsync(accountId, profileId, Token)
+            .Returns(new KundaliPreferences("South", 3, DateTimeOffset.UtcNow));
+
+        var view = await facade.GetAsync(user, profileId, Token);
+
+        // The preference must win over the default, or the shell would silently render the wrong style.
+        Assert.Equal("South", view.Settings!.ChartStyle);
+    }
+
+    [Fact]
+    public async Task Chart_style_never_causes_a_generation()
+    {
+        repository.GetPreferencesAsync(accountId, profileId, Token)
+            .Returns(new KundaliPreferences("East", 3, DateTimeOffset.UtcNow));
+
+        _ = await facade.GetAsync(user, profileId, Token);
+
+        // Style is presentation-only. If reading ever enqueued work, changing a display preference would burn an
+        // engine run - the engine is the expensive, slow, rate-limited part of the system.
+        await repository.DidNotReceive().AddRevisionAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<long>(),
+            Arg.Any<KundaliInputSnapshot>(), Arg.Any<KundaliProvenance>(), Arg.Any<CancellationToken>());
+        await repository.DidNotReceive().EnsureAggregateWithRevisionAsync(Arg.Any<Guid>(), Arg.Any<Guid>(),
+            Arg.Any<KundaliInputSnapshot>(), Arg.Any<KundaliProvenance>(), Arg.Any<CancellationToken>());
+    }
+
 }

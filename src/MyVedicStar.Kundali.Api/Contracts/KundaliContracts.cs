@@ -36,13 +36,23 @@ public sealed record KundaliViewResponse(
     bool HasResult,
     KundaliRevisionResponse? CurrentRevision,
     DateTimeOffset? CreatedAtUtc,
-    DateTimeOffset? UpdatedAtUtc)
+    DateTimeOffset? UpdatedAtUtc,
+    KundaliSettingsResponse? Settings)
 {
     public static KundaliViewResponse From(MyVedicStar.Kundali.Shared.KundaliView value) => new(
         value.Aggregate.ProfileId, value.Aggregate.Id, value.Aggregate.Revision, value.CurrentRevision is not null,
         value.CurrentRevision is null ? null : KundaliRevisionResponse.From(value.CurrentRevision),
         value.Aggregate.CreatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.CreatedAtUtc,
-        value.Aggregate.UpdatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.UpdatedAtUtc);
+        value.Aggregate.UpdatedAtUtc == DateTimeOffset.MinValue ? null : value.Aggregate.UpdatedAtUtc,
+        value.Settings is null ? null : KundaliSettingsResponse.From(value.Settings));
+}
+
+/// <summary>Effective settings under which a read should be interpreted. <c>Ayanamsa</c> affects calculation;
+/// <c>ChartStyle</c> is presentation-only.</summary>
+public sealed record KundaliSettingsResponse(string Ayanamsa, string ChartStyle)
+{
+    public static KundaliSettingsResponse From(MyVedicStar.Kundali.Shared.KundaliEffectiveSettings value) =>
+        new(value.Ayanamsa, value.ChartStyle);
 }
 
 public sealed record KundaliPreferencesResponse(string ChartStyle, long Revision, DateTimeOffset? UpdatedAtUtc)
