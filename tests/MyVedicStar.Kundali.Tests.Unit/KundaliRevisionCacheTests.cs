@@ -172,7 +172,6 @@ public sealed class KundaliRevisionCacheTests
         Assert.NotEqual(withShadbala, withoutShadbala);
         Assert.True(KundaliCacheKeys.IsWellFormed(withShadbala));
     }
-}
 
     private static KundaliProvenance KundaliProvenance() =>
         new(KundaliEngineVersions.Foundation.Engine, KundaliEngineVersions.Foundation.Ephemeris,
@@ -362,3 +361,4 @@ internal sealed class NoAshtakavargaRules : IKundaliAshtakavargaRules
     public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
 
 
+}
