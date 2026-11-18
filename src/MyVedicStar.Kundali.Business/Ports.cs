@@ -176,7 +176,8 @@ public sealed record KundaliEngineResult(
     IReadOnlyList<KundaliEngineDasha>? VimshottariMahadashas,
     IReadOnlyList<KundaliEngineYoginiPeriod>? YoginiPeriods,
     IReadOnlyList<KundaliEngineCharaPeriod>? CharaSignPeriods,
-    IReadOnlyList<KundaliEngineGap> Gaps);
+    IReadOnlyList<KundaliEngineGap> Gaps,
+    IReadOnlyList<KundaliEngineGrahaPosition>? GrahaPositions = null);
 
 /// <summary>One Vimshottari mahadasha period, both ends in UTC. Rendering locally belongs to the caller.</summary>
 public sealed record KundaliEngineDasha(string Lord, DateTimeOffset StartUtc, DateTimeOffset EndUtc,
