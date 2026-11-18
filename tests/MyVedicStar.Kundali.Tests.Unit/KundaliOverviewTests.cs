@@ -136,7 +136,7 @@ public sealed class KundaliOverviewTests
         // Sign indices from the engine: 2 = Gemini, 9 = Capricorn. Names are asserted so a mistake in the
         // index-to-name mapping cannot pass as a correct sign.
         engine.Calculate(Arg.Any<KundaliEngineInput>())
-            .Returns(new KundaliEngineResult(280.0, 70.0, 9, 2, Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineResult(280.0, 70.0, 9, 2, null, Array.Empty<KundaliEngineGap>()));
 
         var overview = await facade.GetOverviewAsync(user, profileId, Token);
 
@@ -157,7 +157,7 @@ public sealed class KundaliOverviewTests
         // The engine reports the suppression; the facade must surface its reason verbatim rather than re-labelling
         // it, or "we cannot know your birth time" would be flattened into "not implemented".
         engine.Calculate(Arg.Any<KundaliEngineInput>()).Returns(new KundaliEngineResult(
-            null, null, null, null,
+            null, null, null, null, null,
             [
                 new KundaliEngineGap("SunSign", KundaliEngineReasons.RequiresExactBirthTime),
                 new KundaliEngineGap("MoonSign", KundaliEngineReasons.RequiresExactBirthTime)
