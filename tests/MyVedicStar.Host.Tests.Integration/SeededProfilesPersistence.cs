@@ -45,7 +45,7 @@ internal sealed class SeededProfilesPersistence
         return profile;
     }
 
-    /// <summary>Replaces the account reader and repository the host composed for the Vedic Profiles module.</summary>
+    /// <summary>Replaces the Vedic Profiles ports the host composed, and stubs deletion participants.</summary>
     internal void Apply(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -53,6 +53,13 @@ internal sealed class SeededProfilesPersistence
         services.AddScoped<IVedicProfileAccountReader>(_ => new SeededAccountReader(AccountId));
         services.RemoveAll<IVedicProfileRepository>();
         services.AddScoped<IVedicProfileRepository>(_ => new SeededRepository(this));
+
+        // Deletion participants are removed, not stubbed per participant: they belong to OTHER modules (Kundali today)
+        // and each one drags in its own DbContext, which needs the business data source this host does not have. These
+        // tests never delete a profile, so a participant would never run - but it is resolved when the facade is built,
+        // so leaving them registered fails the write before the validator is reached, which is precisely the hole #93
+        // exists to close. Removing them keeps the assertion about validation honest instead of about composition.
+        services.RemoveAll<IVedicProfileDeletionParticipant>();
     }
 
     private sealed class SeededAccountReader(Guid accountId) : IVedicProfileAccountReader
