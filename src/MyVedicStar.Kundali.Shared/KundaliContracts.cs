@@ -219,6 +219,24 @@ public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, str
 public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
 /// <summary>
+/// KUN-11 ashtakavarga section. <c>RulesVersion</c> identifies the exact contribution tables used, so a later table
+/// change is visible rather than silent. <c>Sarva</c> is derived from <c>Bhinna</c>, so the two always reconcile.
+/// </summary>
+public sealed record KundaliAshtakavargaSection(
+    string RulesVersion,
+    IReadOnlyDictionary<string, IReadOnlyList<int>> Bhinna,
+    IReadOnlyList<int> Sarva,
+    KundaliAshtakavargaTotals Totals,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+/// <summary>Bindu totals: per planet, and the grand total across all seven scored planets.</summary>
+public sealed record KundaliAshtakavargaTotals(
+    IReadOnlyDictionary<string, int> PerPlanet,
+    int GrandTotal);
+
+
+
+/// <summary>
 /// KUN-08 planets section. Two distinct claims are carried in one payload and must not be conflated:
 /// <c>Rules</c> lists the dignity and aspect <b>methods this build implements and tests</b>, while
 /// <c>Planets</c> lists <b>actual placements</b>, which are empty when the engine has no position for a graha.

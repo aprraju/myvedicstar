@@ -24,6 +24,7 @@ public static class KundaliBusinessRegistration
         services.TryAddScoped<IKundaliCalculationEngine, UnconfiguredKundaliCalculationEngine>();
         services.TryAddScoped<IKundaliDivisionalMapper, UnconfiguredDivisionalMapper>();
         services.TryAddScoped<IKundaliDignityRules, UnconfiguredDignityRules>();
+        services.TryAddScoped<IKundaliAshtakavargaRules, UnconfiguredAshtakavargaRules>();
         return services;
     }
 }
@@ -63,6 +64,27 @@ public interface IKundaliDivisionalMapper
 /// Dignity, combustion and aspect rules as a port. The rules live in the calculation project; Business consumes the
 /// abstraction so the layering (Business never references Calculation) holds and the rules stay testable in isolation.
 /// </summary>
+
+/// <summary>
+/// Ashtakavarga scoring as a port. The tables and arithmetic live in the calculation project; Business consumes the
+/// abstraction so the layering holds.
+/// </summary>
+public interface IKundaliAshtakavargaRules
+{
+    /// <summary>Identifies the exact table set in use.</summary>
+    string RulesVersion { get; }
+
+    /// <summary>The seven scored planets.</summary>
+    IReadOnlyList<string> ScoredPlanets { get; }
+
+    /// <summary>Bhinnashtakavarga for one planet: twelve bindu counts indexed from Aries.</summary>
+    IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference);
+
+    /// <summary>Sarvashtakavarga: twelve sign totals derived from the bhinnas.</summary>
+    IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet);
+}
+
+
 public interface IKundaliDignityRules
 {
     /// <summary>The published dignity vocabulary, strongest first.</summary>
@@ -103,6 +125,23 @@ internal sealed class UnconfiguredDivisionalMapper : IKundaliDivisionalMapper
 
 /// <summary>Fallback used when composition has not supplied the real rules. Reports no dignity states and refuses
 /// to classify, so a missing registration surfaces as unsupported rather than as a silently wrong dignity.</summary>
+
+/// <summary>Fallback used when composition has not supplied the real rules. Refuses to score rather than returning
+/// zeroes, which would look like a valid empty chart.</summary>
+internal sealed class UnconfiguredAshtakavargaRules : IKundaliAshtakavargaRules
+{
+    public string RulesVersion => "unconfigured";
+
+    public IReadOnlyList<string> ScoredPlanets => [];
+
+    public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) =>
+        throw new InvalidOperationException("No Ashtakavarga rules are registered.");
+
+    public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) =>
+        throw new InvalidOperationException("No Ashtakavarga rules are registered.");
+}
+
+
 internal sealed class UnconfiguredDignityRules : IKundaliDignityRules
 {
     public IReadOnlyList<string> DignityStates => [];

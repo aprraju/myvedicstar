@@ -68,6 +68,15 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
         Ok(KundaliPlanetsSectionResponse.From(await facade.GetPlanetsAsync(User, profileId, token)));
 
 
+
+    /// <summary>KUN-11 ashtakavarga. Returns bhinnashtakavarga per planet and the sarvashtakavarga aggregate. When any
+    /// required reference point is unavailable the section is withheld with a reason - a partial table would look
+    /// complete and be silently wrong.</summary>
+    [HttpGet("{profileId:guid}/sections/ashtakavarga"), ProducesResponseType<KundaliAshtakavargaResponse>(200)]
+    public async Task<ActionResult<KundaliAshtakavargaResponse>> Ashtakavarga(Guid profileId, CancellationToken token) =>
+        Ok(KundaliAshtakavargaResponse.From(await facade.GetAshtakavargaAsync(User, profileId, token)));
+
+
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
     [HttpPost("{profileId:guid}/generations"), ProducesResponseType<KundaliViewResponse>(202)]

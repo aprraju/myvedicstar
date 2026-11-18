@@ -8,7 +8,7 @@ namespace MyVedicStar.Kundali.Business;
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
-    IKundaliDignityRules dignityRules,
+    IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
     TimeProvider clock) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -428,6 +428,85 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         // difference between "exists but not yours" and "does not exist".
         return await repository.DeleteForProfileAsync(accountId, profileId, token);
     }
+
+
+
+    public async Task<KundaliAshtakavargaSection> GetAshtakavargaAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        var unsupported = new List<KundaliUnsupportedField>();
+
+        // Ashtakavarga needs a sign position for all seven scored planets plus the ascendant. Any gap makes the whole
+        // table wrong rather than partially right, so nothing is scored unless every reference is available - a
+        // partial table would look complete and be silently incorrect.
+        var signByReference = SignByReference(engine, unsupported);
+
+        if (signByReference.Count < AshtakavargaScored().Count + 1)
+        {
+            unsupported.Add(new KundaliUnsupportedField(nameof(KundaliAshtakavargaSection.Bhinna),
+                KundaliUnsupportedReasons.RequiresExactBirthTime));
+            unsupported.Add(new KundaliUnsupportedField(nameof(KundaliAshtakavargaSection.Sarva),
+                KundaliUnsupportedReasons.RequiresExactBirthTime));
+
+            return new KundaliAshtakavargaSection(ashtakavargaRules.RulesVersion,
+                new Dictionary<string, IReadOnlyList<int>>(StringComparer.Ordinal), [],
+                new KundaliAshtakavargaTotals(new Dictionary<string, int>(StringComparer.Ordinal), 0),
+                unsupported);
+        }
+
+        var bhinna = ashtakavargaRules.ScoredPlanets.ToDictionary(
+            planet => planet,
+            planet => ashtakavargaRules.Bhinna(planet, signByReference),
+            StringComparer.Ordinal);
+
+        // Sarva is derived from the bhinnas inside the rules, so the reconciliation the contract demands holds by
+        // construction rather than by two implementations agreeing.
+        var sarva = ashtakavargaRules.Sarva(bhinna.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(),
+            StringComparer.Ordinal));
+
+        var perPlanet = bhinna.ToDictionary(pair => pair.Key, pair => pair.Value.Sum(), StringComparer.Ordinal);
+
+        return new KundaliAshtakavargaSection(
+            ashtakavargaRules.RulesVersion,
+            bhinna.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<int>)pair.Value, StringComparer.Ordinal),
+            sarva,
+            new KundaliAshtakavargaTotals(perPlanet, sarva.Sum()),
+            unsupported);
+    }
+
+    /// <summary>
+    /// Maps each reference point to its sign index. The ascendant is deliberately excluded: it is withheld as
+    /// unvalidated-reference, so no Ashtakavarga table can be scored and the caller receives a gap instead.
+    /// </summary>
+    private static Dictionary<string, int> SignByReference(KundaliEngineResult engine,
+        List<KundaliUnsupportedField> unsupported)
+    {
+        var signs = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var graha in engine.GrahaPositions?.Grahas ?? [])
+        {
+            if (graha.Sign is null || graha.SiderealLongitude is not { } longitude)
+                continue;
+
+            signs[graha.Graha] = ((int)Math.Floor(longitude / 30.0) % 12 + 12) % 12;
+        }
+
+        // The ascendant is required by every classical table and is not yet validated, so its absence is reported with
+        // its own reason rather than folded into a generic gap.
+        unsupported.Add(new KundaliUnsupportedField("Ascendant", KundaliUnsupportedReasons.UnvalidatedReference));
+        return signs;
+    }
+
+    private static IReadOnlyList<string> AshtakavargaScored() => AshtakavargaScoredPlanets;
+
+    private static readonly string[] AshtakavargaScoredPlanets =
+        ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
 
 
     private static KundaliDasha ToDasha(KundaliEngineDasha period) =>

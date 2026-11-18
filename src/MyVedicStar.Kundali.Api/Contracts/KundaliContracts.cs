@@ -220,6 +220,33 @@ public sealed record KundaliPlanetAspectResponse(string To, string Type)
 }
 
 
+
+/// <summary>KUN-11 ashtakavarga response. <c>RulesVersion</c> identifies the tables used; <c>Sarva</c> is derived from
+/// <c>Bhinna</c>, so the two always reconcile.</summary>
+public sealed record KundaliAshtakavargaResponse(
+    string RulesVersion,
+    IReadOnlyDictionary<string, IReadOnlyList<int>> Bhinna,
+    IReadOnlyList<int> Sarva,
+    KundaliAshtakavargaTotalsResponse Totals,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliAshtakavargaResponse From(MyVedicStar.Kundali.Shared.KundaliAshtakavargaSection value) => new(
+        value.RulesVersion,
+        value.Bhinna.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal),
+        value.Sarva.ToArray(),
+        KundaliAshtakavargaTotalsResponse.From(value.Totals),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+public sealed record KundaliAshtakavargaTotalsResponse(
+    IReadOnlyDictionary<string, int> PerPlanet,
+    int GrandTotal)
+{
+    public static KundaliAshtakavargaTotalsResponse From(MyVedicStar.Kundali.Shared.KundaliAshtakavargaTotals value) =>
+        new(value.PerPlanet.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal), value.GrandTotal);
+}
+
+
 /// <summary>Time fields are omitted when the mode does not carry them, so no consumer can read a placeholder as a
 /// real birth time.</summary>
 public sealed record KundaliBirthDetailsResponse(
