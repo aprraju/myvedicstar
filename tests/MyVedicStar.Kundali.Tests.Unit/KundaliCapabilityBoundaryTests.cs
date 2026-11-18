@@ -85,4 +85,30 @@ public sealed class KundaliCapabilityBoundaryTests
         Assert.Contains(report.UnsupportedCapabilities, c => c.Contains("Chesta", StringComparison.Ordinal));
         Assert.Contains(report.UnsupportedCapabilities, c => c.Contains("pada", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void The_report_section_set_is_published_and_matches_the_module_vocabulary()
+    {
+        // A client must bind to these ids rather than assert the server's structure, so the set is published AND
+        // pinned be identical to the persistence vocabulary. Deriving it from KundaliSections.All means the two cannot
+        // drift; this test is what fails if that derivation is ever replaced with a hand-written list.
+        var report = KundaliCapabilities.Report();
+
+        Assert.Equal(KundaliSections.All, report.ReportSections);
+        Assert.Contains(KundaliSections.Yogas, report.ReportSections);
+    }
+
+    [Fact]
+    public void The_report_section_set_is_closed_and_carries_no_duplicates()
+    {
+        // "Closed" is the property that lets a request naming an unknown section be rejected rather than silently
+        // ignored. A duplicate id would make the published list ambiguous about how many sections exist.
+        var report = KundaliCapabilities.Report();
+
+        Assert.Equal(report.ReportSections.Count, report.ReportSections.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(report.ReportSections, section => Assert.False(string.IsNullOrWhiteSpace(section)));
+
+        // Every published id must be one the module actually defines - the closed set is the module's, not a copy.
+        Assert.All(report.ReportSections, section => Assert.Contains(section, KundaliSections.All));
+    }
 }
