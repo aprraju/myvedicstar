@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Shared.Exceptions;
 using MyVedicStar.VedicProfiles.Business;
 using MyVedicStar.VedicProfiles.Shared;
@@ -23,11 +24,21 @@ public sealed class ProfileDeletionParticipantTests
     private readonly IVedicProfileRepository repository = Substitute.For<IVedicProfileRepository>();
     private static readonly CancellationToken Token = CancellationToken.None;
 
-    private VedicProfilesFacade Facade(params IVedicProfileDeletionParticipant[] participants)
+    /// <summary>
+    /// Builds the real facade through DI, with the supplied participants registered. Constructing the internal class
+    /// directly would bypass the composition path these tests exist to exercise.
+    /// </summary>
+    private IVedicProfilesFacade Facade(params IVedicProfileDeletionParticipant[] participants)
     {
         accounts.GetRegisteredAccountIdAsync(user, Token).Returns(accountId);
-        return new VedicProfilesFacade(accounts, repository,
-            new VedicProfileValidator(new FixedClock()), participants);
+        var services = new ServiceCollection();
+        services.AddSingleton(accounts);
+        services.AddSingleton(repository);
+        services.AddSingleton<TimeProvider>(new FixedClock());
+        foreach (var participant in participants)
+            services.AddSingleton(participant);
+        services.AddVedicProfilesBusiness();
+        return services.BuildServiceProvider().GetRequiredService<IVedicProfilesFacade>();
     }
 
     [Fact]

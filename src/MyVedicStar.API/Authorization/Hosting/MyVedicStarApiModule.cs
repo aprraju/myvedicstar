@@ -45,6 +45,12 @@ public static class MyVedicStarApiModule
         MyVedicStar.Infrastructure.DependencyInjection.VedicProfilesModuleRegistration.AddVedicProfilesModule(services, configuration);
         MyVedicStar.Infrastructure.DependencyInjection.KundaliModuleRegistration.AddKundaliModule(services, configuration);
 
+        // Kundali joins profile deletion here rather than inside either module: VedicProfiles must not reference
+        // Kundali, and Kundali.Integration must not reference VedicProfiles. The host references both, so it is the
+        // only place the two can be joined without inverting a dependency.
+        services.AddScoped<MyVedicStar.VedicProfiles.Business.IVedicProfileDeletionParticipant,
+            MyVedicStar.Kundali.Integration.KundaliProfileDeletionParticipant>();
+
         // The Kundali engine reads astronomy through the IEphemeris port, so this host must compose that port
         // itself. Registration previously lived only in the Day host (via AddPanchangBusiness), which meant the
         // port was absent here: Kundali.Integration compiled against astronomy but nothing provided it, so the
