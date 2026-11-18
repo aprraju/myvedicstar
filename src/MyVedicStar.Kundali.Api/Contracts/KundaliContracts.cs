@@ -72,3 +72,83 @@ public sealed record KundaliCapabilitiesResponse(
         value.LunarNodeConvention, value.AscendantConvention, value.MinimumSupportedBirthDate,
         value.MaximumSupportedBirthDate, value.UnsupportedCapabilities.ToArray());
 }
+
+/// <summary>KUN-05 overview response. Every astrological block is nullable and, when null, its path appears in
+/// <c>Unsupported</c> with a reason code - so a gap is always explained rather than silently absent.</summary>
+public sealed record KundaliOverviewResponse(
+    Guid ProfileId,
+    KundaliBirthDetailsResponse BirthDetails,
+    KundaliConventionsResponse Conventions,
+    KundaliAscendantResponse? Ascendant,
+    string? MoonSign,
+    string? SunSign,
+    KundaliDashaResponse? CurrentDasha,
+    IReadOnlyList<KundaliPlacementResponse> KeyPlacements,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliOverviewResponse From(MyVedicStar.Kundali.Shared.KundaliOverview value) => new(
+        value.ProfileId,
+        KundaliBirthDetailsResponse.From(value.BirthDetails),
+        KundaliConventionsResponse.From(value.Conventions),
+        value.Ascendant is null ? null : KundaliAscendantResponse.From(value.Ascendant),
+        value.MoonSign,
+        value.SunSign,
+        value.CurrentDasha is null ? null : KundaliDashaResponse.From(value.CurrentDasha),
+        value.KeyPlacements.Select(KundaliPlacementResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+/// <summary>Time fields are omitted when the mode does not carry them, so no consumer can read a placeholder as a
+/// real birth time.</summary>
+public sealed record KundaliBirthDetailsResponse(
+    string? Name,
+    DateOnly BirthDate,
+    string BirthTimeMode,
+    TimeOnly? BirthTime,
+    TimeOnly? WindowStart,
+    TimeOnly? WindowEnd,
+    string PlaceName,
+    decimal Latitude,
+    decimal Longitude,
+    string TimeZoneId)
+{
+    public static KundaliBirthDetailsResponse From(MyVedicStar.Kundali.Shared.KundaliBirthDetails value) => new(
+        value.Name, value.BirthDate, value.BirthTimeMode.ToString().ToLowerInvariant(), value.BirthTime,
+        value.BirthTimeFrom, value.BirthTimeTo, value.PlaceName, value.Latitude, value.Longitude, value.TimezoneId);
+}
+
+public sealed record KundaliConventionsResponse(
+    string EphemerisProvider, string EphemerisVersion, string Ayanamsa, string HouseSystem, string NodeType,
+    string Zodiac)
+{
+    public static KundaliConventionsResponse From(MyVedicStar.Kundali.Shared.KundaliOverviewConventions value) => new(
+        value.EphemerisProvider, value.EphemerisVersion, value.Ayanamsa, value.HouseSystem, value.NodeType,
+        value.Zodiac);
+}
+
+public sealed record KundaliAscendantResponse(string Sign, decimal DegreeWithinSign, string Nakshatra)
+{
+    public static KundaliAscendantResponse From(MyVedicStar.Kundali.Shared.KundaliAscendant value) =>
+        new(value.Sign, value.DegreeWithinSign, value.Nakshatra);
+}
+
+public sealed record KundaliDashaResponse(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc)
+{
+    public static KundaliDashaResponse From(MyVedicStar.Kundali.Shared.KundaliDasha value) =>
+        new(value.Lord, value.Level, value.StartUtc, value.EndUtc);
+}
+
+public sealed record KundaliPlacementResponse(string Graha, string Sign, int House, bool Retrograde)
+{
+    public static KundaliPlacementResponse From(MyVedicStar.Kundali.Shared.KundaliPlacement value) =>
+        new(value.Graha, value.Sign, value.House, value.Retrograde);
+}
+
+/// <summary>A field that could not be produced, with a reason code the UI can distinguish from birth-time
+/// uncertainty.</summary>
+public sealed record KundaliUnsupportedResponse(string Path, string Reason)
+{
+    public static KundaliUnsupportedResponse From(MyVedicStar.Kundali.Shared.KundaliUnsupportedField value) =>
+        new(value.Path, value.Reason);
+}
+

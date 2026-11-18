@@ -33,6 +33,21 @@ internal sealed class KundaliProfileReader(IAuthorizeFacade authorize, IVedicPro
         catch (MyVedicStar.Shared.Exceptions.ResourceNotFoundException) { return null; }
     }
 
+    public async Task<KundaliProfileDisplay?> GetDisplayAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        // Same facade call and the same not-found mapping as GetSnapshotAsync, so ownership can never disagree
+        // between the calculation path and the read path.
+        try
+        {
+            var profile = await profiles.GetAsync(user, profileId, token);
+            var d = profile.Details;
+            return new KundaliProfileDisplay(d.Name, d.DateOfBirth, d.BirthTimeMode, d.BirthTime, d.BirthTimeFrom,
+                d.BirthTimeTo, d.LocationName, d.Latitude, d.Longitude, d.TimezoneId);
+        }
+        catch (MyVedicStar.Shared.Exceptions.ResourceNotFoundException) { return null; }
+    }
+
     public async Task<string> GetAyanamsaAsync(ClaimsPrincipal user, CancellationToken token) =>
         (await settings.GetAsync(user, token)).Ayanamsa;
 }
@@ -42,6 +57,7 @@ public static class KundaliIntegrationRegistration
     public static IServiceCollection AddKundaliIntegration(this IServiceCollection services)
     {
         services.AddScoped<IKundaliProfileReader, KundaliProfileReader>();
+        services.AddKundaliAstronomyMetadata();
         return services;
     }
 }

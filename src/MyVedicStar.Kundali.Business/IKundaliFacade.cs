@@ -21,6 +21,11 @@ public interface IKundaliFacade
     Task<KundaliView> RetryAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
     Task<KundaliPreferences> GetPreferencesAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+    /// <summary>KUN-05 overview slice: birth details, conventions and the astrological blocks that can be produced.</summary>
+    /// <remarks>Blocks that cannot be computed are returned null with an entry in <c>Unsupported</c> carrying a
+    /// reason code, so a missing calculation engine is never presented to the user as birth-time uncertainty.</remarks>
+    Task<KundaliOverview> GetOverviewAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
 
     Task<KundaliPreferences> SavePreferencesAsync(ClaimsPrincipal user, Guid profileId, string chartStyle,
         long revision, CancellationToken token);

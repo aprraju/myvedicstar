@@ -106,6 +106,7 @@ public sealed partial class SharedHostTests
             "DELETE api/v1/vedic-profiles/{id:guid}",
             "GET api/v1/kundali/capabilities",
             "GET api/v1/kundali/{profileId:guid}",
+            "GET api/v1/kundali/{profileId:guid}/overview",
             "POST api/v1/kundali/{profileId:guid}/generations",
             "POST api/v1/kundali/{profileId:guid}/retry",
             "GET api/v1/kundali/{profileId:guid}/preferences",

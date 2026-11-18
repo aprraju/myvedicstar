@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using MyVedicStar.Kundali.Shared;
+using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Business;
 
@@ -13,6 +14,12 @@ public interface IKundaliProfileReader
     /// A foreign id and a missing id are indistinguishable here on purpose (the facade maps both to 404).
     /// Reads are performed as the supplied principal so ownership is enforced by the owning module.</summary>
     Task<KundaliInputSnapshot?> GetSnapshotAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
+    /// <summary>Display-only birth details for the overview: the same owned profile, shaped for reading rather than
+    /// calculation. Returns null when the profile is not owned, exactly like <see cref="GetSnapshotAsync"/>, so the
+    /// two calls can never disagree about ownership.</summary>
+    Task<KundaliProfileDisplay?> GetDisplayAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
 
     /// <summary>Resolves the effective calculation settings (ayanamsa) from the existing application Settings.
     /// There is no Kundali-specific settings store.</summary>
@@ -47,3 +54,38 @@ public interface IKundaliRepository
     Task<KundaliPreferences> SavePreferencesAsync(Guid accountId, Guid profileId, string chartStyle,
         long revision, CancellationToken token);
 }
+
+/// <summary>
+/// Reads the configured astronomy provider's identity and version metadata. This is a version read, not a
+/// calculation: it lets the overview envelope carry real provenance today, so that when the calculation engine
+/// (#60) lands the values are already flowing from the same configured provider rather than being backfilled from
+/// placeholders. Nothing here computes a position.
+/// </summary>
+public interface IKundaliAstronomyMetadataReader
+{
+    Task<KundaliAstronomyMetadata> GetAsync(ClaimsPrincipal user, CancellationToken token);
+}
+
+/// <summary>Provider identity and conventions as configured for this account. Values are reported, never inferred.</summary>
+public sealed record KundaliAstronomyMetadata(
+    string EphemerisProvider,
+    string EphemerisVersion,
+    string Ayanamsa,
+    string HouseSystem,
+    string NodeType,
+    string Zodiac);
+
+/// <summary>Owned birth details as shown back to the user. Never used as calculation input; the immutable
+/// <see cref="KundaliInputSnapshot"/> is. Time fields are null for the modes that do not carry them, and the mapping
+/// to the wire shape omits them rather than substituting a value.</summary>
+public sealed record KundaliProfileDisplay(
+    string? Name,
+    DateOnly BirthDate,
+    BirthTimeMode BirthTimeMode,
+    TimeOnly? BirthTime,
+    TimeOnly? BirthTimeFrom,
+    TimeOnly? BirthTimeTo,
+    string PlaceName,
+    decimal Latitude,
+    decimal Longitude,
+    string TimezoneId);
