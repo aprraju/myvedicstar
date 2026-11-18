@@ -51,7 +51,8 @@ public sealed class KundaliUnsupportedReasonTests
         facade = new KundaliFacade(profiles, repository, alerts,
             new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
             KundaliEngineVersions.Foundation, metadata, engine, new PassthroughDivisions(), new NoDignityRules3(),
-            new NoAshtakavargaRules3(), new NoShadbalaRules3(), new FixedClock(), Substitute.For<IKundaliResultCache>());
+            new NoAshtakavargaRules3(), new NoShadbalaRules3(), new NoYogaRules3(), new FixedClock(),
+            Substitute.For<IKundaliResultCache>());
     }
 
     [Fact]
@@ -164,6 +165,14 @@ public sealed class KundaliUnsupportedReasonTests
         public IReadOnlyList<string> ScoredPlanets => [];
         public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) => [];
         public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
+    }
+
+    private sealed class NoYogaRules3 : IKundaliYogaRules
+    {
+        public string RulesVersion => "none";
+        public IReadOnlyList<string> Statuses => [];
+        public IReadOnlyList<string> Catalogue => [];
+        public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) => new("none", [], []);
     }
 
     private sealed class NoShadbalaRules3 : IKundaliShadbalaRules
