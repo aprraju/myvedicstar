@@ -139,11 +139,16 @@ public static class KundaliUnsupportedReasons
     public const string BirthTimeUnknown = "birth-time-unknown";
 
     /// <summary>The birth time is a range, so time-dependent values cannot be pinned to one instant.</summary>
+    public const string BirthTimeApproximate = "birth-time-approximate";
+
+    /// <summary>The engine withheld a time-dependent value because the birth time is not exact. Emitted by the
+    /// engine itself, carried through unchanged so the API vocabulary matches the calculation vocabulary.</summary>
+    public const string RequiresExactBirthTime = "requires-exact-birth-time";
+
     /// <summary>Computable, but no independent reference exists to validate it against. Distinct from
     /// both "not built" and "cannot know": this is a validation task, and the UI must be able to say
     /// "computed but not yet proven" rather than "unavailable".</summary>
     public const string UnvalidatedReference = "unvalidated-reference";
-    public const string BirthTimeApproximate = "birth-time-approximate";
 }
 
 /// <summary>One field that could not be computed, with a reason code. The path is the response property name so a
