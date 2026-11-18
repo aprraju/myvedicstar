@@ -47,7 +47,7 @@ public sealed class KundaliRevisionCacheTests
 
     private KundaliFacade Facade() => new(profiles, repository,
         new KundaliValidator(clock, KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation, metadata,
-        engine, new UnconfiguredDivisionalMapperStub(), new NoDignityRules2(), new NoAshtakavargaRules(), clock, cache);
+        engine, new UnconfiguredDivisionalMapperStub(), new NoDignityRules2(), new NoAshtakavargaRules(), new NoShadbalaRules(), clock, cache);
 
     private static KundaliInputSnapshot Snapshot(long profileRevision = 1) =>
         new(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),
@@ -361,4 +361,14 @@ internal sealed class NoAshtakavargaRules : IKundaliAshtakavargaRules
     public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
 
 
+}
+
+internal sealed class NoShadbalaRules : IKundaliShadbalaRules
+{
+    public string RulesVersion => "none";
+    public string Unit => "rupas";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyDictionary<string, string> WithheldComponents =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) => [];
 }
