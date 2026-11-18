@@ -763,13 +763,13 @@ public sealed class KundaliOverviewTests
     private static IReadOnlyList<KundaliEngineGrahaPosition> FullGrahaPositions() =>
         new[]
         {
-            new KundaliEngineGrahaPosition("Sun", 10.0, "Aries", 10.0m, false, 0.98, null),
-            new KundaliEngineGrahaPosition("Moon", 100.0, "Cancer", 10.0m, false, 13.2, null),
-            new KundaliEngineGrahaPosition("Mars", 200.0, "Libra", 20.0m, false, 0.52, null),
-            new KundaliEngineGrahaPosition("Mercury", 250.0, "Sagittarius", 10.0m, true, 1.2, null),
-            new KundaliEngineGrahaPosition("Jupiter", 300.0, "Capricorn", 0.0m, false, 0.08, null),
-            new KundaliEngineGrahaPosition("Venus", 60.0, "Gemini", 0.0m, false, 1.2, null),
-            new KundaliEngineGrahaPosition("Saturn", 330.0, "Pisces", 0.0m, true, 0.03, null)
+            new KundaliEngineGrahaPosition("Sun", 10.0, "Aries", null),
+            new KundaliEngineGrahaPosition("Moon", 100.0, "Cancer", null),
+            new KundaliEngineGrahaPosition("Mars", 200.0, "Libra", null),
+            new KundaliEngineGrahaPosition("Mercury", 250.0, "Sagittarius", null),
+            new KundaliEngineGrahaPosition("Jupiter", 300.0, "Capricorn", null),
+            new KundaliEngineGrahaPosition("Venus", 60.0, "Gemini", null),
+            new KundaliEngineGrahaPosition("Saturn", 330.0, "Pisces", null)
         };
 
 }
