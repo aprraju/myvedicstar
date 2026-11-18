@@ -332,8 +332,11 @@ public sealed class KundaliRevisionCacheTests
         Assert.True(view.IsCurrent);
         // The facade builds the key from the rules it actually has registered, which in this fixture is the stub
         // ("none"), not a literal - so the expectation must come from the same place the production code does.
+        // The rules list must now carry Shadbala's version too: KUN-12 registered it as a third independently
+        // versioned rule set. This expectation is still derived from the same source the production code uses
+        // (the registered stub versions), not from a literal, so it fails if the fan-out changes shape again.
         Assert.Equal(KundaliCacheKeys.RevisionKey(accountId, profileId, 8, provenance,
-            [provenance.RuleSetVersion, "none"]), view.RevisionKey);
+            [provenance.RuleSetVersion, "none", "none"]), view.RevisionKey);
     }
 }
 
