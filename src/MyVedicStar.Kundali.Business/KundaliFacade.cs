@@ -17,7 +17,17 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         // Ownership is proved by reading the profile as this principal, not by trusting the path id: a foreign
         // profile must be indistinguishable from a missing one.
         _ = await ReadOwnedSnapshotAsync(user, profileId, token);
-        return await repository.GetAsync(accountId, profileId, token) ?? EmptyView(profileId);
+
+        // Effective settings are resolved on every read rather than stored on the aggregate, so a client always sees
+        // what would apply if a generation ran now - not what applied when the last one did. The revision's own
+        // provenance remains the record of what actually produced it.
+        var metadata = await metadataReader.GetAsync(user, token);
+        var settings = new KundaliEffectiveSettings(metadata.Ayanamsa,
+            (await repository.GetPreferencesAsync(accountId, profileId, token))?.ChartStyle ?? DefaultPreferences().ChartStyle);
+
+        return await repository.GetAsync(accountId, profileId, token) is { } view
+            ? view with { Settings = settings }
+            : EmptyView(profileId) with { Settings = settings };
     }
 
     public async Task<KundaliView> GenerateAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
@@ -500,9 +510,12 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
     /// <summary>A profile with no Kundali yet is a valid, empty state, not an error: the module shell uses it to
     /// render "not generated yet" rather than a failure.</summary>
-    private static KundaliView EmptyView(Guid profileId) => new(
+    private static KundaliView EmptyView(Guid profileId, KundaliEffectiveSettings? settings = null) => new(
         new KundaliAggregate(Guid.Empty, profileId, null, 0, DateTimeOffset.MinValue, DateTimeOffset.MinValue),
-        null);
+        null,
+        // An empty state still reports the settings that would apply, so the shell can render the right style before
+        // anything has been generated.
+        settings ?? new KundaliEffectiveSettings(string.Empty, DefaultPreferences().ChartStyle));
 
     private static KundaliPreferences DefaultPreferences() => new("North", 0, DateTimeOffset.MinValue);
 }

@@ -114,9 +114,23 @@ public sealed record KundaliPreferences(
 
 /// <summary>What a read returns: the aggregate plus its current revision summary, or a status when no revision has
 /// completed yet.</summary>
+
+/// <summary>
+/// The settings a result was produced under, surfaced on the aggregate so a client never has to guess which ayanamsa
+/// or chart style applied. <c>Ayanamsa</c> is calculation-affecting; <c>ChartStyle</c> is presentation-only.
+/// </summary>
+/// <param name="Ayanamsa">Effective ayanamsa from the account's Settings. Changing it invalidates results.</param>
+/// <param name="ChartStyle">Effective chart style. Presentation only; changing it must never invoke the engine.</param>
+public sealed record KundaliEffectiveSettings(string Ayanamsa, string ChartStyle);
+
+
 public sealed record KundaliView(
     KundaliAggregate Aggregate,
-    KundaliRevisionSummary? CurrentRevision);
+    KundaliRevisionSummary? CurrentRevision,
+    // Nullable with a null default: persistence does not know the account's Settings, and inventing a value there
+    // would put a plausible-looking ayanamsa on a result it never applied. The facade fills it from the metadata
+    // reader on every read, so a null reaching a caller would be a bug - not a legitimate state.
+    KundaliEffectiveSettings? Settings = null);
 
 public static class KundaliLimits
 {
