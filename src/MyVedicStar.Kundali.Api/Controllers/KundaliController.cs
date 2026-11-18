@@ -155,4 +155,28 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
         SaveKundaliPreferencesRequest request, CancellationToken token) =>
         Ok(KundaliPreferencesResponse.From(await facade.SavePreferencesAsync(User, profileId, request.ChartStyle,
             request.Revision, token)));
+
+    /// <summary>Requests a report (KUN-17). Returns 202 with `Location` naming the created report: a 202 without it
+    /// would make the client guess an address the server owns. The id is also in the body so id and status are read
+    /// from one source rather than stitched from a header and a body.</summary>
+    [HttpPost("{profileId:guid}/reports"), RevisionCacheHeaders,
+     ProducesResponseType<KundaliReportResponse>(202), ProducesResponseType<ProblemDetails>(400),
+     ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ProblemDetails>(409)]
+    public async Task<ActionResult<KundaliReportResponse>> RequestReport(Guid profileId,
+        KundaliReportRequestResponse request, CancellationToken token)
+    {
+        var report = KundaliReportResponse.From(
+            await facade.RequestReportAsync(User, profileId, request.ToRequest(), token));
+
+        return AcceptedAtAction(nameof(GetReport), new { profileId, reportId = report.ReportId }, report);
+    }
+
+    /// <summary>Reads report state, and the download URL once ready. 410 rather than 404 for an expired or revoked
+    /// URL: the report existed and is no longer readable, which is a different fact from "you cannot see this".</summary>
+    [HttpGet("{profileId:guid}/reports/{reportId:guid}"), RevisionCacheHeaders,
+     ProducesResponseType<KundaliReportResponse>(200), ProducesResponseType<ProblemDetails>(404),
+     ProducesResponseType<ProblemDetails>(410)]
+    public async Task<ActionResult<KundaliReportResponse>> GetReport(Guid profileId, Guid reportId,
+        CancellationToken token) =>
+        Ok(KundaliReportResponse.From(await facade.GetReportAsync(User, profileId, reportId, token)));
 }
