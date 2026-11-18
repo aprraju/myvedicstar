@@ -205,6 +205,31 @@ public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, str
 public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
 /// <summary>
+/// KUN-07 charts section for one divisional chart. The chart style (North/South/East) is deliberately absent: all
+/// three styles render the same placements, so style is a presentation concern and never part of the result.
+/// </summary>
+/// <param name="Divisional">The division actually used, echoed so a caller never infers it from the request.</param>
+/// <param name="Precision">Whether the chart's placements are validated; a chart is never published without saying so.</param>
+public sealed record KundaliChartsSection(
+    int Divisional,
+    string Method,
+    IReadOnlyList<KundaliChartHouse> Houses,
+    KundaliChartPrecision Precision);
+
+/// <summary>One house of the chart: a sign, and the planets placed in it with the exact degree within that sign.</summary>
+public sealed record KundaliChartHouse(string Sign, IReadOnlyList<KundaliChartPlacement> Placements);
+
+public sealed record KundaliChartPlacement(string Planet, string Sign, decimal DegreeWithinSign);
+
+/// <summary>
+/// Why a chart's placements are or are not trustworthy. <c>Status</c> is <c>validated</c> or <c>unvalidated-reference</c>;
+/// the reason is a capability code, never free prose.
+/// </summary>
+public sealed record KundaliChartPrecision(string Status, string? Reason);
+
+
+
+/// <summary>
 /// KUN-09 dasha timeline. Every period is an absolute UTC instant pair; <c>DisplayTimezone</c> states the zone a
 /// client should render them in, and is carried explicitly rather than inferred at render time.
 /// </summary>
@@ -238,6 +263,10 @@ public static class KundaliSigns
         "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
         "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
     ];
+
+    /// <summary>All twelve sign names, in zodiacal order. Exposed so a chart can enumerate every house
+    /// without duplicating the list.</summary>
+    public static IReadOnlyList<string> All { get; } = Names;
 
     /// <summary>Maps a zero-based sign index to its name. Out-of-range input is a programming error, not data.</summary>
     public static string NameOf(int index) =>

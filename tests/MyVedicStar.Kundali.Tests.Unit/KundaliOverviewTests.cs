@@ -34,7 +34,19 @@ public sealed class KundaliOverviewTests
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, new FixedClock());
+            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), new FixedClock());
+    }
+
+    /// <summary>Real mapper over the calculation project: the divisional tests assert the rule, not a stub.</summary>
+    private static IKundaliDivisionalMapper Mapper() => new TestDivisionalMapper();
+
+    private sealed class TestDivisionalMapper : IKundaliDivisionalMapper
+    {
+        public bool IsImplemented(int divisional) =>
+            MyVedicStar.Kundali.Calculation.DivisionalCharts.IsImplemented(divisional);
+
+        public int SignIn(int divisional, double siderealLongitude) =>
+            MyVedicStar.Kundali.Calculation.DivisionalCharts.SignIn(divisional, siderealLongitude);
     }
 
     private static KundaliProfileDisplay Display(BirthTimeMode mode, TimeOnly? time = null,
@@ -373,6 +385,70 @@ public sealed class KundaliOverviewTests
         // The current path is the single containing period; Yogini sub-periods are not built, and that is reported.
         Assert.Single(timeline.PeriodPath);
         Assert.Contains(timeline.Unsupported, u => u.Path == "PeriodPath");
+    }
+
+    [Fact]
+    public async Task A_chart_with_an_exact_birth_time_places_sun_and_moon_and_says_so()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // Sun at 10 Aries, moon at 15 Taurus.
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>()));
+
+        var section = await facade.GetChartsAsync(user, profileId, 9, Token);
+
+        Assert.Equal(9, section.Divisional);
+        Assert.Equal("Navamsa", section.Method);
+        Assert.Equal("validated", section.Precision.Status);
+        Assert.Null(section.Precision.Reason);
+
+        // Every sign is present even when empty: a chart missing houses is not a chart.
+        Assert.Equal(12, section.Houses.Count);
+
+        var placed = section.Houses.SelectMany(house => house.Placements).ToArray();
+        Assert.Equal(2, placed.Length);
+        Assert.Contains(placed, placement => placement.Planet == "Sun");
+        Assert.Contains(placed, placement => placement.Planet == "Moon");
+    }
+
+    [Fact]
+    public async Task An_inexact_birth_time_yields_an_empty_chart_with_a_reason_not_a_guessed_one()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Approximate, from: new TimeOnly(5, 0), to: new TimeOnly(7, 30)));
+
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(null, null, null, null, null, null, null,
+                [new KundaliEngineGap("SunSign", KundaliEngineReasons.RequiresExactBirthTime)]));
+
+        var section = await facade.GetChartsAsync(user, profileId, 9, Token);
+
+        // No houses rather than twelve empty ones: an all-empty chart reads as "computed, nothing placed", which is a
+        // different and false claim from "cannot be computed".
+        Assert.Empty(section.Houses);
+        Assert.Equal("unvalidated-reference", section.Precision.Status);
+        Assert.Equal(KundaliUnsupportedReasons.RequiresExactBirthTime, section.Precision.Reason);
+    }
+
+    [Fact]
+    public async Task An_unknown_division_is_rejected_before_any_provider_work()
+    {
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            facade.GetChartsAsync(user, profileId, 5, Token));
+
+        await metadata.DidNotReceive().GetAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_foreign_profile_is_not_found_for_charts()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token).Returns((KundaliProfileDisplay?)null);
+
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            facade.GetChartsAsync(user, profileId, 1, Token));
     }
 
 }

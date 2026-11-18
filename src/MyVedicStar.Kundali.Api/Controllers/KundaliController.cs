@@ -48,6 +48,17 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
             await facade.GetDashasAsync(User, profileId, system ?? "vimshottari", at, token)));
 
 
+
+    /// <summary>KUN-07 divisional chart. Only the divisions whose mapping rule is implemented are served; an unknown
+    /// one is a 400 rather than a nearest-approximation. Placements cover the bodies the engine can produce - sun and
+    /// moon - and the rest are absent with a precision status that says so, never silently blank.</summary>
+    [HttpGet("{profileId:guid}/sections/charts"), ProducesResponseType<KundaliChartsSectionResponse>(200)]
+    public async Task<ActionResult<KundaliChartsSectionResponse>> Charts(Guid profileId,
+        [FromQuery] int divisional, CancellationToken token) =>
+        Ok(KundaliChartsSectionResponse.From(
+            await facade.GetChartsAsync(User, profileId, divisional == 0 ? 1 : divisional, token)));
+
+
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
     [HttpPost("{profileId:guid}/generations"), ProducesResponseType<KundaliViewResponse>(202)]

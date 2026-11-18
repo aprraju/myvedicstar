@@ -95,6 +95,7 @@ public static class KundaliCalculationEngineRegistration
             provider.GetRequiredService<MyVedicDay.Astronomy.IEphemeris>(),
             provider.GetRequiredService<MyVedicDay.Astronomy.IAyanamsa>()));
         services.Replace(ServiceDescriptor.Scoped<IKundaliCalculationEngine, KundaliCalculationEngineAdapter>());
+        services.AddKundaliDivisionalMapper();
         return services;
     }
 }
