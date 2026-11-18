@@ -121,6 +121,8 @@ public sealed partial class SharedHostTests
             "GET api/v1/kundali/{profileId:guid}/sections/yogas",
             "GET api/v1/kundali/{profileId:guid}/preferences",
             "PUT api/v1/kundali/{profileId:guid}/preferences",
+            "POST api/v1/kundali/{profileId:guid}/reports",
+            "GET api/v1/kundali/{profileId:guid}/reports/{reportId:guid}",
         ];
         var actual = endpoints.SelectMany(endpoint => endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>().HttpMethods
             .Select(method => $"{method} {endpoint.RoutePattern.RawText}"));
