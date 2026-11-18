@@ -489,7 +489,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         List<KundaliUnsupportedField> unsupported)
     {
         var signs = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var graha in engine.GrahaPositions?.Grahas ?? [])
+        foreach (var graha in engine.GrahaPositions ?? [])
         {
             if (graha.Sign is null || graha.SiderealLongitude is not { } longitude)
                 continue;
