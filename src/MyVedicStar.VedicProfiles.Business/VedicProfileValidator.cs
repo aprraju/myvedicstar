@@ -30,13 +30,36 @@ internal sealed class VedicProfileValidator(TimeProvider clock)
             {
                 BirthTimeMode.Known => details.BirthTime.HasValue
                     && details.BirthTimeFrom == details.BirthTime && details.BirthTimeTo == details.BirthTime,
+                // A window must run strictly forward on the clock. Equal bounds are rejected too: a zero-length
+                // "approximate" window is an exact time pretending to be uncertain, and the user should pick Exact.
+                //
+                // Deliberately NOT DST-aware. The validator holds TimeOnly pairs with no date, so it cannot know
+                // which day the window falls on and cannot compute elapsed real time; a spring-forward night can
+                // legitimately have a 23:30-00:30 window worth zero elapsed minutes. Encoding a date-free
+                // approximation of that would be wrong-but-plausible, which is worse than an honest simple rule.
+                // The consequence is that such a window is rejected as wrapping - over-strict but explainable.
+                // Revisit when the snapshot carries a birth date and real elapsed-time semantics are possible.
                 BirthTimeMode.Approximate => details.BirthTime is null
                     && details.BirthTimeFrom.HasValue && details.BirthTimeTo.HasValue
-                    && details.BirthTimeTo >= details.BirthTimeFrom,
+                    && details.BirthTimeTo > details.BirthTimeFrom,
                 BirthTimeMode.Unknown => details.BirthTime is null && details.BirthTimeFrom is null && details.BirthTimeTo is null,
                 _ => false
             };
-        if (!valid) throw new ValidationException(VedicProfileErrors.InvalidTimes);
+
+        if (!valid)
+        {
+            // A structurally well-formed approximate window that does not run forward is a specific, correctable
+            // mistake, so it gets its own message. Everything else stays the generic invalid-times error so the
+            // client is not handed a misleadingly precise diagnosis for a different problem.
+            if (details.BirthTimeMode == BirthTimeMode.Approximate
+                && details.BirthTime is null
+                && SecondPrecision(details.BirthTimeFrom) && SecondPrecision(details.BirthTimeTo)
+                && details.BirthTimeFrom.HasValue && details.BirthTimeTo.HasValue
+                && details.BirthTimeTo <= details.BirthTimeFrom)
+                throw new ValidationException(VedicProfileErrors.BirthWindowCrossesMidnight);
+
+            throw new ValidationException(VedicProfileErrors.InvalidTimes);
+        }
     }
 
     private static void ValidateRelationship(VedicProfileDetails details)

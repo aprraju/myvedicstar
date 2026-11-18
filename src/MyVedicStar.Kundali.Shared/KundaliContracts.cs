@@ -60,6 +60,12 @@ public sealed record KundaliInputSnapshot(
     string TimezoneId,
     long ProfileRevision)
 {
+    /// <summary>True only when the profile supplied a single exact birth time. Downstream sections read this one
+    /// property to decide whether time-dependent output is computable, instead of pattern-matching the enum and
+    /// risking a new mode being silently treated as exact. Derived from <see cref="BirthTimeMode"/> - deliberately
+    /// not stored, so the two cannot disagree.</summary>
+    public bool HasExactBirthTime => BirthTimeMode == BirthTimeMode.Known && BirthTime.HasValue;
+
     /// <summary>Stable hash identifying this exact input. Part of the idempotency key, so a repeated click cannot
     /// enqueue a second generation for identical inputs.</summary>
     public string ComputeHash()
