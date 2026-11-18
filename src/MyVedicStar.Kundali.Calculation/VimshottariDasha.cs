@@ -78,7 +78,9 @@ public static class VimshottariDasha
             var remainingYears = step == 0 ? years * (1.0 - elapsedFraction) : years;
             var end = cursor + Duration.FromSeconds(remainingYears * DaysPerDashaYear * 86400.0);
 
-            periods.Add(new VimshottariPeriod(lord, cursor, end, step == 0));
+            // Remainder means "shorter than a full term of this lord", not "first in the list". On a nakshatra
+            // boundary nothing has elapsed, so the first period is a whole term and is not a remainder.
+            periods.Add(new VimshottariPeriod(lord, cursor, end, step == 0 && elapsedFraction > 0));
             cursor = end;
         }
 

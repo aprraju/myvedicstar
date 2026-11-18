@@ -74,7 +74,9 @@ public sealed class KundaliEngineTests
 
         Assert.All(result.Gaps, gap => Assert.Equal(
             KundaliCalculationReasons.RequiresExactBirthTime, gap.Reason));
-        Assert.Equal(4, result.Gaps.Count);
+        // Five time-dependent outputs now: sun/moon longitudes, sun/moon signs, and the dasha sequence.
+        Assert.Equal(5, result.Gaps.Count);
+        Assert.Contains(result.Gaps, gap => gap.Path == nameof(KundaliCalculationResult.VimshottariMahadashas));
     }
 
     [Fact]
