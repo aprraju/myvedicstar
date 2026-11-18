@@ -12,6 +12,7 @@ on:
       - 'nuget.config'
       - '.editorconfig'
       - 'deploy/**'
+      - 'docs/**'
       - '.github/**'
   workflow_dispatch:
 permissions:

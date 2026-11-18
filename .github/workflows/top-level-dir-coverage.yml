@@ -1,0 +1,31 @@
+name: Top-level directory coverage
+
+# api#90: a NEW top-level directory must go red until somebody decides which workflows must cover it.
+#
+# This workflow deliberately has NO paths: filter on pull_request. A check that only runs when
+# certain files change inherits exactly the blind spot it exists to detect - a PR adding
+# astronomy/ would never start it, and a check that reads green by not running is worse than no
+# check, because it looks like coverage. The job inspects the repository's own workflows, so it
+# needs no .NET SDK and no restore.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: top-level-dir-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  top-level-dir-coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every top-level directory is covered by a workflow path filter
+        run: python3 .github/scripts/check-top-level-dir-coverage.py
