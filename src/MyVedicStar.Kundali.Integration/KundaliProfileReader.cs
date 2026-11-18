@@ -72,6 +72,7 @@ public static class KundaliIntegrationRegistration
         // or a test that supplies a fake - keeps it.
         services.TryAddScoped<IKundaliResultCache, KundaliResultCacheAdapter>();
         services.AddKundaliShadbalaRules();
+        services.AddKundaliYogaRules();
         return services;
     }
 }

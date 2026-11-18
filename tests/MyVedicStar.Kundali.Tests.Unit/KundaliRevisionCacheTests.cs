@@ -48,7 +48,7 @@ public sealed class KundaliRevisionCacheTests
 
     private KundaliFacade Facade() => new(profiles, repository, alerts,
         new KundaliValidator(clock, KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation, metadata,
-        engine, new UnconfiguredDivisionalMapperStub(), new NoDignityRules2(), new NoAshtakavargaRules(), new NoShadbalaRules(), clock, cache);
+        engine, new UnconfiguredDivisionalMapperStub(), new NoDignityRules2(), new NoAshtakavargaRules(), new NoShadbalaRules(), new NoYogaRules(), clock, cache);
 
     private static KundaliInputSnapshot Snapshot(long profileRevision = 1) =>
         new(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),
@@ -153,6 +153,22 @@ public sealed class KundaliRevisionCacheTests
             ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1"]);
         var changed = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
             ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-2"]);
+
+        Assert.NotEqual(key, changed);
+    }
+
+    [Fact]
+    public void A_yoga_rule_change_produces_a_different_cache_key()
+    {
+        // KUN-10 registers the yoga catalogue as another independently versioned rule set. Without it, a catalogue
+        // change would leave assessments cached under the old rules being served as current - the same staleness the
+        // Ashtakavarga and Shadbala entries exist to prevent.
+        var provenance = KundaliProvenance();
+
+        var key = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
+            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1", "yogas-classical-1"]);
+        var changed = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
+            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1", "yogas-classical-2"]);
 
         Assert.NotEqual(key, changed);
     }
@@ -337,7 +353,7 @@ public sealed class KundaliRevisionCacheTests
         // versioned rule set. This expectation is still derived from the same source the production code uses
         // (the registered stub versions), not from a literal, so it fails if the fan-out changes shape again.
         Assert.Equal(KundaliCacheKeys.RevisionKey(accountId, profileId, 8, provenance,
-            [provenance.RuleSetVersion, "none", "none"]), view.RevisionKey);
+            [provenance.RuleSetVersion, "none", "none", "none"]), view.RevisionKey);
     }
 }
 
@@ -375,4 +391,15 @@ internal sealed class NoShadbalaRules : IKundaliShadbalaRules
     public IReadOnlyDictionary<string, string> WithheldComponents =>
         new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) => [];
+}
+internal sealed class NoYogaRules : IKundaliYogaRules
+{
+    public string RulesVersion => "none";
+
+    public IReadOnlyList<string> Statuses => [];
+
+    public IReadOnlyList<string> Catalogue => [];
+
+    public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) =>
+        new("none", [], []);
 }

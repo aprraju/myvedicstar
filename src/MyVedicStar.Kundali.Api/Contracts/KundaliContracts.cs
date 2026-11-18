@@ -494,3 +494,49 @@ public sealed record KundaliAlertsResponse(IReadOnlyList<KundaliAlertPreferenceR
             MyVedicStar.Kundali.Shared.KundaliAlertEventTypes.All.ToArray(),
             MyVedicStar.Kundali.Shared.KundaliAlertEventTypes.Channels.ToArray());
 }
+
+/// <summary>KUN-10 yoga and dosha section. <c>evaluated</c> carries finished claims; <c>notEvaluated</c> carries
+/// combinations that were never tested, enumerated by name. Both in one payload, each with its own completeness -
+/// an empty evaluated list is never a clean bill of health.</summary>
+public sealed record KundaliYogasResponse(
+    string RulesVersion,
+    IReadOnlyList<KundaliYogaAssessmentResponse> Evaluated,
+    IReadOnlyList<KundaliYogaAssessmentResponse> NotEvaluated,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliYogasResponse From(MyVedicStar.Kundali.Shared.KundaliYogasSection value) => new(
+        value.RulesVersion,
+        value.Evaluated.Select(KundaliYogaAssessmentResponse.From).ToArray(),
+        value.NotEvaluated.Select(KundaliYogaAssessmentResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+/// <summary>One assessed combination. <paramref name="Reason"/> is present only for <c>indeterminate</c>; a satisfied
+/// or failed assessment is explained by its conditions.</summary>
+public sealed record KundaliYogaAssessmentResponse(
+    string Code,
+    string Name,
+    string Scope,
+    string Status,
+    IReadOnlyList<KundaliYogaConditionResponse> Conditions,
+    IReadOnlyList<string> Supporting,
+    IReadOnlyList<string> Opposing,
+    IReadOnlyList<string> Exceptions,
+    IReadOnlyList<string> Cancellations,
+    bool Complete,
+    string? Reason,
+    IReadOnlyList<string> UntestedComponents)
+{
+    public static KundaliYogaAssessmentResponse From(MyVedicStar.Kundali.Shared.KundaliYogaAssessment value) => new(
+        value.Code, value.Name, value.Scope, value.Status,
+        value.Conditions.Select(KundaliYogaConditionResponse.From).ToArray(),
+        value.Supporting, value.Opposing, value.Exceptions, value.Cancellations,
+        value.Complete, value.Reason, value.UntestedComponents);
+}
+
+/// <summary>One condition, with the fact it was tested against.</summary>
+public sealed record KundaliYogaConditionResponse(string Text, bool Truth)
+{
+    public static KundaliYogaConditionResponse From(MyVedicStar.Kundali.Shared.KundaliYogaCondition value) =>
+        new(value.Text, value.Truth);
+}

@@ -95,5 +95,9 @@ public interface IKundaliFacade
     /// <summary>KUN-12: Shadbala per planet and Bhava Bala per house, as two separate objects, for an owned profile.</summary>
     Task<KundaliBalaSection> GetBalaAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+    /// <summary>KUN-10: yoga and dosha assessments. Evaluated and never-evaluated combinations are delivered together,
+    /// each with its own completeness and reason.</summary>
+    Task<KundaliYogasSection> GetYogasAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 }

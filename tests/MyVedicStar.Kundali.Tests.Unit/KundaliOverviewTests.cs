@@ -43,7 +43,7 @@ public sealed class KundaliOverviewTests
         facade = new KundaliFacade(profiles, repository, alerts,
             new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
             KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(),
-            new TestShadbalaRules(), new FixedClock(), Substitute.For<IKundaliResultCache>());
+            new TestShadbalaRules(), new TestYogaRules(), new FixedClock(), Substitute.For<IKundaliResultCache>());
     }
 
     /// <summary>Decorative Shadbala rules for facade-level tests. The arithmetic is tested exhaustively in
@@ -77,6 +77,33 @@ public sealed class KundaliOverviewTests
                 0.1,
                 ["Sthana"],
                 ["Dig"])).ToArray();
+    }
+
+
+    /// <summary>Real yoga rules over the calculation project, so the section tests exercise the catalogue rather than a stub.</summary>
+    private sealed class TestYogaRules : IKundaliYogaRules
+    {
+        public string RulesVersion => MyVedicStar.Kundali.Calculation.Yogas.RulesVersion;
+
+        public IReadOnlyList<string> Statuses =>
+            [MyVedicStar.Kundali.Calculation.Yogas.Statuses.Satisfied,
+             MyVedicStar.Kundali.Calculation.Yogas.Statuses.NotSatisfied,
+             MyVedicStar.Kundali.Calculation.Yogas.Statuses.Indeterminate];
+
+        public IReadOnlyList<string> Catalogue => MyVedicStar.Kundali.Calculation.Yogas.CatalogueCodes;
+
+        public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha)
+        {
+            var result = MyVedicStar.Kundali.Calculation.Yogas.Evaluate(signByGraha);
+            return new KundaliYogaEvaluation(result.RulesVersion,
+                result.Assessments.Select(Map).ToArray(), result.Indeterminate.Select(Map).ToArray());
+        }
+
+        private static KundaliYogaResult Map(MyVedicStar.Kundali.Calculation.Yogas.Assessment a) => new(
+            a.Code, a.Name, a.Scope, a.Status,
+            a.Conditions.Select(c => new KundaliYogaConditionResult(c.Text, c.Truth)).ToArray(),
+            a.Supporting, a.Opposing, a.Exceptions, a.Cancellations,
+            a.Complete, a.Reason, a.UntestedComponents);
     }
 
     /// <summary>Real Ashtakavarga rules over the calculation project.</summary>
@@ -767,6 +794,56 @@ public sealed class KundaliOverviewTests
         Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["Saturn"]);
         Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons[nameof(KundaliBalaSection.Shadbala)]);
     }
+
+
+    [Fact]
+    public async Task Yogas_delivers_evaluated_and_not_evaluated_in_one_payload()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // Sun and Moon published, every other graha withheld - the real state of this release.
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(10.0, 45.0, 0, 1, null, null, null,
+                Array.Empty<KundaliEngineGap>())
+            {
+                GrahaPositions = WithheldGrahas()
+            });
+
+        var section = await facade.GetYogasAsync(user, profileId, Token);
+
+        // Both lists in one payload: finished claims and never-tested combinations, together.
+        Assert.NotEmpty(section.NotEvaluated);
+
+        // Every not-evaluated entry names itself and says why - an empty satisfied list must never read as a clean bill.
+        foreach (var assessment in section.NotEvaluated)
+        {
+            Assert.Equal("indeterminate", assessment.Status);
+            Assert.False(string.IsNullOrWhiteSpace(assessment.Code));
+            Assert.False(string.IsNullOrWhiteSpace(assessment.Reason));
+            Assert.NotEmpty(assessment.UntestedComponents);
+            Assert.False(assessment.Complete);
+        }
+
+        // Nothing indeterminate may hide among the evaluated results.
+        Assert.DoesNotContain(section.Evaluated, a => a.Status == "indeterminate");
+
+        // The section reports its rule set version, and the withheld grahas are named at the section level too.
+        Assert.False(string.IsNullOrWhiteSpace(section.RulesVersion));
+        Assert.Contains(section.Unsupported, field => field.Path == "Saturn");
+    }
+
+    private static IReadOnlyList<KundaliEngineGrahaPosition> WithheldGrahas() =>
+        new[]
+        {
+            new KundaliEngineGrahaPosition("Sun", 10.0, "Aries", null),
+            new KundaliEngineGrahaPosition("Moon", 45.0, "Taurus", null),
+            new KundaliEngineGrahaPosition("Mars", null, null, "unvalidated-reference"),
+            new KundaliEngineGrahaPosition("Mercury", null, null, "unvalidated-reference"),
+            new KundaliEngineGrahaPosition("Jupiter", null, null, "unvalidated-reference"),
+            new KundaliEngineGrahaPosition("Venus", null, null, "unvalidated-reference"),
+            new KundaliEngineGrahaPosition("Saturn", null, null, "unvalidated-reference")
+        };
 
     private static IReadOnlyList<KundaliEngineGrahaPosition> FullGrahaPositions() =>
         new[]

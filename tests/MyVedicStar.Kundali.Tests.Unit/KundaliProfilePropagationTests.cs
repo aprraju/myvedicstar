@@ -39,7 +39,7 @@ public sealed class KundaliProfilePropagationTests
 
     private KundaliFacade Facade() => new(profiles, repository, alerts,
         new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation,
-        metadata, engine, new NoDivisions(), new NoDignityRules(), new NoAshtakavargaRulesPropagation(), new NoShadbalaRulesPropagation(), new FixedClock(), cache);
+        metadata, engine, new NoDivisions(), new NoDignityRules(), new NoAshtakavargaRulesPropagation(), new NoShadbalaRulesPropagation(), new NoYogaRulesPropagation(), new FixedClock(), cache);
 
     private static KundaliInputSnapshot Snapshot(long profileRevision) =>
         new(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),
@@ -266,4 +266,15 @@ internal sealed class NoShadbalaRulesPropagation : IKundaliShadbalaRules
     public IReadOnlyDictionary<string, string> WithheldComponents =>
         new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) => [];
+}
+internal sealed class NoYogaRulesPropagation : IKundaliYogaRules
+{
+    public string RulesVersion => "none";
+
+    public IReadOnlyList<string> Statuses => [];
+
+    public IReadOnlyList<string> Catalogue => [];
+
+    public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) =>
+        new("none", [], []);
 }

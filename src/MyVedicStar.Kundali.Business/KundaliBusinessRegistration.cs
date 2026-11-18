@@ -27,6 +27,7 @@ public static class KundaliBusinessRegistration
         services.TryAddScoped<IKundaliDignityRules, UnconfiguredDignityRules>();
         services.TryAddScoped<IKundaliAshtakavargaRules, UnconfiguredAshtakavargaRules>();
         services.TryAddScoped<IKundaliShadbalaRules, UnconfiguredShadbalaRules>();
+        services.TryAddScoped<IKundaliYogaRules, UnconfiguredYogaRules>();
 
         // Composition supplies the real alert store. The default refuses rather than answering "no consents", because
         // an empty list from a missing store is indistinguishable from a reader who opted out - and would silently
@@ -112,6 +113,49 @@ public interface IKundaliShadbalaRules
     /// <summary>Per-planet strength from sidereal longitudes.</summary>
     IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet);
 }
+
+/// <summary>
+/// Yoga and dosha evaluation as a port. The rule catalogue lives in the calculation project; Business consumes the
+/// abstraction so the layering holds and the rules stay testable without a host.
+/// </summary>
+public interface IKundaliYogaRules
+{
+    /// <summary>Identifies the exact rule catalogue in use.</summary>
+    string RulesVersion { get; }
+
+    /// <summary>Verdict vocabulary, echoed so the API never invents its own labels.</summary>
+    IReadOnlyList<string> Statuses { get; }
+
+    /// <summary>Every code the catalogue can report, so a caller can enumerate what exists even when nothing is run.</summary>
+    IReadOnlyList<string> Catalogue { get; }
+
+    /// <summary>Evaluates the catalogue against published sign placements.</summary>
+    KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha);
+}
+
+/// <summary>Evaluated and unevaluated assessments, kept apart but delivered together.</summary>
+public sealed record KundaliYogaEvaluation(
+    string RulesVersion,
+    IReadOnlyList<KundaliYogaResult> Evaluated,
+    IReadOnlyList<KundaliYogaResult> NotEvaluated);
+
+/// <summary>One assessed combination.</summary>
+public sealed record KundaliYogaResult(
+    string Code,
+    string Name,
+    string Scope,
+    string Status,
+    IReadOnlyList<KundaliYogaConditionResult> Conditions,
+    IReadOnlyList<string> Supporting,
+    IReadOnlyList<string> Opposing,
+    IReadOnlyList<string> Exceptions,
+    IReadOnlyList<string> Cancellations,
+    bool Complete,
+    string? Reason,
+    IReadOnlyList<string> UntestedComponents);
+
+/// <summary>One condition, with the fact it was tested against.</summary>
+public sealed record KundaliYogaConditionResult(string Text, bool Truth);
 
 /// <summary>One planet's computed strength, with every component's basis attached.</summary>
 public sealed record KundaliShadbalaResult(
@@ -216,6 +260,20 @@ internal sealed class UnconfiguredShadbalaRules : IKundaliShadbalaRules
 
     public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) =>
         throw new InvalidOperationException("No Shadbala rules are registered.");
+}
+
+/// <summary>Fallback used when composition has not supplied the real catalogue. Reports no rules and refuses to
+/// evaluate, so a missing registration surfaces as an unsupported section rather than as an empty clean chart.</summary>
+internal sealed class UnconfiguredYogaRules : IKundaliYogaRules
+{
+    public string RulesVersion => "unconfigured";
+
+    public IReadOnlyList<string> Statuses => [];
+
+    public IReadOnlyList<string> Catalogue => [];
+
+    public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) =>
+        throw new InvalidOperationException("No yoga rules are registered.");
 }
 
 internal sealed class UnconfiguredDignityRules : IKundaliDignityRules
