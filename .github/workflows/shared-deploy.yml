@@ -12,6 +12,7 @@ on:
       - 'nuget.config'
       - '.editorconfig'
       - 'deploy/**'
+      - 'docs/**'
       - '.github/**'
   workflow_dispatch:
 permissions:
@@ -20,6 +21,17 @@ concurrency:
   group: vedicstar-shared-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  # api#90: a NEW top-level directory must go red until somebody decides which workflows must cover it.
+  # Tests the repository, not the code, so it runs without a .NET SDK and cannot be skipped by a path filter.
+  top-level-dir-coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every top-level directory is covered by a workflow path filter
+        run: python3 .github/scripts/check-top-level-dir-coverage.py
+
   validate-day:
     uses: ./.github/workflows/myvedicday-ci.yml
     permissions:
