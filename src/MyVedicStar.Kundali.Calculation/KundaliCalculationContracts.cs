@@ -40,7 +40,7 @@ public sealed record KundaliCalculationConventions(
 /// <summary>Inputs the engine accepts. Plain values only - the engine never resolves a profile or settings itself.</summary>
 public sealed record KundaliCalculationRequest(
     DateOnly BirthDate,
-    VedicProfiles.Shared.BirthTimeMode BirthTimeMode,
+    MyVedicStar.VedicProfiles.Shared.BirthTimeMode BirthTimeMode,
     TimeOnly? BirthTime,
     decimal Latitude,
     decimal Longitude,

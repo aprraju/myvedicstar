@@ -1,6 +1,6 @@
 using MyVedicDay.Astronomy;
 using NodaTime;
-using VedicProfiles.Shared;
+using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Calculation;
 

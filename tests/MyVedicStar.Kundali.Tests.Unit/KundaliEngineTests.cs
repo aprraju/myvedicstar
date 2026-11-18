@@ -2,7 +2,7 @@ using MyVedicDay.Astronomy;
 using MyVedicStar.Kundali.Calculation;
 using MyVedicStar.Kundali.Tests.Unit;
 using NodaTime;
-using VedicProfiles.Shared;
+using MyVedicStar.VedicProfiles.Shared;
 
 namespace MyVedicStar.Kundali.Tests.Unit;
 
