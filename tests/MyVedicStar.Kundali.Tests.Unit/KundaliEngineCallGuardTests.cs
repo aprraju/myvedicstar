@@ -98,9 +98,41 @@ public sealed class KundaliEngineCallGuardTests : IDisposable
         // spy that can never fire - would make every DidNotReceive assertion pass vacuously.
         await facade.GetPlanetsAsync(user, profileId, Token);
 
+        // "One port, one counter" as a fact rather than an inference: the facade must be using the very instance the
+        // assertions read. Without this, a second registration could satisfy the container while the counter stayed at 0.
+        Assert.Same(engine, provider.GetRequiredService<IKundaliCalculationEngine>());
+
         Assert.True(engine.Calls > 0,
             "the engine spy must observe a real calculation on a position-dependent section, otherwise the "
             + "zero-call assertions above prove nothing");
+    }
+
+
+    [Fact]
+    public void The_engine_port_has_exactly_the_members_the_guard_counts()
+    {
+        // The guard above is only as good as the set of members it counts. Two failures could silently shrink it:
+        //   1. the port gains a member and the double grows a stub that returns without incrementing - compiles fine,
+        //      and the guard is vacuous for that member;
+        //   2. a member is renamed or replaced.
+        // A count alone catches (2) only if the total changes, so the NAMES are pinned as well. If this fails, whoever
+        // changed the port must decide explicitly whether the guard should count the new member - that decision is the
+        // point, not the number.
+        var members = typeof(IKundaliCalculationEngine).GetMethods()
+            .Select(method => method.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[] { "Calculate", "CalculateDashaTimeline", "CalculateTransits" },
+            members);
+
+        // And each one must actually be counted by the double, or the contract above is decorative.
+        var engine = new CountingCalculationEngine();
+        engine.Calculate(default!);
+        engine.CalculateDashaTimeline(default!);
+        engine.CalculateTransits(default!);
+        Assert.Equal(3, engine.Calls);
     }
 
     public void Dispose() => provider.Dispose();
