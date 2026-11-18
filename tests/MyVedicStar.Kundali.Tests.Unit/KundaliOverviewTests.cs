@@ -34,7 +34,19 @@ public sealed class KundaliOverviewTests
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, new FixedClock());
+            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), new FixedClock());
+    }
+
+    /// <summary>Real mapper over the calculation project: the divisional tests assert the rule, not a stub.</summary>
+    private static IKundaliDivisionalMapper Mapper() => new TestDivisionalMapper();
+
+    private sealed class TestDivisionalMapper : IKundaliDivisionalMapper
+    {
+        public bool IsImplemented(int divisional) =>
+            MyVedicStar.Kundali.Calculation.DivisionalCharts.IsImplemented(divisional);
+
+        public int SignIn(int divisional, double siderealLongitude) =>
+            MyVedicStar.Kundali.Calculation.DivisionalCharts.SignIn(divisional, siderealLongitude);
     }
 
     private static KundaliProfileDisplay Display(BirthTimeMode mode, TimeOnly? time = null,

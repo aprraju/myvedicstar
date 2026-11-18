@@ -7,7 +7,8 @@ namespace MyVedicStar.Kundali.Business;
 
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
-    IKundaliCalculationEngine calculationEngine, TimeProvider clock) : IKundaliFacade
+    IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
+    TimeProvider clock) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
@@ -268,7 +269,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     }
 
     /// <summary>Builds the twelve sign houses and places whichever bodies the engine produced.</summary>
-    private static IReadOnlyList<KundaliChartHouse> BuildHouses(int divisional, KundaliEngineResult engine)
+    private IReadOnlyList<KundaliChartHouse> BuildHouses(int divisional, KundaliEngineResult engine)
     {
         var placements = new List<KundaliChartPlacement>(2);
 
@@ -283,16 +284,16 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             .ToArray();
     }
 
-    private static void AddPlacement(List<KundaliChartPlacement> target, string planet, int divisional,
+    private void AddPlacement(List<KundaliChartPlacement> target, string planet, int divisional,
         double? siderealLongitude)
     {
         if (siderealLongitude is not { } longitude)
             return;
 
-        var signIndex = DivisionalCharts.SignIn(divisional, longitude);
+        var signIndex = divisionalMapper.SignIn(divisional, longitude);
         var degreeWithinSign = (decimal)(longitude - (Math.Floor(longitude / 30.0) * 30.0));
 
-        target.Add(new KundaliChartPlacement(planet, DivisionalCharts.NameOf(signIndex),
+        target.Add(new KundaliChartPlacement(planet, KundaliSigns.NameOf(signIndex),
             Math.Round(degreeWithinSign, 4)));
     }
 

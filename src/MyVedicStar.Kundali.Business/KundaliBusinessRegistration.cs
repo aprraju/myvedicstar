@@ -22,6 +22,7 @@ public static class KundaliBusinessRegistration
 
         // Composition supplies the real engine; this default keeps the facade constructible in isolation.
         services.TryAddScoped<IKundaliCalculationEngine, UnconfiguredKundaliCalculationEngine>();
+        services.TryAddScoped<IKundaliDivisionalMapper, UnconfiguredDivisionalMapper>();
         return services;
     }
 }
@@ -40,6 +41,22 @@ internal sealed class UnconfiguredAstronomyMetadataReader : IKundaliAstronomyMet
 /// Fallback used when composition has not supplied the real engine. Reports everything as not-implemented rather than
 /// inventing values, so a host that forgets to wire the engine degrades visibly instead of silently producing signs.
 /// </summary>
+
+/// <summary>
+/// Divisional sign mapping as a port. The rule lives in the calculation project; Business consumes the abstraction so
+/// the layering (Business never references Calculation) holds and the mapper can be tested in isolation.
+/// </summary>
+public interface IKundaliDivisionalMapper
+{
+    /// <summary>True when the mapping rule for this division is implemented.</summary>
+    bool IsImplemented(int divisional);
+
+    /// <summary>Zero-based sign index of the longitude in the given divisional chart.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The division is not implemented.</exception>
+    int SignIn(int divisional, double siderealLongitude);
+}
+
+
 internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculationEngine
 {
     public KundaliEngineResult Calculate(KundaliEngineInput input) => new(null, null, null, null, null, null, null,
@@ -54,4 +71,13 @@ internal sealed class UnconfiguredKundaliCalculationEngine : IKundaliCalculation
     public KundaliEngineDashaTimeline CalculateDashaTimeline(KundaliDashaQuery query) =>
         new KundaliEngineDashaTimeline(null, [], [], null, null, [new KundaliEngineGap("VimshottariMahadashas", KundaliEngineReasons.NotImplemented)]);
 }
+/// <summary>Fallback used when composition has not supplied the real mapper. Reports nothing as implemented, so a
+/// missing registration surfaces as an unsupported chart rather than a silently wrong one.</summary>
+internal sealed class UnconfiguredDivisionalMapper : IKundaliDivisionalMapper
+{
+    public bool IsImplemented(int divisional) => false;
 
+    public int SignIn(int divisional, double siderealLongitude) =>
+        throw new ArgumentOutOfRangeException(nameof(divisional), divisional,
+            "No divisional mapper is registered.");
+}
