@@ -351,8 +351,10 @@ public sealed class KundaliOverviewTests
         profiles.GetDisplayAsync(user, profileId, Token)
             .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
 
+        // Spans FixedClock's 2026-11-17 so the period is genuinely current; an earlier fixture ended in 2025 and
+        // therefore tested the not-current branch while asserting the current one.
         var firstStart = new DateTimeOffset(1989, 6, 1, 0, 0, 0, TimeSpan.Zero);
-        var firstEnd = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var firstEnd = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
         engine.CalculateDashaTimeline(Arg.Any<KundaliDashaQuery>()).Returns(new KundaliEngineDashaTimeline(
             87.3,
             [],
