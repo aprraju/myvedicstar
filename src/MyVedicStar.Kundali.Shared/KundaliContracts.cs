@@ -118,3 +118,76 @@ public static class KundaliLimits
     /// <summary>Generous bound so a section payload cannot become an unbounded write.</summary>
     public const int SectionPayloadBytes = 1_048_576;
 }
+
+/// <summary>
+/// Why an overview field could not be produced. Carried per unsupported entry so the UI can tell a missing engine
+/// apart from genuine birth-time uncertainty; rendering the two identically would present"not built yet" as
+/// "we cannot know", which is a different and much worse claim.
+/// </summary>
+public static class KundaliUnsupportedReasons
+{
+    /// <summary>The calculation engine (#60) is not wired into this module yet.</summary>
+    public const string EngineUnavailable = "engine-unavailable";
+
+    /// <summary>The birth time is unknown, so time-dependent values are genuinely indeterminate.</summary>
+    public const string BirthTimeUnknown = "birth-time-unknown";
+
+    /// <summary>The birth time is a range, so time-dependent values cannot be pinned to one instant.</summary>
+    public const string BirthTimeApproximate = "birth-time-approximate";
+}
+
+/// <summary>One field that could not be computed, with a reason code. The path is the response property name so a
+/// client can bind it directly to the field it chose not to render.</summary>
+public sealed record KundaliUnsupportedField(string Path, string Reason);
+
+/// <summary>Birth inputs shown back to the user, taken from the owned profile. Time fields are absent rather than
+/// sentinel-valued: an unknown birth time omits them entirely so no consumer can mistake midnight for a real time.</summary>
+public sealed record KundaliBirthDetails(
+    string? Name,
+    DateOnly BirthDate,
+    KundaliBirthTimeMode BirthTimeMode,
+    TimeOnly? BirthTime,
+    TimeOnly? BirthTimeFrom,
+    TimeOnly? BirthTimeTo,
+    string PlaceName,
+    decimal Latitude,
+    decimal Longitude,
+    string TimezoneId);
+
+/// <summary>Wire-level birth time mode. Distinct from the profile's <c>BirthTimeMode</c> so the API contract can
+/// evolve without moving the persistence enum.</summary>
+public enum KundaliBirthTimeMode { Exact, Approximate, Unknown }
+
+/// <summary>
+/// Calculation conventions for every numeric field in the overview. Held once at the envelope root rather than
+/// repeated per value, so a consumer cannot read a number without its conventions being in scope.
+/// </summary>
+public sealed record KundaliOverviewConventions(
+    string EphemerisProvider,
+    string EphemerisVersion,
+    string Ayanamsa,
+    string HouseSystem,
+    string NodeType,
+    string Zodiac);
+
+/// <summary>
+/// The KUN-05 overview slice. Every astrological block is nullable and, when null, its path appears in
+/// <see cref="Unsupported"/> with a reason. Null is therefore always explained - never a silent gap.
+/// </summary>
+public sealed record KundaliOverview(
+    Guid ProfileId,
+    KundaliBirthDetails BirthDetails,
+    KundaliOverviewConventions Conventions,
+    KundaliAscendant? Ascendant,
+    string? MoonSign,
+    string? SunSign,
+    KundaliDasha? CurrentDasha,
+    IReadOnlyList<KundaliPlacement> KeyPlacements,
+    IReadOnlyList<KundaliUnsupportedField> Unsupported);
+
+public sealed record KundaliAscendant(string Sign, decimal DegreeWithinSign, string Nakshatra);
+
+public sealed record KundaliDasha(string Lord, string Level, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+
+public sealed record KundaliPlacement(string Graha, string Sign, int House, bool Retrograde);
+

@@ -29,6 +29,14 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
     public async Task<ActionResult<KundaliViewResponse>> Get(Guid profileId, CancellationToken token) =>
         Ok(KundaliViewResponse.From(await facade.GetAsync(User, profileId, token)));
 
+    /// <summary>KUN-05 overview slice: birth details, calculation conventions and whichever astrological blocks can
+    /// currently be produced. Blocks that cannot be computed are omitted and reported in <c>unsupported</c> with a
+    /// reason code, so a missing engine is never presented as birth-time uncertainty. A foreign or unknown profile id
+    /// returns 404 - never 403 with detail.</summary>
+    [HttpGet("{profileId:guid}/overview"), ProducesResponseType<KundaliOverviewResponse>(200)]
+    public async Task<ActionResult<KundaliOverviewResponse>> Overview(Guid profileId, CancellationToken token) =>
+        Ok(KundaliOverviewResponse.From(await facade.GetOverviewAsync(User, profileId, token)));
+
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
     [HttpPost("{profileId:guid}/generations"), ProducesResponseType<KundaliViewResponse>(202)]
