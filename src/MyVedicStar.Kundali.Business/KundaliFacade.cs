@@ -7,7 +7,7 @@ namespace MyVedicStar.Kundali.Business;
 
 internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepository repository,
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
-    IKundaliCalculationEngine calculationEngine) : IKundaliFacade
+    IKundaliCalculationEngine calculationEngine, TimeProvider clock) : IKundaliFacade
 {
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
@@ -93,10 +93,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         AddUnsupported(unsupported, nameof(KundaliOverview.Ascendant),
             KundaliUnsupportedReasons.UnvalidatedReference);
 
-        // Slice 3 work: the engine does not produce these yet, so they are honestly reported as not built rather
-        // than as a property of the birth time.
-        AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha),
-            KundaliUnsupportedReasons.EngineUnavailable);
+        // Presenting placements needs divisional charts and shadbala, neither of which exists yet.
         AddUnsupported(unsupported, nameof(KundaliOverview.KeyPlacements),
             KundaliUnsupportedReasons.EngineUnavailable);
 
@@ -113,11 +110,40 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             Ascendant: null,
             MoonSign: engine.MoonSign is { } moon ? KundaliSigns.NameOf(moon) : null,
             SunSign: engine.SunSign is { } sun ? KundaliSigns.NameOf(sun) : null,
-            CurrentDasha: null,
+            CurrentDasha: CurrentDashaOf(engine, unsupported),
             KeyPlacements: [],
             Unsupported: unsupported);
     }
 
+    /// <summary>
+    /// The mahadasha containing now, or null when the engine supplied no sequence.
+    /// </summary>
+    /// <remarks>
+    /// <para>An engine that withheld the sequence has already recorded its own reason code, so this adds nothing -
+    /// duplicating the reason here would make the same gap appear twice with potentially different wording.</para>
+    /// <para>When the sequence exists but now falls outside it, that is reported as its own gap rather than
+    /// silently returning null: the caller must be able to tell "no dasha for this moment" from "no dashas at
+    /// all".</para>
+    /// </remarks>
+    private KundaliDasha? CurrentDashaOf(KundaliEngineResult engine, List<KundaliUnsupportedField> unsupported)
+    {
+        if (engine.VimshottariMahadashas is not { Count: > 0 } periods)
+            return null;
+
+        var now = clock.GetUtcNow();
+
+        // Half-open [start, end): consecutive periods share a boundary, and the boundary belongs to the later one, so
+        // no instant is ever claimed by two dashas.
+        foreach (var period in periods)
+        {
+            if (now >= period.StartUtc && now < period.EndUtc)
+                return new KundaliDasha(period.Lord, "Mahadasha", period.StartUtc, period.EndUtc);
+        }
+
+        AddUnsupported(unsupported, nameof(KundaliOverview.CurrentDasha),
+            KundaliUnsupportedReasons.RequiresExactBirthTime);
+        return null;
+    }
     /// <summary>Maps the profile's stored time mode to the wire modes, and carries the window only for a range.
     /// Absence is the contract, so nothing is ever substituted for a missing time.</summary>
     private static KundaliBirthDetails ToBirthDetails(KundaliProfileDisplay display) =>

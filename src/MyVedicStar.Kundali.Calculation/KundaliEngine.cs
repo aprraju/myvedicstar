@@ -5,7 +5,7 @@ using MyVedicStar.VedicProfiles.Shared;
 namespace MyVedicStar.Kundali.Calculation;
 
 /// <summary>
-/// KUN-20 slice 1: sun and moon sidereal longitudes and the signs derived from them.
+/// KUN-20 slices 1 and 3: sun/moon sidereal longitudes with their signs, and the Vimshottari mahadasha sequence.
 /// </summary>
 /// <remarks>
 /// <para>Pure calculation. It resolves no profile, no settings, no database and no clock - everything arrives as
@@ -45,10 +45,18 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
             AddGap(gaps, nameof(KundaliCalculationResult.MoonSign),
                 KundaliCalculationReasons.RequiresExactBirthTime);
 
-            return new KundaliCalculationResult(conventions, null, null, null, null, gaps);
+            // Dashas are anchored on the birth instant and selected by the moon's position at it, so an inexact
+            // birth time makes the whole sequence indeterminate - not merely the fine detail of it.
+            AddGap(gaps, nameof(KundaliCalculationResult.VimshottariMahadashas),
+                KundaliCalculationReasons.RequiresExactBirthTime);
+
+            return new KundaliCalculationResult(conventions, null, null, null, null, null, gaps);
         }
 
-        var julianDayUt = ToJulianDayUt(request);
+        // One resolution of the local wall clock to an instant, shared by the astronomy and the dasha anchor: two
+        // independent conversions could disagree across a DST boundary.
+        var birthInstant = ResolveBirthInstant(request);
+        var julianDayUt = JulianDay.FromInstant(birthInstant);
         var ayanamsaDegrees = ayanamsa.GetDegrees(julianDayUt);
 
         var sunTropical = ephemeris.GetSunLongitude(julianDayUt);
@@ -64,8 +72,14 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
         // validation task, not a computation gap.
         AddGap(gaps, "Ascendant", KundaliCalculationReasons.UnvalidatedReference);
 
+        var periods = VimshottariDasha.BuildMahadashas(moonSidereal, Instant.FromDateTimeOffset(birthInstant));
+        var mahadashas = periods
+            .Select(period => new KundaliVimshottariPeriod(period.Lord, period.StartUtc.ToDateTimeOffset(),
+                period.EndUtc.ToDateTimeOffset(), period.IsRemainder))
+            .ToArray();
+
         return new KundaliCalculationResult(conventions, sunSidereal, moonSidereal,
-            SignOf(sunSidereal), SignOf(moonSidereal), gaps);
+            SignOf(sunSidereal), SignOf(moonSidereal), mahadashas, gaps);
     }
 
     /// <summary>Zero-based sign index. 0 = Aries. Whole-sign, so the boundary belongs to the later sign.</summary>
@@ -79,7 +93,7 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
         return wrapped < 0 ? wrapped + CircleDegrees : wrapped;
     }
 
-    private static double ToJulianDayUt(KundaliCalculationRequest request)
+    private static Instant ResolveBirthInstant(KundaliCalculationRequest request)
     {
         // The birth date and time are local wall-clock values in the profile's own zone, so the offset is resolved
         // through the zone rather than assumed to be UTC.
@@ -88,7 +102,7 @@ public sealed class KundaliEngine(IEphemeris ephemeris, IAyanamsa ayanamsa) : IK
         var localTime = new LocalTime(request.BirthTime!.Value.Hour, request.BirthTime.Value.Minute,
             request.BirthTime.Value.Second);
         var zoned = zone.AtLeniently(localDate.At(localTime));
-        return JulianDay.FromInstant(zoned.ToInstant());
+        return zoned.ToInstant();
     }
 
     private static KundaliCalculationConventions BuildConventions(KundaliCalculationRequest request) =>

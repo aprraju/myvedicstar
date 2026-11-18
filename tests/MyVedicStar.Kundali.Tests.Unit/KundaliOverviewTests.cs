@@ -32,9 +32,9 @@ public sealed class KundaliOverviewTests
         metadata.GetAsync(user, Token).Returns(Metadata);
         engine = Substitute.For<IKundaliCalculationEngine>();
         engine.Calculate(Arg.Any<KundaliEngineInput>())
-            .Returns(new KundaliEngineResult(null, null, null, null, Array.Empty<KundaliEngineGap>()));
+            .Returns(new KundaliEngineResult(null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
         facade = new KundaliFacade(profiles, repository, new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine);
+            KundaliEngineVersions.Foundation, metadata, engine, new FixedClock());
     }
 
     private static KundaliProfileDisplay Display(BirthTimeMode mode, TimeOnly? time = null,
@@ -111,16 +111,17 @@ public sealed class KundaliOverviewTests
 
         var overview = await facade.GetOverviewAsync(user, profileId, Token);
 
-        // Ascendant is computed-capable but unproven, dasha and placements are not built yet. Both are absent, but
-        // the reasons must differ: "not yet proven" is a different claim from "not implemented".
+        // Ascendant is computed-capable but unproven, placements are not built yet. Both are absent, but the reasons
+        // must differ: "not yet proven" is a different claim from "not implemented".
         Assert.Null(overview.Ascendant);
-        Assert.Null(overview.CurrentDasha);
         Assert.Empty(overview.KeyPlacements);
 
         var reasons = overview.Unsupported.ToDictionary(u => u.Path, u => u.Reason);
         Assert.Equal(KundaliUnsupportedReasons.UnvalidatedReference, reasons["Ascendant"]);
-        Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["CurrentDasha"]);
         Assert.Equal(KundaliUnsupportedReasons.EngineUnavailable, reasons["KeyPlacements"]);
+        // Dasha is built now, so it must not be reported unavailable. This stub engine returns no sequence, which is
+        // itself a gap it already declared - the facade must not invent a second reason for the same absence.
+        Assert.DoesNotContain("CurrentDasha", reasons.Keys);
         // Sun and moon are produced by the engine now, so they must NOT appear as unsupported.
         Assert.DoesNotContain("MoonSign", reasons.Keys);
         Assert.DoesNotContain("SunSign", reasons.Keys);
@@ -191,5 +192,71 @@ public sealed class KundaliOverviewTests
         await profiles.DidNotReceive().GetDisplayAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<Guid>(),
             Arg.Any<CancellationToken>());
     }
-}
 
+    [Fact]
+    public async Task The_dasha_containing_now_is_reported_with_its_absolute_utc_bounds()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // FixedClock is 2026-11-17T12:00Z, so the second period is the one holding "now".
+        var firstStart = new DateTimeOffset(1989, 6, 1, 0, 0, 0, TimeSpan.Zero);
+        var firstEnd = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var secondEnd = new DateTimeOffset(2060, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        ReturnDashaSequence(new KundaliEngineDasha("Venus", firstStart, firstEnd, true),
+            new KundaliEngineDasha("Sun", firstEnd, secondEnd, false));
+
+        var overview = await facade.GetOverviewAsync(user, profileId, Token);
+
+        Assert.NotNull(overview.CurrentDasha);
+        Assert.Equal("Sun", overview.CurrentDasha.Lord);
+        Assert.Equal("Mahadasha", overview.CurrentDasha.Level);
+        // Bounds are absolute instants, and are passed through untouched: converting to the profile's zone here
+        // would bake a rendering decision into the data.
+        Assert.Equal(firstEnd, overview.CurrentDasha.StartUtc);
+        Assert.Equal(secondEnd, overview.CurrentDasha.EndUtc);
+        Assert.DoesNotContain("CurrentDasha", overview.Unsupported.Select(u => u.Path));
+    }
+
+    [Fact]
+    public async Task A_period_boundary_belongs_to_the_later_period_and_never_to_both()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // The boundary is exactly "now": half-open intervals mean the later period claims it.
+        var boundary = new DateTimeOffset(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
+        ReturnDashaSequence(
+            new KundaliEngineDasha("Venus", new DateTimeOffset(1990, 1, 1, 0, 0, 0, TimeSpan.Zero), boundary, true),
+            new KundaliEngineDasha("Sun", boundary, new DateTimeOffset(2050, 1, 1, 0, 0, 0, TimeSpan.Zero), false));
+
+        var overview = await facade.GetOverviewAsync(user, profileId, Token);
+
+        Assert.NotNull(overview.CurrentDasha);
+        Assert.Equal("Sun", overview.CurrentDasha.Lord);
+    }
+
+    [Fact]
+    public async Task A_moment_outside_the_built_sequence_is_reported_rather_than_clamped_to_a_nearby_dasha()
+    {
+        profiles.GetDisplayAsync(user, profileId, Token)
+            .Returns(Display(BirthTimeMode.Known, new TimeOnly(6, 45)));
+
+        // Both periods are in the past relative to FixedClock. Clamping would state a dasha the person is not in.
+        ReturnDashaSequence(
+            new KundaliEngineDasha("Venus", new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(1990, 1, 1, 0, 0, 0, TimeSpan.Zero), true),
+            new KundaliEngineDasha("Sun", new DateTimeOffset(1990, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero), false));
+
+        var overview = await facade.GetOverviewAsync(user, profileId, Token);
+
+        Assert.Null(overview.CurrentDasha);
+        var reasons = overview.Unsupported.ToDictionary(u => u.Path, u => u.Reason);
+        Assert.True(reasons.ContainsKey("CurrentDasha"));
+    }
+
+    private void ReturnDashaSequence(params KundaliEngineDasha[] periods) =>
+        engine.Calculate(Arg.Any<KundaliEngineInput>())
+            .Returns(new KundaliEngineResult(null, null, null, null, periods, Array.Empty<KundaliEngineGap>()));
+}

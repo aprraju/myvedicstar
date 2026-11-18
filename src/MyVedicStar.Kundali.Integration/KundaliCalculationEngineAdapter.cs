@@ -28,6 +28,10 @@ internal sealed class KundaliCalculationEngineAdapter : IKundaliCalculationEngin
         // translation layer here would silently drift from it.
         return new KundaliEngineResult(result.SiderealSunLongitude, result.SiderealMoonLongitude, result.SunSign,
             result.MoonSign,
+            result.VimshottariMahadashas?
+                .Select(period => new KundaliEngineDasha(period.Lord, period.StartUtc, period.EndUtc,
+                    period.IsRemainder))
+                .ToArray(),
             result.Gaps.Select(gap => new KundaliEngineGap(gap.Path, gap.Reason)).ToArray());
     }
 }
