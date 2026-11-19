@@ -95,7 +95,15 @@ public sealed class KundaliEngineAccuracyTests
         Assert.Equal(133.162655, series, 0.0005);
 
         // And the composed reference still holds: engine == Meeus + 28 arcsec, to the fixture's published budget.
-        Assert.Equal(133.162655 + PublishedDrikOffsetArcseconds / ArcsecondsPerDegree, engine, 0.0005);
+        // Read from the EngineReference row so this leg tracks the same data the parity gate uses.
+        var composedBudgetArcseconds = ParityFixtures.ToleranceArcseconds(FindSolutionRoot(), CelestialBody.Moon,
+            FixtureClaim.EngineReference);
+        var composedDifferenceArcseconds =
+            Math.Abs(engine - (133.162655 + PublishedDrikOffsetArcseconds / ArcsecondsPerDegree)) * ArcsecondsPerDegree;
+
+        Assert.True(composedDifferenceArcseconds <= composedBudgetArcseconds,
+            $"Composed engine value differs from Meeus 47.a plus the Drik offset by {composedDifferenceArcseconds:F3} "
+            + $"arcseconds, budget {composedBudgetArcseconds}. Actual {engine}.");
     }
 
     [Fact]
@@ -105,20 +113,32 @@ public sealed class KundaliEngineAccuracyTests
         // is the claim that makes the 28 arcsec auditable: the series alone lands on Meeus, so the offset is a
         // declared correction ON TOP of an accurate series and not a fudge covering a series that misses.
         //
-        // 133.162655 is Meeus example 47.a's stated mean-equinox longitude. The band is 0.0005 degrees, about 1.8
-        // arcsec - the published precision of that worked example, and tighter than the composed 3 arcsec budget
-        // because nothing but the series contributes here.
+        // 133.162655 is Meeus example 47.a's stated mean-equinox longitude, and the band is that example's published
+        // precision (about 1.8 arcsec) - tighter than the composed 3 arcsec budget because nothing but the series
+        // contributes here.
+        //
+        // api#130: the band is now READ FROM THE FIXTURE, keyed on (Moon, UnoffsetSeries), rather than a literal here.
+        // It is a different claim from the Moon/EngineReference row, so it is a different row - not the same 3 arcsec
+        // budget reused, which would have widened this assertion by about 67% and quietly weakened it. Editing the
+        // series tolerance in the fixture now changes exactly this assertion (and the offset test's composed leg),
+        // which is what "owned by data" means.
         var series = LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(MoonReferenceJdUt));
+        var budgetArcseconds = ParityFixtures.ToleranceArcseconds(FindSolutionRoot(), CelestialBody.Moon,
+            FixtureClaim.UnoffsetSeries);
+        var differenceArcseconds = Math.Abs(series - 133.162655) * ArcsecondsPerDegree;
 
-        Assert.Equal(133.162655, series, 0.0005);
+        Assert.True(differenceArcseconds <= budgetArcseconds,
+            $"Unoffset lunar series differs from Meeus 47.a by {differenceArcseconds:F3} arcseconds, budget "
+            + $"{budgetArcseconds}. Actual {series}, expected 133.162655.");
     }
 
-    /// <summary>The budget for a body, read from the fixture so the published precision is the only source.</summary>
+    /// <summary>The budget for a body's composed engine value, read from the fixture so it is the only source.</summary>
+    /// <remarks>
+    /// Resolves the <see cref="FixtureClaim.EngineReference"/> row specifically (api#130). A body-only lookup would pick
+    /// whichever row came first once a body carries two claims, which is the ambiguity the Claim field exists to remove.
+    /// </remarks>
     private static double ToleranceArcseconds(CelestialBody body) =>
-        ParityFixtures.Load(FindSolutionRoot())
-            .FirstOrDefault(fixture => fixture.Body == body)?.ToleranceArcseconds
-        ?? throw new InvalidOperationException(
-            $"No accuracy reference for {body} in {ParityFixtures.FileName}, so no tolerance can be defended.");
+        ParityFixtures.ToleranceArcseconds(FindSolutionRoot(), body, FixtureClaim.EngineReference);
 
     private static string FindSolutionRoot()
     {

@@ -9,8 +9,19 @@ namespace MyVedicStar.Astronomy.Core;
 /// applies. Tolerance lives in the DATA, not in a code comment, so raising it is a visible diff in a fixture file
 /// (FR-06 architect section C).
 /// </summary>
+/// <remarks>
+/// <para><b>Why <see cref="Claim"/> is required and not defaulted (api#130).</b> A body can carry more than one
+/// published tolerance: the composed engine reference (Meeus 47.a plus the Drik offset, 3 arcsec) and the unoffset
+/// series alone (Meeus 47.a's own published precision, about 1.8 arcsec) are different budgets for the same body at
+/// the same instant. Keying only on body made the second one either unrepresentable or ambiguous by ordering, which is
+/// how it ended up as a literal in a test - a value nobody owned.</para>
+/// <para>The key is explicitly <c>(Body, Claim)</c>. The field is non-nullable so an absent discriminator fails to
+/// deserialise rather than silently joining the default set: a default here would make omission a legal value again,
+/// which is the defect in one field.</para>
+/// </remarks>
 public sealed record ParityFixtureRecord(
     string Body,
+    string Claim,
     double JulianDayUt,
     double TropicalLongitudeDegrees,
     double ToleranceArcseconds,
@@ -65,17 +76,47 @@ public static class ParityFixtures
         var records = JsonSerializer.Deserialize<List<ParityFixtureRecord>>(File.ReadAllText(path), SerializerOptions)
                       ?? throw new InvalidOperationException($"Parity fixture file '{FileName}' is empty or invalid.");
 
+        // Enum.Parse on both discriminator fields, not a default: an unrecognised or missing Claim must fail to load
+        // rather than land in EngineReference. That is what makes omission a compile/serialisation error instead of a
+        // silently correct-looking value (api#130).
         return records.Select(r => new ParityFixture(Enum.Parse<CelestialBody>(r.Body, ignoreCase: true),
-            r.JulianDayUt, r.TropicalLongitudeDegrees, r.Source, r.ToleranceArcseconds)).ToArray();
+            r.JulianDayUt, r.TropicalLongitudeDegrees, r.Source, r.ToleranceArcseconds,
+            ParseClaim(r))).ToArray();
     }
 
     public static void Save(string solutionRoot, IEnumerable<ParityFixture> fixtures)
     {
-        var records = fixtures.Select(f => new ParityFixtureRecord(f.Body.ToString(), f.JulianDayUt,
+        var records = fixtures.Select(f => new ParityFixtureRecord(f.Body.ToString(), f.Claim.ToString(), f.JulianDayUt,
             f.TropicalLongitudeDegrees, f.ToleranceArcseconds, f.Source)).ToList();
         File.WriteAllText(Path.Combine(solutionRoot, FileName),
             JsonSerializer.Serialize(records, SerializerOptions));
     }
+
+    /// <summary>
+    /// The tolerance for one published claim about one body, or a failure naming both.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on <c>(body, claim)</c> explicitly. A body-only lookup cannot answer "which tolerance" when a body carries
+    /// two claims, which is why the unoffset series tolerance was a literal in a test rather than data (api#130). The
+    /// failure is thrown rather than defaulted: a missing row must not resolve to a permissive budget.
+    /// </remarks>
+    public static double ToleranceArcseconds(string solutionRoot, CelestialBody body, FixtureClaim claim) =>
+        Load(solutionRoot).Where(fixture => fixture.Body == body && fixture.Claim == claim)
+            .Select(fixture => (double?)fixture.ToleranceArcseconds)
+            .FirstOrDefault()
+        ?? throw new InvalidOperationException(
+            $"No {claim} reference for {body} in {FileName}, so no tolerance can be defended.");
+
+    /// <summary>The rows the analytic-vs-SPICE parity gate compares. Only one claim has an engine value to compare.</summary>
+    public static IEnumerable<ParityFixture> Comparisons(IEnumerable<ParityFixture> fixtures) =>
+        fixtures.Where(fixture => fixture.Claim == FixtureClaim.EngineReference);
+
+    private static FixtureClaim ParseClaim(ParityFixtureRecord record) =>
+        string.IsNullOrWhiteSpace(record.Claim)
+            ? throw new InvalidOperationException(
+                $"Parity fixture row for '{record.Body}' has no claim. Every row must state which published claim it "
+                + "measures; an absent discriminator cannot be defaulted without making omission a legal value.")
+            : Enum.Parse<FixtureClaim>(record.Claim, ignoreCase: true);
 
     /// <summary>The date range the fixtures must cover, from the AST-09 fixture span.</summary>
     public static readonly DateOnly From = new(1800, 1, 1);

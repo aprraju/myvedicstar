@@ -58,8 +58,36 @@ public sealed class ProviderSelectionTests
         Assert.Contains(fixtures, f => f.Body == CelestialBody.Moon);
         // ADR-0016 section 4 sets the planetary budget at 1 arcsecond and the lunar budget at 3, so the ceiling is
         // body-specific rather than a single number. A fixture may not exceed the budget its own body is allowed.
+        // Per-body ceiling, applied to every row regardless of claim. The unoffset series budget (about 1.8 arcsec) is
+        // inside the lunar ceiling, so this now guards two claims for the Moon rather than one (api#130).
         Assert.All(fixtures, f => Assert.True(f.ToleranceArcseconds > 0 && f.ToleranceArcseconds <= (f.Body == CelestialBody.Moon ? 3.0 : 1.0),
-            $"{f.Body} tolerance {f.ToleranceArcseconds} exceeds the ADR-0016 budget for that body."));
+            $"{f.Body} ({f.Claim}) tolerance {f.ToleranceArcseconds} exceeds the ADR-0016 budget for that body."));
+    }
+
+    [Fact]
+    public void The_two_Moon_claims_are_separately_owned_rows_with_different_budgets()
+    {
+        var fixtures = ParityFixtures.Load(FindSolutionRoot());
+
+        // api#130. Two claims about the same body and instant must be two rows, each with its own tolerance. This is the
+        // property that makes the unoffset series tolerance data rather than a literal in a test: editing one row
+        // changes exactly one assertion.
+        var engine = ParityFixtures.ToleranceArcseconds(FindSolutionRoot(), CelestialBody.Moon, FixtureClaim.EngineReference);
+        var series = ParityFixtures.ToleranceArcseconds(FindSolutionRoot(), CelestialBody.Moon, FixtureClaim.UnoffsetSeries);
+
+        Assert.Equal(3.0, engine);
+        Assert.Equal(1.8, series);
+        Assert.NotEqual(engine, series);
+
+        // And the row carries its claim explicitly, so a body-keyed lookup could not silently pick either one.
+        Assert.Single(fixtures, f => f.Body == CelestialBody.Moon && f.Claim == FixtureClaim.EngineReference);
+        Assert.Single(fixtures, f => f.Body == CelestialBody.Moon && f.Claim == FixtureClaim.UnoffsetSeries);
+
+        // Only one claim has an engine value to compare, so only one may enter the parity comparison set. A series row
+        // in that set would fail against GetMoonLongitude for the documented reason the offset exists.
+        var comparisons = ParityFixtures.Comparisons(fixtures).ToArray();
+        Assert.DoesNotContain(comparisons, f => f.Claim == FixtureClaim.UnoffsetSeries);
+        Assert.Contains(comparisons, f => f.Body == CelestialBody.Moon);
     }
 
     private static string FindSolutionRoot()

@@ -194,7 +194,9 @@ public sealed class ProviderMigrationTests
         // The fixture values are independent references (Meeus worked examples), so this also pins the analytical
         // implementation itself: a regression in the current provider fails here, before any SPICE comparison.
         var ephemeris = new MeeusEphemeris();
-        var fixtures = ParityFixtures.Load(FindSolutionRoot());
+        // Comparisons, not every row: an UnoffsetSeries row records the analytical series BEFORE the Drik offset, so
+        // comparing it against GetMoonLongitude would fail for the documented reason that the offset exists (api#130).
+        var fixtures = ParityFixtures.Comparisons(ParityFixtures.Load(FindSolutionRoot()));
 
         foreach (var fixture in fixtures)
         {

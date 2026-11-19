@@ -1,6 +1,7 @@
 [
   {
     "body": "Sun",
+    "claim": "EngineReference",
     "julianDayUt": 2448908.4993171296,
     "tropicalLongitudeDegrees": 199.901641,
     "toleranceArcseconds": 1,
@@ -8,9 +9,18 @@
   },
   {
     "body": "Moon",
+    "claim": "EngineReference",
     "julianDayUt": 2448724.4993171296,
     "tropicalLongitudeDegrees": 133.1704333,
     "toleranceArcseconds": 3,
     "source": "Meeus example 47.a (133.162655 mean-equinox longitude at 2448724.5 TT) plus the documented Drik Panchang lunar offset of 28 arcsec. Instant converted to UT by subtracting the 1992 Delta T (about 59 s), since IEphemeris takes JD UT."
+  },
+  {
+    "body": "Moon",
+    "claim": "UnoffsetSeries",
+    "julianDayUt": 2448724.4993171296,
+    "tropicalLongitudeDegrees": 133.162655,
+    "toleranceArcseconds": 1.8,
+    "source": "Meeus Astronomical Algorithms (2nd ed.) example 47.a, mean-equinox longitude 133.162655 at 2448724.5 TT. This is the analytical series BEFORE the Drik Panchang offset, so it is a different claim from the Moon/EngineReference row above and carries the worked example's own published precision (0.0005 degrees, about 1.8 arcsec) rather than the composed 3 arcsec budget. Same instant, same Delta T conversion as the EngineReference row."
   }
 ]
