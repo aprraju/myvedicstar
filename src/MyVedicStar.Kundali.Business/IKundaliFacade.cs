@@ -99,6 +99,9 @@ public interface IKundaliFacade
     /// each with its own completeness and reason.</summary>
     Task<KundaliYogasSection> GetYogasAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+    /// <summary>KUN-16 remedies (api#128). Only evaluated findings receive a remedy.</summary>
+    Task<KundaliRemediesSection> GetRemediesAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 
     /// <summary>KUN-17: request a report for the named sections. Returns the created report in `queued` state; the

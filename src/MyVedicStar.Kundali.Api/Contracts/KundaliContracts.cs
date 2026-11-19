@@ -584,4 +584,34 @@ public sealed record KundaliReportFailureResponse(string Path, string Reason)
 {
     public static KundaliReportFailureResponse From(MyVedicStar.Kundali.Shared.KundaliReportFailure value) =>
         new(value.Path, value.Reason);
+
+
+
+}
+
+/// <summary>KUN-16 remedies (api#128). Every item is bound to the finding it addresses, with that finding's status.
+/// Only <c>evaluated</c> findings are ever emitted with a remedy; suppressed findings appear in <c>unsupported</c>
+/// with a reason code, so an omission is attributable rather than silent.</summary>
+public sealed record KundaliRemediesResponse(
+    string CatalogVersion,
+    IReadOnlyList<KundaliRemedyResponse> Items,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliRemediesResponse From(MyVedicStar.Kundali.Shared.KundaliRemediesSection value) => new(
+        value.CatalogVersion,
+        value.Items.Select(KundaliRemedyResponse.From).ToArray(),
+        value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+/// <summary>One remedy. <paramref name="FindingStatus"/> is the status the remedy was emitted under.</summary>
+public sealed record KundaliRemedyResponse(
+    string FindingCode,
+    string FindingStatus,
+    string Category,
+    string Suggestion,
+    string Tradition,
+    string Reference)
+{
+    public static KundaliRemedyResponse From(MyVedicStar.Kundali.Shared.KundaliRemedy value) => new(
+        value.FindingCode, value.FindingStatus, value.Category, value.Suggestion, value.Tradition, value.Reference);
 }
