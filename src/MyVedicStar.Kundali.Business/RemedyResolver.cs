@@ -91,6 +91,17 @@ public static class RemedyResolver
 
         /// <summary>The finding was assessed but is not published (capability gap).</summary>
         public const string CapabilityGap = "capability-gap";
+
+        /// <summary>
+        /// The refusal raised when state carries a value outside the declared members.
+        /// </summary>
+        /// <remarks>
+        /// A shared identifier, not shared prose: the producer and the test both name this constant, so rewording the
+        /// message cannot leave a test asserting a string nothing emits any more. A message assertion with no shared
+        /// identifier is a spell-check rather than a contract.
+        /// </remarks>
+        public const string UnrecognisedStateMessage =
+            "Unrecognised finding state. The resolver is default-deny: an unknown state must never attach a remedy.";
     }
 
 
@@ -134,7 +145,7 @@ public static class RemedyResolver
             // enforce the closed set in this repository (see the note above), so an unrecognised state must refuse
             // explicitly rather than fall through to whatever a future compiler emits for a non-exhaustive switch.
             _ => throw new ArgumentOutOfRangeException(nameof(findingCode), state,
-                "Unrecognised finding state. The resolver is default-deny: an unknown state must never attach a remedy."),
+                Reasons.UnrecognisedStateMessage),
         };
 
     }

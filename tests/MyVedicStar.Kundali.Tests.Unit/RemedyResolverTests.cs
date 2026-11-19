@@ -130,7 +130,14 @@ public sealed class RemedyResolverTests
         var failure = Assert.Throws<ArgumentOutOfRangeException>(() =>
             RemedyResolver.Resolve("dosha:mangal", findings));
 
-        Assert.Contains("must never attach", failure.Message);
+        // Compared against the producer's own constant, not a transcription of it: rewording the message cannot leave
+        // this assertion passing against a string nothing emits.
+        //
+        // Contains rather than Equal because ArgumentOutOfRangeException appends " (Parameter 'findingCode')" to the
+        // message it was constructed with - so an equality assertion here would fail on framework formatting rather
+        // than on the guard, and would have to hard-code the suffix to pass, which is the transcription this constant
+        // exists to avoid.
+        Assert.Contains(RemedyResolver.Reasons.UnrecognisedStateMessage, failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
