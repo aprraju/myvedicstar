@@ -39,6 +39,11 @@ public static class RemedyEmission
 
         foreach (var (remedy, state) in candidates)
         {
+            // Measured, not assumed: adding a fifth member to RemedyFindingState did NOT fail the build in this
+            // repository, so a switch over it is not compiler-enforced here. The default below therefore refuses at
+            // RUNTIME rather than at the point of the edit, and is stated as that weaker guarantee rather than
+            // mistaken for a build failure. RemedyEmissionTests covers a cast-past-the-members value so the refusal
+            // is exercised rather than merely written.
             switch (state)
             {
                 case RemedyFindingState.Evaluated:
@@ -60,11 +65,12 @@ public static class RemedyEmission
                         RemedyResolver.Reasons.CapabilityGap));
                     break;
 
-                // No default arm: a new finding state must decide whether it may be persisted. Falling through would
-                // silently emit a remedy, which is the failure this class exists to prevent.
+                // Runtime refusal for a value cast past the declared members. A new declared member reaches this arm
+                // too until someone decides whether it may be persisted - which is why the test exists.
                 default:
                     throw new ArgumentOutOfRangeException(nameof(candidates), state,
-                        "Unhandled finding state at production. A new state must state whether it may be emitted.");
+                        "Unrecognised finding state at production. A new state must state whether it may be emitted.");
+
             }
         }
 

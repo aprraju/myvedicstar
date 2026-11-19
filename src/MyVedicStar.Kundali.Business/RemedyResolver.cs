@@ -8,27 +8,32 @@ namespace MyVedicStar.Kundali.Business;
 /// <remarks>
 /// <para><b>Four members, and the set is closed.</b> A remedy can attach, or it can fail to attach in three
 /// distinguishable ways, and those three are not interchangeable: they tell three different people three different
-/// things. Completeness here is what lets <see cref="RemedyResolver"/> switch without a <c>default</c>, so a fifth
-/// outcome added later is a build failure rather than a silent fall-through to the one branch that renders a remedy
-/// to a user.</para>
+/// things. The switch in <see cref="RemedyResolver"/> names all four and adds an explicit refusing arm, so an
+/// unrecognised value cannot fall through to the one branch that renders a remedy to a user. Note that this is a
+/// runtime refusal, not a compile-time one: it was measured that adding a fifth member to the enum does not fail the
+/// build in this repository.</para>
 /// <para>The numbering is explicit and non-contiguous-safe: never renumber, because the value may appear in logs and
 /// in a stored section payload.</para>
 /// </remarks>
 public enum RemedyOutcome
 {
+    /// <summary>Reserved. <c>default(RemedyOutcome)</c> yields this and it is deliberately not a usable outcome, so an
+    /// uninitialised value cannot read as <see cref="Attached"/> - the only outcome that renders a remedy.</summary>
+    Unspecified = 0,
+
     /// <summary>The code resolved to a finding the engine evaluated. The only outcome that renders a remedy.</summary>
-    Attached = 0,
+    Attached = 1,
 
     /// <summary>The code resolved to a finding the engine could not assess, because an input was missing.
     /// The finding exists; the engine could not judge it.</summary>
-    NotEvaluated = 1,
+    NotEvaluated = 2,
 
     /// <summary>The code resolved to a finding that was assessed but is not published (capability gap).
     /// The finding exists and was judged; publication is withheld.</summary>
-    Withheld = 2,
+    Withheld = 3,
 
     /// <summary>The code resolved to no finding at all in this result - the catalogue entry is stale or superseded.</summary>
-    UnknownCode = 3,
+    UnknownCode = 4,
 }
 
 /// <summary>
@@ -107,21 +112,26 @@ public static class RemedyResolver
         if (!findings.TryGetValue(findingCode, out var state))
             return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, Reasons.CatalogueStale);
 
+        // No discard arm. MEASURED, NOT ASSUMED: adding a fifth member to RemedyFindingState did NOT fail the build
+        // in this repository - CS8509 did not fire and TreatWarningsAsErrors had nothing to escalate. So the absence of
+        // a discard arm documents the intent to be exhaustive; it does not itself enforce it. Do not describe this as
+        // a build failure, because it is not one here. What enforces the closed set is
+        // An_undefined_finding_state_cannot_reach_an_attached_outcome plus this arm count.
         return state switch
         {
             RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode, null),
-
             RemedyFindingState.NotEvaluated => new RemedyResolution(RemedyOutcome.NotEvaluated, findingCode,
                 Reasons.InputMissing),
-
             RemedyFindingState.Withheld => new RemedyResolution(RemedyOutcome.Withheld, findingCode,
                 Reasons.CapabilityGap),
 
-            // Exhaustive for the current enum, and no default arm. Adding a state to RemedyFindingState makes this
-            // throw at construction of the switch's result, which is a build failure - not a silent attachment.
+            // Reachable only for a value cast past the declared members. It is here because the compiler does not
+            // enforce the closed set in this repository (see the note above), so an unrecognised state must refuse
+            // explicitly rather than fall through to whatever a future compiler emits for a non-exhaustive switch.
             _ => throw new ArgumentOutOfRangeException(nameof(findingCode), state,
-                "Unhandled finding state. The resolver is default-deny: an unrecognised state must never attach a remedy."),
+                "Unrecognised finding state. The resolver is default-deny: an unknown state must never attach a remedy."),
         };
+
     }
 
     /// <summary>

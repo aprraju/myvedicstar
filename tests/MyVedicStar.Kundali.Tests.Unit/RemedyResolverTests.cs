@@ -112,6 +112,31 @@ public sealed class RemedyResolverTests
             RemedyResolver.Resolve("yoga:gaja-kesari", findings).Outcome);
     }
 
+    // ---- the closed set is enforced by a refusal, not by the compiler ----
+
+    [Fact]
+    public void An_undefined_finding_state_cannot_reach_an_attached_outcome()
+    {
+        // Measured: adding a fifth member to RemedyFindingState does NOT fail the build in this repository, so the
+        // switch's exhaustiveness is not compiler-enforced. This test is what actually pins the closed set - a value
+        // cast past the declared members must refuse rather than fall through to the branch that renders a remedy.
+        var findings = Findings(("dosha:mangal", (RemedyFindingState)999));
+
+        var failure = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            RemedyResolver.Resolve("dosha:mangal", findings));
+
+        Assert.Contains("must never attach", failure.Message);
+    }
+
+    [Fact]
+    public void The_reserved_zero_outcome_is_not_the_renderable_one()
+    {
+        // default(RemedyOutcome) is what an uninitialised variable holds. If that were Attached, a bug elsewhere could
+        // render a remedy by accident. Zero is a reserved non-outcome instead.
+        Assert.NotEqual(RemedyOutcome.Attached, default(RemedyOutcome));
+        Assert.Equal(RemedyOutcome.Unspecified, default(RemedyOutcome));
+    }
+
     // ---- stored payloads: same outcome, different cause ----
 
     [Fact]
