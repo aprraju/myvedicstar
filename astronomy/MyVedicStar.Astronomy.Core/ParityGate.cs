@@ -28,15 +28,17 @@ public enum FixtureClaim
 /// <param name="Source">Where the reference value came from, so it is attributable rather than assumed.</param>
 /// <param name="ToleranceArcseconds">Tolerance this case must meet. A case may tighten the global budget, never
 /// loosen it beyond what AST-09 permits.</param>
-/// <param name="Claim">Which published claim this row measures. Defaults to <see cref="FixtureClaim.EngineReference"/>
-/// because that is the only claim the parity gate consumes; a row that means something else must say so.</param>
+/// <param name="Claim">Which published claim this row measures. REQUIRED, with no default: a row that omits it would
+/// silently join the analytic-vs-SPICE comparison set as <see cref="FixtureClaim.EngineReference"/>, and an
+/// UnoffsetSeries row given a position would let the parity gate compare against a value the engine never returns.
+/// Omission must fail to compile rather than mean something (api#136).</param>
 public sealed record ParityFixture(
     CelestialBody Body,
     double JulianDayUt,
     double TropicalLongitudeDegrees,
     string Source,
     double ToleranceArcseconds,
-    FixtureClaim Claim = FixtureClaim.EngineReference);
+    FixtureClaim Claim);
 
 /// <summary>
 /// The parity gate's comparison rules. Deliberately a first-class type with a declared global budget rather than a

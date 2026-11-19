@@ -142,11 +142,16 @@ public sealed class PlanetaryAndConfigurationTests
         Assert.Equal(1.0, ParityGate.PlanetaryToleranceArcseconds, 9);
         Assert.Equal(36.0, ParityGate.SeparationArcseconds(359.995, 0.005), 6);
 
-        var fixture = new ParityFixture(CelestialBody.Sun, 2451545.0, 280.0, "test", 1.0);
+        // EngineReference, explicitly: these two rows exist to exercise the arcsecond budget and the 360-degree wrap
+        // point, NOT to make a second claim about the unoffset series. They are synthetic vectors (longitude 280 and
+        // 359.9999 are not lunar reference values at this instant), so labelling them UnoffsetSeries would attach a
+        // published-precision claim to numbers nobody published. If a future reader is tempted to "restore" the
+        // default or copy UnoffsetSeries here for symmetry, that is the defect #136 closed, coming back.
+        var fixture = new ParityFixture(CelestialBody.Sun, 2451545.0, 280.0, "test", 1.0, FixtureClaim.EngineReference);
         Assert.True(ParityGate.Evaluate(fixture, 280.0001).Passed);
         Assert.False(ParityGate.Evaluate(fixture, 280.01).Passed);
 
-        var across = new ParityFixture(CelestialBody.Sun, 2451545.0, 359.9999, "test", 1.0);
+        var across = new ParityFixture(CelestialBody.Sun, 2451545.0, 359.9999, "test", 1.0, FixtureClaim.EngineReference);
         Assert.True(ParityGate.Evaluate(across, 0.00005).Passed);
     }
 
