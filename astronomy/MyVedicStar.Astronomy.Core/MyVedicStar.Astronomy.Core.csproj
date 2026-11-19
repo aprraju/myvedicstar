@@ -12,4 +12,11 @@
     <Description>Provider-neutral astronomy contracts, time scales and value types for MyVedicStar.</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- api#140: the UT->TT conversion is internal so no ordinary caller can repoint it. The provider installs it and
+         the astronomy test project asserts on it; both are named here rather than widening the property to public. -->
+    <InternalsVisibleTo Include="MyVedicDay.Astronomy.Calculation" />
+    <InternalsVisibleTo Include="MyVedicDay.Astronomy.Tests.Calculation" />
+  </ItemGroup>
+
 </Project>

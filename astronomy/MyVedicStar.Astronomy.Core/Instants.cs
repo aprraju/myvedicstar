@@ -57,7 +57,19 @@ public static class TtOffsets
     /// (the dependency direction is enforced by test). A missing conversion throws rather than defaulting, because a
     /// silent fallback would reintroduce exactly the invisible difference this type pair removes.
     /// </summary>
-    public static Func<double, double>? Conversion { get; set; }
+    /// <remarks>
+    /// <b>Internal, not public.</b> A public settable conversion would be the widest possible contract for "exactly one
+    /// conversion": any caller could point it anywhere, and the type pair would protect the argument while leaving the
+    /// conversion unprotected. The provider installs it from its own assembly; the tests see it through
+    /// <c>InternalsVisibleTo</c>.
+    /// </remarks>
+    internal static Func<double, double>? Conversion { get; set; }
+
+    /// <summary>Installs the conversion. Called once by the provider at composition.</summary>
+    /// <remarks>Separate from the property so that installation is a named act rather than an assignment that reads
+    /// like configuration.</remarks>
+    internal static void Install(Func<double, double> conversion) =>
+        Conversion = conversion ?? throw new ArgumentNullException(nameof(conversion));
 
     internal static double ToTerrestrialTime(UtInstant ut) =>
         Conversion?.Invoke(ut.JulianDay)

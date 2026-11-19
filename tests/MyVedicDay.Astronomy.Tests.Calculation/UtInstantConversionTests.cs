@@ -16,9 +16,10 @@ public sealed class UtInstantConversionTests
 
     public UtInstantConversionTests()
     {
-        // The provider installs this at composition; a test that did not install it would be testing the guard's
-        // failure branch rather than the conversion.
-        TtOffsets.Conversion ??= DeltaT.ToJulianEphemerisDay;
+        // Deliberately NOT `??=`. That operator means "if nothing is installed, install one and carry on", which is the
+        // silent-fallback pattern this type pair exists to remove - reintroduced in the fixture. The test either
+        // installs the real conversion on purpose, or asserts that composition already did.
+        TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
     }
 
     [Fact]
@@ -80,7 +81,8 @@ public sealed class UtInstantConversionTests
         }
         finally
         {
-            TtOffsets.Conversion = installed;
+            // Restored through the same install path the provider uses, so this test cannot leave a null behind.
+            TtOffsets.Install(installed!);
         }
     }
 }
