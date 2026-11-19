@@ -112,14 +112,19 @@ public sealed class RemedyResolverTests
             RemedyResolver.Resolve("yoga:gaja-kesari", findings).Outcome);
     }
 
-    // ---- the closed set is enforced by a refusal, not by the compiler ----
+    // ---- THE ENFORCEMENT of the closed set. Not coverage of one branch - this is the only thing that holds it. ----
 
     [Fact]
     public void An_undefined_finding_state_cannot_reach_an_attached_outcome()
     {
-        // Measured: adding a fifth member to RemedyFindingState does NOT fail the build in this repository, so the
-        // switch's exhaustiveness is not compiler-enforced. This test is what actually pins the closed set - a value
-        // cast past the declared members must refuse rather than fall through to the branch that renders a remedy.
+        // There is no compiler diagnostic available to enforce this here, so it is enforced by a test - and this one,
+        // not some other. Measured twice: adding a fifth member to RemedyFindingState produced 0 errors and 0 warnings,
+        // both with a discard arm and with it removed. CS8509 needs a switch that is non-exhaustive AND has no discard
+        // arm; without "_" the expression is simply non-exhaustive and the compiler stays silent in this configuration.
+        //
+        // Consequence: if this test is deleted or weakened, nothing else catches a fifth state reaching the switch, and
+        // an undefined value would fall to whatever the runtime does with a non-exhaustive expression. Treat it as the
+        // guarantee it is rather than as redundant coverage of the refusal arm.
         var findings = Findings(("dosha:mangal", (RemedyFindingState)999));
 
         var failure = Assert.Throws<ArgumentOutOfRangeException>(() =>
