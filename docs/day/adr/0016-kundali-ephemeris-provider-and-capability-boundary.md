@@ -57,7 +57,15 @@ The engine therefore targets a pure-managed, high-precision VSOP87/ELP-2000 seri
 - Sun-Saturn: full VSOP87D (MPP02-class) heliocentric series plus geocentric reduction, light time and annual
   aberration - not the truncated Earth-only series. Truncation is chosen by tolerance budget and the chosen
   truncation is part of the engine version.
-- Moon: the full ELP-2000/82 series at a term count selected to hold the Lagna and pada budgets in section 4.
+- Moon: **Meeus chapter 47 truncated series** (60 longitude/distance terms, 60 latitude terms; ~10" longitude, ~4" latitude as stated in `LunarPosition.cs:10-11`).
+  **Correction record (#142, documentation only):** this line previously read "the full ELP-2000/82 series at a term
+  count selected to hold the Lagna and pada budgets in section 4". That overstated what shipped. The Moon uses
+  Meeus chapter 47's **truncated** series: 60 longitude/distance terms and 60 latitude terms, both tables verifiable
+  in `LunarPosition.cs` (balanced, zero leftover parentheses). `LunarPosition.cs:10-11` already states the accuracy —
+  about 10 arcseconds in longitude, 4 in latitude — which is Meeus's figure for that table. **The section 4
+  Lagna/pada budgets are therefore not met by the Moon series alone.** No code change is proposed: the
+  implementation is correct for what it is; this ADR was the document that mis-described it. **#140 must calibrate
+  against the shipped ~10", not against a full-ELP figure the code does not implement.**
 - Rahu/Ketu: mean lunar node (the standard convention); see section 3.6 for the explicit statement of what is and
   is not supported about the node.
 - Lagna: sidereal ascendant from local sidereal time and geographic latitude, using Lahiri ayanamsa as fixed by the
