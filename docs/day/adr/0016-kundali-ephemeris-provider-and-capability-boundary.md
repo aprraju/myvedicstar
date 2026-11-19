@@ -63,8 +63,11 @@ The engine therefore targets a pure-managed, high-precision VSOP87/ELP-2000 seri
    a term count selected to hold the Lagna and pada budgets in section 4". That overstated what shipped. **Method
    of the count:** both term tables in `LunarPosition.cs` were counted as tuples by arity (6 fields for
    longitude/distance, 5 for latitude) - 60 and 60 - and each block balances with zero leftover parentheses, so
-   the figures are the rows actually compiled, not a partial match. Meeus states ~10" for that table, and the code
-   comment already quotes it: the code was honest, and this ADR was the document that mis-described it.
+   the figures are the rows actually compiled, not a partial match.
+   **On the ~10" figure:** `LunarPosition.cs:10-11` states about 10 arcseconds longitude and 4 latitude for this
+   table. This ADR does not attribute that figure to a specific Meeus passage, so it is recorded here as the
+   implementation's own stated accuracy until a citation is added. The point stands regardless: the code was
+   honest about what it implements, and this ADR was the document that mis-described it.
    **The consequence is a CONTRADICTION WITHIN THIS DOCUMENT, and it is an open defect.** Three lines disagree:
    this section ships the ~10" Moon series; section 4 requires <= 3 arcseconds for the Moon and states its budgets
    are "acceptance tolerances, not aspirations" whose breach "fails the build"; and the selection table above
