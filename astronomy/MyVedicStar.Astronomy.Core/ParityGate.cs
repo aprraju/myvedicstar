@@ -3,6 +3,22 @@ using MyVedicStar.Astronomy.Core;
 namespace MyVedicStar.Astronomy.Core;
 
 /// <summary>
+/// Which published claim a fixture row measures. The same body at the same instant can carry more than one published
+/// tolerance, and they are not interchangeable (api#130).
+/// </summary>
+public enum FixtureClaim
+{
+    /// <summary>The composed engine value: Meeus 47.a shifted by the documented Drik Panchang lunar offset. This is what
+    /// <c>IEphemeris.GetMoonLongitude</c> returns, so it is the claim the parity gate compares against.</summary>
+    EngineReference = 0,
+
+    /// <summary>The unoffset analytical series alone, at the worked example's own published precision. Deliberately has
+    /// NO position of its own: it is a different claim about the same instant, not a second measurement of the engine
+    /// value, and giving it a position would let the parity gate compare against a value the engine never returns.</summary>
+    UnoffsetSeries = 1,
+}
+
+/// <summary>
 /// One reference case for the analytic-vs-SPICE parity gate. The fixtures are checked in as data (architect note 3),
 /// so the comparison exists before AST-06 needs it rather than being discovered there.
 /// </summary>
@@ -12,12 +28,15 @@ namespace MyVedicStar.Astronomy.Core;
 /// <param name="Source">Where the reference value came from, so it is attributable rather than assumed.</param>
 /// <param name="ToleranceArcseconds">Tolerance this case must meet. A case may tighten the global budget, never
 /// loosen it beyond what AST-09 permits.</param>
+/// <param name="Claim">Which published claim this row measures. Defaults to <see cref="FixtureClaim.EngineReference"/>
+/// because that is the only claim the parity gate consumes; a row that means something else must say so.</param>
 public sealed record ParityFixture(
     CelestialBody Body,
     double JulianDayUt,
     double TropicalLongitudeDegrees,
     string Source,
-    double ToleranceArcseconds);
+    double ToleranceArcseconds,
+    FixtureClaim Claim = FixtureClaim.EngineReference);
 
 /// <summary>
 /// The parity gate's comparison rules. Deliberately a first-class type with a declared global budget rather than a
