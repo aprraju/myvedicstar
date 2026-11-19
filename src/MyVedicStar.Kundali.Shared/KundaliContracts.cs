@@ -19,8 +19,97 @@ public static class KundaliFailureReasons
     /// <summary>The profile was edited while this result was being produced, so the result describes inputs that no
     /// longer exist. It is discarded, never shown (KUN-22).</summary>
     public const string SupersededByProfileEdit = "superseded_by_profile_edit";
-    public const string Unknown = "unknown";
 }
+/// <summary>
+/// A failure reason code that cannot be an unnameable string (api#132).
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="KundaliFailureReasons"/> is a catalogue of constants, but the persisted and published value used to be a
+/// bare <c>string?</c>, so any text could travel from a database row to an API response without anything checking it
+/// against the catalogue. The only thing preventing an unnameable code was that nobody had typed one.
+/// </para>
+/// <para>
+/// This type closes that: a recognised reason can only be one of the declared values. A code that is NOT in the
+/// catalogue is still representable - <see cref="Unrecognised"/> - because the database column remains a plain string
+/// and a row written before this type existed can hold anything. <b>The type therefore refuses to pretend the input is
+/// impossible; it makes the case explicit and carries the original code.</b> That is the difference between "cannot
+/// arrive" and "arrives and says so", and only the second is true here.
+/// </para>
+/// <para>
+/// <see cref="KundaliFailureReasons.Unknown"/> was deleted: <c>NULL</c> already means "no reason recorded", enforced by
+/// a database constraint, so a second representation of absence rendered as a value was the same collapse this type
+/// removes.
+/// </para>
+/// </remarks>
+public readonly record struct KundaliFailureReason
+{
+    private KundaliFailureReason(string code, bool isRecognised)
+    {
+        Code = code;
+        IsRecognised = isRecognised;
+    }
+
+    /// <summary>The code as published. For an unrecognised reason this is the ORIGINAL text, never a substitute.</summary>
+    public string Code { get; }
+
+    /// <summary>False when the code was not in the catalogue. A caller must be able to tell this apart from a
+    /// recognised reason without inspecting the string.</summary>
+    public bool IsRecognised { get; }
+
+    public static readonly KundaliFailureReason EngineError = new(KundaliFailureReasons.EngineError, true);
+    public static readonly KundaliFailureReason EphemerisUnavailable = new(KundaliFailureReasons.EphemerisUnavailable, true);
+    public static readonly KundaliFailureReason TimezoneUnresolvable = new(KundaliFailureReasons.TimezoneUnresolvable, true);
+    public static readonly KundaliFailureReason UnsupportedCapability = new(KundaliFailureReasons.UnsupportedCapability, true);
+    public static readonly KundaliFailureReason BirthDateOutOfRange = new(KundaliFailureReasons.BirthDateOutOfRange, true);
+    public static readonly KundaliFailureReason SupersededByProfileEdit = new(KundaliFailureReasons.SupersededByProfileEdit, true);
+
+    /// <summary>Every recognised reason. Deliberately a single list so a new constant without a corresponding value
+    /// here is caught by <c>KundaliFailureReasonTests</c> rather than silently becoming unrecognised at runtime.</summary>
+    public static readonly IReadOnlyList<KundaliFailureReason> Recognised =
+        [EngineError, EphemerisUnavailable, TimezoneUnresolvable, UnsupportedCapability, BirthDateOutOfRange,
+         SupersededByProfileEdit];
+
+    /// <summary>The catalogue's codes, so a test can prove the two lists agree without duplicating them.</summary>
+    public static IReadOnlyList<string> CatalogueCodes { get; } =
+        [KundaliFailureReasons.EngineError, KundaliFailureReasons.EphemerisUnavailable,
+         KundaliFailureReasons.TimezoneUnresolvable, KundaliFailureReasons.UnsupportedCapability,
+         KundaliFailureReasons.BirthDateOutOfRange, KundaliFailureReasons.SupersededByProfileEdit];
+
+    /// <summary>
+    /// Classifies a persisted or received code. A null code is the absence of a reason, not an unrecognised one, and
+    /// returns false with no value. Any non-null code outside the catalogue becomes <see cref="Unrecognised"/> and
+    /// KEEPS its original text.
+    /// </summary>
+    public static bool TryParse(string? code, out KundaliFailureReason reason)
+    {
+        if (code is null)
+        {
+            reason = default;
+            return false;
+        }
+
+        foreach (var candidate in Recognised)
+        {
+            if (string.Equals(candidate.Code, code, StringComparison.Ordinal))
+            {
+                reason = candidate;
+                return true;
+            }
+        }
+
+        // Not a member of the catalogue: say so, and do not invent a name for it.
+        reason = Unrecognised(code);
+        return true;
+    }
+
+    /// <summary>A code the catalogue does not name. Its <see cref="Code"/> is the original text, so an operator can
+    /// act on it; <see cref="IsRecognised"/> is false, so a caller cannot mistake it for a known reason.</summary>
+    public static KundaliFailureReason Unrecognised(string code) => new(code, false);
+
+    public override string ToString() => Code;
+}
+
 
 /// <summary>Section names that are stored as independent JSONB columns, so one section can be regenerated without
 /// rewriting the whole result (KUN-04 Architect refinement).</summary>
