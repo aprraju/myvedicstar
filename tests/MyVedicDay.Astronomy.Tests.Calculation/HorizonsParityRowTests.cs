@@ -91,6 +91,19 @@ public sealed class HorizonsParityRowTests
             ToleranceArcseconds = (double?)null,
             ToleranceSource = "UNFILLED - our recorded restatement of the figure quoted in LunarPosition.cs:10 (about 10 arcseconds). No accuracy claim attaches. See api#144.",
             DrikOffsetAppliedOn = "engine side only, exactly once, inside MeeusEphemeris.GetMoonLongitude",
+
+            // The frame mismatch is NAMED, not left to be inferred. ObsEcLon carries light-time, annual aberration and
+            // gravitational deflection; the engine publishes mean-equinox-of-date with no nutation. So this separation
+            // is NOT an error against the ~10 arcsec series figure - the two numbers measure different quantities, and
+            // reading 41.7 > 10 as "the engine is broken by 4x" is the wrong conclusion. Left FALSE deliberately:
+            // nobody has computed the apparent-vs-mean envelope at this instant, and an explained gap and an
+            // unexplained one must not look the same in the artifact.
+            SeparationExplained = false,
+            SeparationExplanation =
+                "Apparent-of-date reference versus mean-equinox-of-date port: the separation includes the frame "
+                + "difference (aberration, light-time, deflection, nutation), so it is NOT comparable to the "
+                + "~10 arcsec mean-equinox figure in LunarPosition.cs:10 and is not evidence of a 4x engine error. "
+                + "The apparent-vs-mean envelope has NOT been computed at this instant.",
         };
 
         // Structurally complete: an unfilled tolerance must still be a declared field, not an absent one.
@@ -100,6 +113,10 @@ public sealed class HorizonsParityRowTests
         Assert.Contains("UNFILLED", row.ToleranceSource);
         Assert.Null(row.ToleranceArcseconds);
         Assert.Contains("engine side only", row.DrikOffsetAppliedOn);
+
+        // An explained gap and an unexplained one must not look the same: the flag is false AND the reason is stated.
+        Assert.False(row.SeparationExplained);
+        Assert.Contains("NOT comparable", row.SeparationExplanation);
 
         // The measurement, reported rather than asserted as a pass. The budget is unfilled, so this row cannot claim to
         // meet one; asserting a pass against a number chosen to fit is the laundering api#140 exists to prevent.
