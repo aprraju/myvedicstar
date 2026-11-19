@@ -62,6 +62,30 @@ public sealed record RemedyResolution(RemedyOutcome Outcome, string FindingCode,
 /// </remarks>
 public static class RemedyResolver
 {
+    /// <summary>Reason codes attached to a non-attached outcome. Stable; a client may switch on these.</summary>
+    public static class Reasons
+    {
+        /// <summary>The code is not produced by the current engine result at all.</summary>
+        public const string CatalogueStale = "catalogue-stale";
+
+        /// <summary>The code appeared in the stored payload but its status could not be read back.</summary>
+        /// <remarks>
+        /// Distinct from <see cref="CatalogueStale"/> on purpose. Both land on <see cref="RemedyOutcome.UnknownCode"/>
+        /// because neither may render a remedy, but they have different causes and different fixes: one means the
+        /// catalogue moved on, the other means the stored payload was written under a vocabulary this build no longer
+        /// reads. Collapsing them would send a maintainer to the catalogue for a problem that is in the stored revision.
+        /// </remarks>
+        public const string StoredStatusUnreadable = "stored-status-unreadable";
+
+        /// <summary>The finding could not be assessed because an input was missing.</summary>
+        public const string InputMissing = "input-missing";
+
+        /// <summary>The finding was assessed but is not published (capability gap).</summary>
+        public const string CapabilityGap = "capability-gap";
+    }
+
+
+
     /// <summary>
     /// Resolves one remedy's finding code against the current findings.
     /// </summary>
@@ -77,20 +101,17 @@ public static class RemedyResolver
         // Default-deny, spelled out: the attaching case is the one that must be positively proved, so it is the case
         // that requires a located finding AND an evaluated state. Everything else is a refusal with its own reason.
         if (!findings.TryGetValue(findingCode, out var state))
-            return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode,
-                "This remedy refers to a finding that is not produced for this chart. "
-                + "The catalogue entry is stale or superseded.");
+            return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, Reasons.CatalogueStale);
 
         return state switch
         {
             RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode, null),
 
             RemedyFindingState.NotEvaluated => new RemedyResolution(RemedyOutcome.NotEvaluated, findingCode,
-                "This remedy's finding could not be assessed because an input was missing. "
-                + "Completing the birth details may make it available."),
+                Reasons.InputMissing),
 
             RemedyFindingState.Withheld => new RemedyResolution(RemedyOutcome.Withheld, findingCode,
-                "This remedy's finding is not published yet."),
+                Reasons.CapabilityGap),
 
             // Exhaustive for the current enum, and no default arm. Adding a state to RemedyFindingState makes this
             // throw at construction of the switch's result, which is a build failure - not a silent attachment.
@@ -98,6 +119,44 @@ public static class RemedyResolver
                 "Unhandled finding state. The resolver is default-deny: an unrecognised state must never attach a remedy."),
         };
     }
+
+    /// <summary>
+    /// Resolves a remedy that came from a STORED section payload, where the status text was written under whatever
+    /// vocabulary the producing build had.
+    /// </summary>
+    /// <param name="findingCode">The code the stored remedy was written against.</param>
+    /// <param name="storedStatusText">The status text as stored. May be unreadable if this build no longer knows it.</param>
+    /// <param name="findings">The current finding set, by code.</param>
+    /// <remarks>
+    /// <para>This exists because parsing protects the wire-to-enum direction and <see cref="Resolve"/> protects
+    /// enum-to-decision, but neither protects against a payload that was <i>stored</i> under a vocabulary this build no
+    /// longer reads. Sections persist per revision, so that payload is served long after it was written.</para>
+    /// <para>An unreadable stored status resolves to <see cref="RemedyOutcome.UnknownCode"/> - it must not render - but
+    /// its reason is <see cref="Reasons.StoredStatusUnreadable"/>, not <see cref="Reasons.CatalogueStale"/>. Same
+    /// outcome, different cause, different fix: the catalogue is fine, the stored revision is the problem.</para>
+    /// </remarks>
+    public static RemedyResolution ResolveStored(string findingCode, string? storedStatusText,
+        IReadOnlyDictionary<string, RemedyFindingState> findings)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(findingCode);
+
+        // A readable status delegates to the normal path, which is where the finding set is consulted. Note that a
+        // readable "evaluated" does NOT attach on its own: Resolve still requires the code to be present AND
+        // evaluated in the CURRENT findings. The stored text is a claim by the producing build, not evidence about
+        // this one.
+        if (IsKnownStatusText(storedStatusText))
+            return Resolve(findingCode, findings);
+
+        return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, Reasons.StoredStatusUnreadable);
+    }
+
+    private static bool IsKnownStatusText(string text) => text.Trim().ToLowerInvariant() switch
+    {
+        "evaluated" or "not-evaluated" or "withheld" => true,
+        // No default arm: an unrecognised stored status is the case this method exists to name.
+        _ => false,
+    };
+
 }
 
 /// <summary>The state of one finding in the current result, as far as remedy attachment is concerned.</summary>

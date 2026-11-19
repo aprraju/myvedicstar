@@ -24,7 +24,7 @@ public sealed class RemedyResolverTests
 
         Assert.Equal(RemedyOutcome.UnknownCode, resolution.Outcome);
         Assert.NotNull(resolution.Reason);
-        Assert.Contains("stale or superseded", resolution.Reason);
+        Assert.Equal(RemedyResolver.Reasons.CatalogueStale, resolution.Reason);
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public sealed class RemedyResolverTests
 
         Assert.Equal(RemedyOutcome.NotEvaluated, resolution.Outcome);
         Assert.NotNull(resolution.Reason);
-        Assert.Contains("input was missing", resolution.Reason);
-        Assert.DoesNotContain("stale", resolution.Reason);
+        Assert.Equal(RemedyResolver.Reasons.InputMissing, resolution.Reason);
+        Assert.NotEqual(RemedyResolver.Reasons.CatalogueStale, resolution.Reason);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class RemedyResolverTests
 
         Assert.Equal(RemedyOutcome.Withheld, resolution.Outcome);
         Assert.NotNull(resolution.Reason);
-        Assert.Contains("not published", resolution.Reason);
+        Assert.Equal(RemedyResolver.Reasons.CapabilityGap, resolution.Reason);
     }
 
     [Fact]
@@ -111,5 +111,43 @@ public sealed class RemedyResolverTests
         Assert.Equal(RemedyOutcome.UnknownCode,
             RemedyResolver.Resolve("yoga:gaja-kesari", findings).Outcome);
     }
+
+    // ---- stored payloads: same outcome, different cause ----
+
+    [Fact]
+    public void An_unreadable_stored_status_says_the_payload_is_unreadable_not_that_the_catalogue_is_stale()
+    {
+        // Both refusals land on UnknownCode, so the outcome alone cannot tell a maintainer what to fix. The reason can:
+        // a stale catalogue is fixed by editing the catalogue, an unreadable payload by looking at the stored revision.
+        var fromCatalogue = RemedyResolver.Resolve("dosha:mangal", Findings());
+        var fromPayload = RemedyResolver.ResolveStored("dosha:mangal", "some-retired-status", Findings());
+
+        Assert.Equal(fromCatalogue.Outcome, fromPayload.Outcome);
+        Assert.Equal(RemedyResolver.Reasons.CatalogueStale, fromCatalogue.Reason);
+        Assert.Equal(RemedyResolver.Reasons.StoredStatusUnreadable, fromPayload.Reason);
+        Assert.NotEqual(fromCatalogue.Reason, fromPayload.Reason);
+    }
+
+    [Fact]
+    public void A_stored_evaluated_status_does_not_attach_by_itself()
+    {
+        // The stored text is a claim by the build that produced it, not evidence about the current engine. If the
+        // finding is gone now, the remedy still does not attach.
+        var resolution = RemedyResolver.ResolveStored("dosha:mangal", "evaluated", Findings());
+
+        Assert.Equal(RemedyOutcome.UnknownCode, resolution.Outcome);
+        Assert.Equal(RemedyResolver.Reasons.CatalogueStale, resolution.Reason);
+    }
+
+    [Fact]
+    public void A_readable_stored_status_defers_to_the_current_findings()
+    {
+        var findings = Findings(("dosha:mangal", RemedyFindingState.Withheld));
+        var resolution = RemedyResolver.ResolveStored("dosha:mangal", "evaluated", findings);
+
+        // The payload said evaluated; the engine now withholds it. The current state wins.
+        Assert.Equal(RemedyOutcome.Withheld, resolution.Outcome);
+    }
+
 }
 
