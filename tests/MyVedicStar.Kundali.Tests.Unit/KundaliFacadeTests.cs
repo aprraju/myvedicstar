@@ -30,14 +30,15 @@ public sealed class KundaliFacadeTests : IDisposable
         profiles.GetSnapshotAsync(user, profileId, Token).Returns(Snapshot());
         profiles.GetAyanamsaAsync(user, Token).Returns("Lahiri");
 
-        var services = new ServiceCollection();
-        services.AddSingleton(profiles);
-        services.AddSingleton(repository);
-        services.AddSingleton<TimeProvider>(new FixedClock());
-        services.AddSingleton(Substitute.For<IKundaliResultCache>());
-        services.AddKundaliBusiness();
-        provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
-        facade = provider.GetRequiredService<IKundaliFacade>();
+        // api#124: the shared provider, so every Kundali test builds the facade the same way and ValidateOnBuild cannot
+        // be forgotten in one file and remembered in another.
+        provider = KundaliTestProvider.Create()
+            .With(profiles)
+            .With(repository)
+            .With<TimeProvider>(new FixedClock())
+            .With(Substitute.For<IKundaliResultCache>())
+            .Build();
+        facade = provider.CreateScope().ServiceProvider.GetRequiredService<IKundaliFacade>();
     }
 
     [Fact]

@@ -45,16 +45,16 @@ public sealed class KundaliEngineCallGuardTests : IDisposable
         repository.GetPreferencesAsync(accountId, profileId, Token)
             .Returns(new KundaliPreferences("South", 3, DateTimeOffset.UnixEpoch));
 
-        var services = new ServiceCollection();
-        services.AddSingleton(profiles);
-        services.AddSingleton(repository);
-        services.AddSingleton<TimeProvider>(new FixedClock());
-        services.AddSingleton(Substitute.For<IKundaliResultCache>());
-        services.AddKundaliBusiness();
-        // Replace the fallback engine so every attempted calculation is counted rather than silently refusing.
-        services.AddSingleton<IKundaliCalculationEngine>(engine);
-        provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
-        facade = provider.GetRequiredService<IKundaliFacade>();
+        // api#124: one construction idiom for every Kundali test. The engine override replaces the fallback so every
+        // attempted calculation is counted rather than silently refusing.
+        provider = KundaliTestProvider.Create()
+            .With(profiles)
+            .With(repository)
+            .With<TimeProvider>(new FixedClock())
+            .With(Substitute.For<IKundaliResultCache>())
+            .With<IKundaliCalculationEngine>(engine)
+            .Build();
+        facade = provider.CreateScope().ServiceProvider.GetRequiredService<IKundaliFacade>();
     }
 
     [Fact]

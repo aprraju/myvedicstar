@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Kundali.Business;
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.Shared.Exceptions;
@@ -37,9 +38,24 @@ public sealed class KundaliProfilePropagationTests
         metadata.GetAsync(user, Token).Returns(Metadata);
     }
 
-    private KundaliFacade Facade() => new(profiles, repository, alerts,
-        new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation,
-        metadata, engine, new NoDivisions(), new NoDignityRules(), new NoAshtakavargaRulesPropagation(), new NoShadbalaRulesPropagation(), new NoYogaRulesPropagation(), new FixedClock(), cache);
+    /// <summary>
+    /// api#124: built from the container, not by enumerating the facade's constructor. Every override below is an
+    /// explicit statement of what this test wants; a parameter added to the facade is a single registration in
+    /// <see cref="KundaliTestProvider"/>, not an edit here.
+    /// </summary>
+    private IKundaliFacade Facade() => KundaliTestProvider.Create()
+        .With(profiles)
+        .With(repository)
+        .With(alerts)
+        .With(metadata)
+        .With(engine)
+        .With(cache)
+        .With<IKundaliDivisionalMapper>(new NoDivisions())
+        .With<IKundaliDignityRules>(new NoDignityRules())
+        .With<IKundaliAshtakavargaRules>(new NoAshtakavargaRulesPropagation())
+        .With<IKundaliShadbalaRules>(new NoShadbalaRulesPropagation())
+        .With<IKundaliYogaRules>(new NoYogaRulesPropagation())
+        .BuildFacade();
 
     private static KundaliInputSnapshot Snapshot(long profileRevision) =>
         new(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),
