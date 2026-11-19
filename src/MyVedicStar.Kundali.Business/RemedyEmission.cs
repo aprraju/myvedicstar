@@ -82,8 +82,12 @@ public static class RemedyEmission
     /// back into silence.</para>
     /// <para>De-duplication is by <see cref="KundaliUnsupportedField.Path"/> plus reason, not by path alone: one path can
     /// legitimately carry two different reasons (a graha withheld for want of a reference, and a remedy suppressed for
-    /// the same graha), and collapsing those would lose one of the two explanations. Exact duplicates - same path and
-    /// same reason - are collapsed, because the same statement twice is noise rather than information.</para>
+    /// the same graha), and collapsing those would lose one of the two explanations.</para>
+    /// <para><b>The tuple is the identity of an explanation: two entries with the same (path, reason) ARE the same
+    /// explanation, so an exact duplicate collapses.</b> The guarantee is therefore "both reasons survive", not "every
+    /// entry survives". A third producer that emits a genuinely new cause under an existing (path, reason) tuple will
+    /// vanish silently - and if that ever happens the fix is a <i>distinct reason code</i>, not a looser merge. Writing
+    /// it down because otherwise the dedupe gets blamed for a bug that is two callers sharing a vocabulary.</para>
     /// </remarks>
     public static IReadOnlyList<KundaliUnsupportedField> MergeUnsupported(
         params IEnumerable<KundaliUnsupportedField>[] sources)
