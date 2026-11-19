@@ -57,15 +57,21 @@ The engine therefore targets a pure-managed, high-precision VSOP87/ELP-2000 seri
 - Sun-Saturn: full VSOP87D (MPP02-class) heliocentric series plus geocentric reduction, light time and annual
   aberration - not the truncated Earth-only series. Truncation is chosen by tolerance budget and the chosen
   truncation is part of the engine version.
-- Moon: **Meeus chapter 47 truncated series** (60 longitude/distance terms, 60 latitude terms; ~10" longitude, ~4" latitude as stated in `LunarPosition.cs:10-11`).
-  **Correction record (#142, documentation only):** this line previously read "the full ELP-2000/82 series at a term
-  count selected to hold the Lagna and pada budgets in section 4". That overstated what shipped. The Moon uses
-  Meeus chapter 47's **truncated** series: 60 longitude/distance terms and 60 latitude terms, both tables verifiable
-  in `LunarPosition.cs` (balanced, zero leftover parentheses). `LunarPosition.cs:10-11` already states the accuracy —
-  about 10 arcseconds in longitude, 4 in latitude — which is Meeus's figure for that table. **The section 4
-  Lagna/pada budgets are therefore not met by the Moon series alone.** No code change is proposed: the
-  implementation is correct for what it is; this ADR was the document that mis-described it. **#140 must calibrate
-  against the shipped ~10", not against a full-ELP figure the code does not implement.**
+- Moon: **Meeus chapter 47 truncated series** - 60 longitude/distance terms and 60 latitude terms, with the
+   accuracy stated in `LunarPosition.cs:10-11`: about 10 arcseconds in longitude, 4 in latitude.
+   **Correction record (#142, documentation only):** this line previously claimed "the full ELP-2000/82 series at
+   a term count selected to hold the Lagna and pada budgets in section 4". That overstated what shipped. **Method
+   of the count:** both term tables in `LunarPosition.cs` were counted as tuples by arity (6 fields for
+   longitude/distance, 5 for latitude) - 60 and 60 - and each block balances with zero leftover parentheses, so
+   the figures are the rows actually compiled, not a partial match. Meeus states ~10" for that table, and the code
+   comment already quotes it: the code was honest, and this ADR was the document that mis-described it.
+   **The consequence is an OPEN DEFECT, not an accepted limitation.** Section 4 states its budgets are "acceptance
+   tolerances, not aspirations" and that "exceeding them fails the build"; the Moon gate is <= 3 arcseconds and the
+   shipped series is roughly 10, so it misses by about 3x. Recording that as accepted without evidence of an
+   acceptance decision would be the same overstatement this correction exists to fix, one paragraph down.
+   **Status: unresolved** - it needs either a fuller lunar series or an explicit owner decision to widen the Moon
+   budget for this phase. No code change is proposed here: the implementation is correct for what it is.
+   **#140 must calibrate against the shipped ~10", not a full-ELP figure the code does not implement.**
 - Rahu/Ketu: mean lunar node (the standard convention); see section 3.6 for the explicit statement of what is and
   is not supported about the node.
 - Lagna: sidereal ascendant from local sidereal time and geographic latitude, using Lahiri ayanamsa as fixed by the
