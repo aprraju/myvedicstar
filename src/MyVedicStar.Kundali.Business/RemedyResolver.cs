@@ -112,11 +112,16 @@ public static class RemedyResolver
         if (!findings.TryGetValue(findingCode, out var state))
             return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, Reasons.CatalogueStale);
 
-        // No discard arm. MEASURED, NOT ASSUMED: adding a fifth member to RemedyFindingState did NOT fail the build
-        // in this repository - CS8509 did not fire and TreatWarningsAsErrors had nothing to escalate. So the absence of
-        // a discard arm documents the intent to be exhaustive; it does not itself enforce it. Do not describe this as
-        // a build failure, because it is not one here. What enforces the closed set is
-        // An_undefined_finding_state_cannot_reach_an_attached_outcome plus this arm count.
+        // No discard arm - and MEASURED, NOT ASSUMED: adding a fifth member to RemedyFindingState did NOT fail the
+        // build here. CS8509 did not fire and TreatWarningsAsErrors had nothing to escalate, and the reason is worth
+        // recording because it is easy to get backwards: CS8509 applies to a switch that is non-exhaustive AND has no
+        // discard arm. Removing "_" does not by itself produce the diagnostic; without it the expression is simply
+        // non-exhaustive and the compiler is silent here. So the type does not enforce the closed set.
+        //
+        // An explicit refusing arm is therefore KEPT, because the compiler will not supply one. That makes
+        // An_undefined_finding_state_cannot_reach_an_attached_outcome LOAD-BEARING rather than belt-and-braces: it is
+        // the guarantee, not a duplicate of it. Do not delete it as redundant, and do not describe any of this as a
+        // build failure.
         return state switch
         {
             RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode, null),
