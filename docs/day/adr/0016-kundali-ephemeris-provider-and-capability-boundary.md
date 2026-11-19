@@ -65,12 +65,21 @@ The engine therefore targets a pure-managed, high-precision VSOP87/ELP-2000 seri
    longitude/distance, 5 for latitude) - 60 and 60 - and each block balances with zero leftover parentheses, so
    the figures are the rows actually compiled, not a partial match. Meeus states ~10" for that table, and the code
    comment already quotes it: the code was honest, and this ADR was the document that mis-described it.
-   **The consequence is an OPEN DEFECT, not an accepted limitation.** Section 4 states its budgets are "acceptance
-   tolerances, not aspirations" and that "exceeding them fails the build"; the Moon gate is <= 3 arcseconds and the
-   shipped series is roughly 10, so it misses by about 3x. Recording that as accepted without evidence of an
-   acceptance decision would be the same overstatement this correction exists to fix, one paragraph down.
-   **Status: unresolved** - it needs either a fuller lunar series or an explicit owner decision to widen the Moon
-   budget for this phase. No code change is proposed here: the implementation is correct for what it is.
+   **The consequence is a CONTRADICTION WITHIN THIS DOCUMENT, and it is an open defect.** Three lines disagree:
+   this section ships the ~10" Moon series; section 4 requires <= 3 arcseconds for the Moon and states its budgets
+   are "acceptance tolerances, not aspirations" whose breach "fails the build"; and the selection table above
+   rejects the same ~10" series as **"Demonstrably insufficient: Moon 10 arcseconds"**. In this ADR's own terms,
+   the configuration shipped is the one this document rejects, at the budget this document set. That is stated
+   as a contradiction rather than as a ratio, because a ratio invites a tolerance argument while "rejected by its
+   own selection table" does not.
+   **Resolution space - three options, none taken here:**
+   (a) ship a fuller lunar series that meets the <= 3" gate;
+   (b) an explicit owner decision to widen the Moon budget for this phase;
+   (c) reclassify section 4's Moon row as aspirational - **the heading explicitly forbids this**, so it can only
+   be chosen by the owner in writing, not by a documentation change.
+   **Section 4 itself is deliberately NOT edited in this PR:** a documentation correction that also moves the
+   acceptance budget would be two decisions in one diff, and the second is not the author's to make. **Status:
+   unresolved.** No code change is proposed: the implementation is correct for what it is.
    **#140 must calibrate against the shipped ~10", not a full-ELP figure the code does not implement.**
 - Rahu/Ketu: mean lunar node (the standard convention); see section 3.6 for the explicit statement of what is and
   is not supported about the node.
