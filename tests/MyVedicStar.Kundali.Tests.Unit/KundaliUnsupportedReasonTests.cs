@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Kundali.Business;
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.VedicProfiles.Shared;
@@ -27,7 +28,7 @@ public sealed class KundaliUnsupportedReasonTests
     private readonly IKundaliAlertRepository alerts = Substitute.For<IKundaliAlertRepository>();
     private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
     private readonly IKundaliCalculationEngine engine;
-    private readonly KundaliFacade facade;
+    private readonly IKundaliFacade facade;
     private static readonly CancellationToken Token = CancellationToken.None;
 
     public KundaliUnsupportedReasonTests()
@@ -48,11 +49,21 @@ public sealed class KundaliUnsupportedReasonTests
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
 
-        facade = new KundaliFacade(profiles, repository, alerts,
-            new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, new PassthroughDivisions(), new NoDignityRules3(),
-            new NoAshtakavargaRules3(), new NoShadbalaRules3(), new NoYogaRules3(), new FixedClock(),
-            Substitute.For<IKundaliResultCache>());
+        // api#124: the container resolves the facade, so a new constructor parameter is one registration in
+        // KundaliTestProvider rather than an edit here.
+        facade = KundaliTestProvider.Create()
+            .With(profiles)
+            .With(repository)
+            .With(alerts)
+            .With(metadata)
+            .With(engine)
+            .With(Substitute.For<IKundaliResultCache>())
+            .With<IKundaliDivisionalMapper>(new PassthroughDivisions())
+            .With<IKundaliDignityRules>(new NoDignityRules3())
+            .With<IKundaliAshtakavargaRules>(new NoAshtakavargaRules3())
+            .With<IKundaliShadbalaRules>(new NoShadbalaRules3())
+            .With<IKundaliYogaRules>(new NoYogaRules3())
+            .BuildFacade();
     }
 
     [Fact]

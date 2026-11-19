@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Kundali.Business;
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.Shared.Exceptions;
@@ -46,9 +47,26 @@ public sealed class KundaliRevisionCacheTests
                 null, null, []));
     }
 
-    private KundaliFacade Facade() => new(profiles, repository, alerts,
-        new KundaliValidator(clock, KundaliEngineVersions.Foundation), KundaliEngineVersions.Foundation, metadata,
-        engine, new UnconfiguredDivisionalMapperStub(), new NoDignityRules2(), new NoAshtakavargaRules(), new NoShadbalaRules(), new NoYogaRules(), clock, cache);
+    /// <summary>
+    /// api#124: built from the container rather than by enumerating the facade's constructor, so an added parameter is
+    /// one registration in <see cref="KundaliTestProvider"/> instead of an edit in every test file.
+    /// </summary>
+    private IKundaliFacade Facade() => KundaliTestProvider.Create()
+        .With(profiles)
+        .With(repository)
+        .With(alerts)
+        .With(metadata)
+        .With(engine)
+        .With(cache)
+        // The mutable clock must reach the validator as well as the facade, so it is registered once as the clock port
+        // rather than passed twice. Two instances would let a test advance one and not the other.
+        .With<TimeProvider>(clock)
+        .With<IKundaliDivisionalMapper>(new UnconfiguredDivisionalMapperStub())
+        .With<IKundaliDignityRules>(new NoDignityRules2())
+        .With<IKundaliAshtakavargaRules>(new NoAshtakavargaRules())
+        .With<IKundaliShadbalaRules>(new NoShadbalaRules())
+        .With<IKundaliYogaRules>(new NoYogaRules())
+        .BuildFacade();
 
     private static KundaliInputSnapshot Snapshot(long profileRevision = 1) =>
         new(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),

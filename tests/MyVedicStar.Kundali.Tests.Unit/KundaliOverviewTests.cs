@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Kundali.Business;
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.Shared.Exceptions;
@@ -21,7 +22,7 @@ public sealed class KundaliOverviewTests
     private readonly IKundaliAlertRepository alerts = Substitute.For<IKundaliAlertRepository>();
     private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
     private readonly IKundaliCalculationEngine engine;
-    private readonly KundaliFacade facade;
+    private readonly IKundaliFacade facade;
     private static readonly CancellationToken Token = CancellationToken.None;
 
     private static readonly KundaliAstronomyMetadata Metadata =
@@ -40,10 +41,21 @@ public sealed class KundaliOverviewTests
         engine = Substitute.For<IKundaliCalculationEngine>();
         engine.Calculate(Arg.Any<KundaliEngineInput>())
             .Returns(new KundaliEngineResult(null, null, null, null, null, null, null, Array.Empty<KundaliEngineGap>()));
-        facade = new KundaliFacade(profiles, repository, alerts,
-            new KundaliValidator(new FixedClock(), KundaliEngineVersions.Foundation),
-            KundaliEngineVersions.Foundation, metadata, engine, Mapper(), Rules(), new TestAshtakavargaRules(),
-            new TestShadbalaRules(), new TestYogaRules(), new FixedClock(), Substitute.For<IKundaliResultCache>());
+        // api#124: resolved from the container rather than by listing the facade's constructor. Adding a parameter is
+        // now one registration in KundaliTestProvider; no test file enumerates the signature.
+        facade = KundaliTestProvider.Create()
+            .With(profiles)
+            .With(repository)
+            .With(alerts)
+            .With(metadata)
+            .With(engine)
+            .With(Substitute.For<IKundaliResultCache>())
+            .With<IKundaliDivisionalMapper>(Mapper())
+            .With<IKundaliDignityRules>(Rules())
+            .With<IKundaliAshtakavargaRules>(new TestAshtakavargaRules())
+            .With<IKundaliShadbalaRules>(new TestShadbalaRules())
+            .With<IKundaliYogaRules>(new TestYogaRules())
+            .BuildFacade();
     }
 
     /// <summary>Decorative Shadbala rules for facade-level tests. The arithmetic is tested exhaustively in
