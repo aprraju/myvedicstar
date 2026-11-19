@@ -57,20 +57,25 @@ public static class TtOffsets
     /// no assembly needs to be named in InternalsVisibleTo in order to do it.
     /// </summary>
     /// <remarks>
-    /// <b>Install-once, not a settable property.</b> A second install throws: two conversions would mean whichever ran
-    /// last wins, which is the two-sources defect in its most literal form. There is no public way to clear it, so a
-    /// caller cannot quietly remove the guard either.
+    /// <b>Install-once, not a settable property.</b> Only the first call takes effect, decided atomically, so two
+    /// conversions can never both be live - which would mean whichever ran last wins, the two-sources defect in its
+    /// most literal form. Later calls return false rather than throwing, because composing twice is a normal thing
+    /// (two hosts in one process, a test host beside the real one) and is not itself two different conversions.
+    /// There is no public way to clear it, so a caller cannot quietly remove the guard either.
     /// </remarks>
-    public static void Install(Func<double, double> conversion)
+    public static bool Install(Func<double, double> conversion)
     {
         ArgumentNullException.ThrowIfNull(conversion);
 
-        if (Interlocked.CompareExchange(ref _installed, 1, 0) != 0)
-            throw new InvalidOperationException(
-                "A UT->TT conversion is already installed. Exactly one conversion exists so that the engine and any "
-                + "reference work cannot diverge; installing a second would make whichever ran last authoritative.");
+        // Atomic, not check-then-act. Composition can run concurrently - two hosts in one process, or a test host
+        // alongside the real one - and a guarded read followed by a write races between them. CompareExchange decides
+        // exactly one winner, and the losers return false rather than throwing: installing the SAME conversion twice is
+        // idempotent, and refusing it would fail start-up for a condition that is not actually two conversions.
+        var winner = Interlocked.CompareExchange(ref _installed, 1, 0) == 0;
+        if (winner)
+            _conversion = conversion;
 
-        _conversion = conversion;
+        return winner;
     }
 
     private static Func<double, double>? _conversion;

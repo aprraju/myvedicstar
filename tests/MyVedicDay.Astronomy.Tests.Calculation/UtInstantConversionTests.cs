@@ -87,9 +87,14 @@ public sealed class UtInstantConversionTests
     }
 
     [Fact]
-    public void Installing_a_second_conversion_is_refused()
+    public void A_second_install_is_taken_once_and_does_not_replace_the_first()
     {
-        // Two conversions would mean whichever ran last wins - the two-sources defect, literally.
-        Assert.Throws<InvalidOperationException>(() => TtOffsets.Install(DeltaT.ToJulianEphemerisDay));
+        // Two conversions would mean whichever ran last wins - the two-sources defect, literally. The second call must
+        // lose, and it must not throw: composing twice is normal (a test host beside the real one) and refusing it would
+        // fail start-up for a condition that is not actually two different conversions.
+        var accepted = TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
+
+        Assert.False(accepted, "Only the first install may take effect.");
+        Assert.True(TtOffsets.IsInstalled);
     }
 }

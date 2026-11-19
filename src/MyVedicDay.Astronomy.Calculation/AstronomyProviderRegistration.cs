@@ -31,8 +31,7 @@ public static class AstronomyProviderRegistration
         // api#140: install the ONE UT->TT conversion used by reference work. It is this provider's own DeltaT, so a
         // generator and the engine cannot disagree - a divergence is impossible rather than tested-for. Set here, at
         // composition, because it is the same moment the provider itself is chosen.
-        if (MyVedicStar.Astronomy.Core.TtOffsets.IsInstalled is false)
-            MyVedicStar.Astronomy.Core.TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
+        MyVedicStar.Astronomy.Core.TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
 
         // Parsing happens here, at composition, so a bad key cannot reach a request.
         var selection = ProviderSelectionParser.Parse(providerKey);
