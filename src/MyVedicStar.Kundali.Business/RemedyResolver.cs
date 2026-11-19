@@ -70,6 +70,10 @@ public static class RemedyResolver
 
         /// <summary>The code appeared in the stored payload but its status could not be read back.</summary>
         /// <remarks>
+        /// <para><b>This is a normal path, not a corruption case.</b> Sections persist per revision by design,
+        /// so any remedy that outlives a vocabulary change reaches this state. It is expected traffic that must
+        /// be handled, not defensive coding against data that cannot occur - a branch classified the latter way
+        /// gets deleted in a tidy-up.</para>
         /// Distinct from <see cref="CatalogueStale"/> on purpose. Both land on <see cref="RemedyOutcome.UnknownCode"/>
         /// because neither may render a remedy, but they have different causes and different fixes: one means the
         /// catalogue moved on, the other means the stored payload was written under a vocabulary this build no longer
