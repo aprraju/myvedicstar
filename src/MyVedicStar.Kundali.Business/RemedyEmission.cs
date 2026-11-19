@@ -70,5 +70,42 @@ public static class RemedyEmission
 
         return (emitted, unsupported);
     }
+
+    /// <summary>
+    /// Merges the unsupported entries from independent producers into one list, without loss and without duplicates.
+    /// </summary>
+    /// <param name="sources">Each producer's entries, in section order.</param>
+    /// <remarks>
+    /// <para>Two producers write this array: the capability path (withheld grahas, unvalidated references) and
+    /// <see cref="Select"/> (remedies suppressed at production). If either assigned the array rather than appending to
+    /// it, the other's entries would vanish while both callers believed they had written theirs - a decision turning
+    /// back into silence.</para>
+    /// <para>De-duplication is by <see cref="KundaliUnsupportedField.Path"/> plus reason, not by path alone: one path can
+    /// legitimately carry two different reasons (a graha withheld for want of a reference, and a remedy suppressed for
+    /// the same graha), and collapsing those would lose one of the two explanations. Exact duplicates - same path and
+    /// same reason - are collapsed, because the same statement twice is noise rather than information.</para>
+    /// </remarks>
+    public static IReadOnlyList<KundaliUnsupportedField> MergeUnsupported(
+        params IEnumerable<KundaliUnsupportedField>[] sources)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+
+        var seen = new HashSet<(string Path, string Reason)>();
+        var merged = new List<KundaliUnsupportedField>();
+
+        foreach (var source in sources)
+        {
+            if (source is null) continue;
+            foreach (var field in source)
+            {
+                if (field is null) continue;
+                // Keep first occurrence: sources are in section order, so the earliest explanation is the most specific.
+                if (seen.Add((field.Path, field.Reason))) merged.Add(field);
+            }
+        }
+
+        return merged;
+    }
+
 }
 

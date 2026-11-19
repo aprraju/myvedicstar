@@ -75,5 +75,72 @@ public sealed class RemedyEmissionTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             RemedyEmission.Select([(Remedy("yoga:gaja-kesari"), (RemedyFindingState)999)]));
     }
+
+    // ---- merging two producers into one unsupported array ----
+
+    [Fact]
+    public void Neither_producer_loses_its_entries_in_the_merge()
+    {
+        // The capability path and the emission rule both write this array. A merge that let one assign over the other
+        // would drop entries while both callers believed they had written theirs.
+        var fromCapability = new[]
+        {
+            new KundaliUnsupportedField("Sun", "unvalidated-reference"),
+        };
+        var fromEmission = new[]
+        {
+            new KundaliUnsupportedField("dosha:mangal", RemedyResolver.Reasons.CapabilityGap),
+        };
+
+        var merged = RemedyEmission.MergeUnsupported(fromCapability, fromEmission);
+
+        Assert.Equal(2, merged.Count);
+        Assert.Contains(merged, field => field.Path == "Sun");
+        Assert.Contains(merged, field => field.Path == "dosha:mangal");
+    }
+
+    [Fact]
+    public void The_same_path_may_carry_two_reasons_and_both_survive()
+    {
+        // A graha can be withheld for want of a reference AND have a remedy suppressed for the same graha. Collapsing by
+        // path alone would lose one of the two explanations.
+        var first = new[] { new KundaliUnsupportedField("Moon", "unvalidated-reference") };
+        var second = new[] { new KundaliUnsupportedField("Moon", RemedyResolver.Reasons.InputMissing) };
+
+        var merged = RemedyEmission.MergeUnsupported(first, second);
+
+        Assert.Equal(2, merged.Count);
+        Assert.Equal(2, merged.Select(field => field.Reason).Distinct().Count());
+    }
+
+    [Fact]
+    public void An_exact_duplicate_is_collapsed_once()
+    {
+        var entry = new KundaliUnsupportedField("Moon", "unvalidated-reference");
+
+        var merged = RemedyEmission.MergeUnsupported([entry], [entry]);
+
+        // The same statement twice is noise, not information.
+        Assert.Single(merged);
+    }
+
+    [Fact]
+    public void Order_is_preserved_so_the_most_specific_explanation_stays_first()
+    {
+        var first = new[] { new KundaliUnsupportedField("Moon", "unvalidated-reference") };
+        var second = new[] { new KundaliUnsupportedField("Moon", RemedyResolver.Reasons.InputMissing) };
+
+        var merged = RemedyEmission.MergeUnsupported(first, second);
+
+        Assert.Equal("unvalidated-reference", merged[0].Reason);
+    }
+
+    [Fact]
+    public void Merging_nothing_yields_nothing()
+    {
+        Assert.Empty(RemedyEmission.MergeUnsupported());
+        Assert.Empty(RemedyEmission.MergeUnsupported([], []));
+    }
+
 }
 
