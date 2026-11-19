@@ -54,7 +54,7 @@ public sealed class KundaliEngineAccuracyTests
     }
 
     [Fact]
-    public void Moon_longitude_is_within_the_published_reference_tolerance()
+    public void Moon_longitude_is_within_the_engine_reference_tolerance()
     {
         // The lunar series is coarser than the solar one, so its published budget is wider - stated in the fixture
         // data, not discovered by watching a test fail.
@@ -74,6 +74,43 @@ public sealed class KundaliEngineAccuracyTests
         // Without this, deleting a tolerance from the fixture would silently weaken the assertions above rather than
         // failing, which is the failure mode api#106 exists to remove.
         Assert.Throws<InvalidOperationException>(() => ToleranceArcseconds((CelestialBody)(-1)));
+    }
+
+    [Fact]
+    public void The_drik_offset_is_the_only_difference_between_the_series_and_the_engine_reference()
+    {
+        // Auditable only if nothing else separates the two values. The expected offset is written as a LITERAL, not
+        // read from MeeusEphemeris.DrikPanchangLunarOffsetDegrees: comparing the constant against itself would be
+        // tautological and would pass for any value. A literal makes the offset's size a claim this test can fail on.
+        const double PublishedDrikOffsetArcseconds = 28.0;
+
+        var series = LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(MoonReferenceJdUt));
+        var engine = new MeeusEphemeris().GetMoonLongitude(MoonReferenceJdUt);
+
+        var difference = AngleMath.NormalizeDegrees(engine - series) * ArcsecondsPerDegree;
+
+        Assert.Equal(PublishedDrikOffsetArcseconds, difference, 6);
+
+        // The series alone is the Meeus 47.a value, so the engine equals Meeus plus exactly the Drik offset.
+        Assert.Equal(133.162655, series, 0.0005);
+
+        // And the composed reference still holds: engine == Meeus + 28 arcsec, to the fixture's published budget.
+        Assert.Equal(133.162655 + PublishedDrikOffsetArcseconds / ArcsecondsPerDegree, engine, 0.0005);
+    }
+
+    [Fact]
+    public void The_unoffset_lunar_series_matches_meeus_47a_to_the_published_precision()
+    {
+        // The unoffset series asserted directly, rather than inferred by subtracting the offset in another test. This
+        // is the claim that makes the 28 arcsec auditable: the series alone lands on Meeus, so the offset is a
+        // declared correction ON TOP of an accurate series and not a fudge covering a series that misses.
+        //
+        // 133.162655 is Meeus example 47.a's stated mean-equinox longitude. The band is 0.0005 degrees, about 1.8
+        // arcsec - the published precision of that worked example, and tighter than the composed 3 arcsec budget
+        // because nothing but the series contributes here.
+        var series = LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(MoonReferenceJdUt));
+
+        Assert.Equal(133.162655, series, 0.0005);
     }
 
     /// <summary>The budget for a body, read from the fixture so the published precision is the only source.</summary>
