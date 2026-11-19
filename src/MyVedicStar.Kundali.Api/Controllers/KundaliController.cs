@@ -131,6 +131,12 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
     public async Task<ActionResult<KundaliYogasResponse>> Yogas(Guid profileId, CancellationToken token) =>
         Ok(KundaliYogasResponse.From(await facade.GetYogasAsync(User, profileId, token)));
 
+    /// <summary>KUN-16 remedies (api#128). Each item is bound to the finding it addresses. Only evaluated
+    /// findings carry a remedy; suppressed ones are reported in <c>unsupported</c> with a reason code.</summary>
+    [HttpGet("{profileId:guid}/sections/remedies"), ProducesResponseType<KundaliRemediesResponse>(200)]
+    public async Task<ActionResult<KundaliRemediesResponse>> Remedies(Guid profileId, CancellationToken token) =>
+        Ok(KundaliRemediesResponse.From(await facade.GetRemediesAsync(User, profileId, token)));
+
 
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>

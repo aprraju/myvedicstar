@@ -1168,4 +1168,68 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         throw new NotSupportedException(
             "Report generation is not configured in this host. KUN-17 delivery requires the report store and renderer.");
 
+
+    /// <summary>
+    /// KUN-16 remedies (api#128). The production emission rule is applied here: a remedy is never written beside a
+    /// finding that was not evaluated. The read-time resolver is not applied here - see RemedyEmission's remarks for
+    /// why only one of the two may act at this layer.
+    /// </summary>
+    /// <remarks>
+    /// Findings are taken from the current engine result, so the status carried on each emitted remedy is this run's
+    /// status. Nothing withheld or unassessed is emitted; each suppressed finding is reported through
+    /// <c>Unsupported</c> instead, merged with the capability path's entries so neither producer loses its own.
+    /// </remarks>
+    public async Task<KundaliRemediesSection> GetRemediesAsync(ClaimsPrincipal user, Guid profileId,
+        CancellationToken token)
+    {
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        // Capability-path entries: a graha without a published longitude. Kept separate so the merge below has two
+        // genuine producers rather than one list pretending to be two.
+        var capabilityUnsupported = (engine.GrahaPositions ?? [])
+            .Where(position => !position.SiderealLongitude.HasValue)
+            .Select(position => new KundaliUnsupportedField(position.Graha,
+                KundaliUnsupportedReasons.UnvalidatedReference))
+            .ToArray();
+
+        // Every finding the yoga/dosha evaluation knows about, with its state as of this run. A finding absent from the
+        // evaluated set but present in the not-evaluated set is NotEvaluated; one in neither is simply not offered.
+        var evaluation = yogaRules.Evaluate(BuildSignByGraha(engine));
+        var stateByCode = new Dictionary<string, RemedyFindingState>(StringComparer.Ordinal);
+        foreach (var assessed in evaluation.Evaluated)
+            stateByCode[assessed.Code] = RemedyFindingState.Evaluated;
+        foreach (var missed in evaluation.NotEvaluated)
+            stateByCode[missed.Code] = RemedyFindingState.NotEvaluated;
+
+        var candidates = RemedyCatalogue.All
+            .Select(remedy => (remedy, state: stateByCode.TryGetValue(remedy.FindingCode, out var state)
+                ? state
+                : RemedyFindingState.NotEvaluated));
+
+        var (emitted, emissionUnsupported) = RemedyEmission.Select(candidates);
+
+        return new KundaliRemediesSection(
+            RemedyCatalogue.Version,
+            emitted,
+            RemedyEmission.MergeUnsupported(capabilityUnsupported, emissionUnsupported));
+    }
+
+    /// <summary>Sign index 0..11 per graha, for the rule engine. Grahas without a longitude are omitted.</summary>
+    private static Dictionary<string, int> BuildSignByGraha(KundaliEngineResult engine)
+    {
+        var signByGraha = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var position in engine.GrahaPositions ?? [])
+        {
+            if (position.SiderealLongitude is not null && position.Sign is not null)
+                signByGraha[position.Graha] = SignIndex(position.Sign);
+        }
+
+        return signByGraha;
+    }
+
 }
