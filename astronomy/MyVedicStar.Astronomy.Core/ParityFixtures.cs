@@ -21,6 +21,20 @@ namespace MyVedicStar.Astronomy.Core;
 /// </remarks>
 public sealed record ParityFixtureRecord(
     string Body,
+    /// <summary>
+    /// A <c>string</c>, deliberately NOT a <see cref="FixtureClaim"/>. THIS ASYMMETRY IS THE GUARD, not an oversight.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ParityFixture.Claim"/> is the enum with no default, so a code-built row must state its claim. This
+    /// record stays a string so the JSON path cannot acquire the same convenience: an unknown or absent value is
+    /// carried through as text and must be converted by <see cref="ParityFixtures.ParseClaim"/>, which throws on null,
+    /// whitespace and unrecognised values.
+    ///
+    /// Giving this field the enum type would let System.Text.Json bind a missing or mistyped claim to the enum's
+    /// zeroth member - which is EngineReference - silently putting the row into the parity gate. That is exactly the
+    /// default #135 closed and #136 closed on the constructor. If a later reader is tempted to unify the two types
+    /// for tidiness, this paragraph is the reason not to.
+    /// </remarks>
     string Claim,
     double JulianDayUt,
     double TropicalLongitudeDegrees,
