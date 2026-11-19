@@ -96,9 +96,9 @@ public sealed class HorizonsParityRowTests
             // gravitational deflection; the engine publishes mean-equinox-of-date with no nutation. So this separation
             // is NOT an error against the ~10 arcsec series figure - the two numbers measure different quantities, and
             // reading 41.7 > 10 as "the engine is broken by 4x" is the wrong conclusion. Left FALSE deliberately:
-            // nobody has computed the apparent-vs-mean envelope at this instant, and an explained gap and an
-            // unexplained one must not look the same in the artifact.
-            SeparationExplained = false,
+            // nobody has computed the apparent-vs-mean envelope at this instant, and an unattempted calculation and a
+            // computed-and-failed one must not look the same in the artifact.
+            EnvelopeComputed = false,
             SeparationExplanation =
                 "Apparent-of-date reference versus mean-equinox-of-date port: the separation includes the frame "
                 + "difference (aberration, light-time, deflection, nutation), so it is NOT comparable to the "
@@ -114,8 +114,8 @@ public sealed class HorizonsParityRowTests
         Assert.Null(row.ToleranceArcseconds);
         Assert.Contains("engine side only", row.DrikOffsetAppliedOn);
 
-        // An explained gap and an unexplained one must not look the same: the flag is false AND the reason is stated.
-        Assert.False(row.SeparationExplained);
+        // The flag must distinguish NOT ATTEMPTED from ATTEMPTED AND FAILED. It is named for the act, not the outcome,// so false means nobody computed the envelope - not that the envelope failed to explain the gap.
+        Assert.False(row.EnvelopeComputed);
         Assert.Contains("NOT comparable", row.SeparationExplanation);
 
         // The measurement, reported rather than asserted as a pass. The budget is unfilled, so this row cannot claim to
