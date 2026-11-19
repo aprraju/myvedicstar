@@ -16,9 +16,10 @@ public sealed class UtInstantConversionTests
 
     public UtInstantConversionTests()
     {
-        // Deliberately NOT `??=`. That operator means "if nothing is installed, install one and carry on", which is the
-        // silent-fallback pattern this type pair exists to remove - reintroduced in the fixture. The test either
-        // installs the real conversion on purpose, or asserts that composition already did.
+        // Deliberately NOT `??=`, and deliberately explicit: this fixture installs the real conversion as an act, not
+        // as a fallback that would also fire if nothing were wired. Install is one-shot, so the sample test below
+        // resets first; every other test depends on this one install.
+        TtOffsets.ResetForTests();
         TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
     }
 
@@ -73,16 +74,22 @@ public sealed class UtInstantConversionTests
     public void A_missing_conversion_throws_rather_than_defaulting()
     {
         // A silent fallback would reintroduce the invisible difference the type pair exists to remove.
-        var installed = TtOffsets.Conversion;
+        TtOffsets.ResetForTests();
         try
         {
-            TtOffsets.Conversion = null;
             Assert.Throws<InvalidOperationException>(() => new UtInstant(2451545.0).ToTerrestrialTime());
         }
         finally
         {
-            // Restored through the same install path the provider uses, so this test cannot leave a null behind.
-            TtOffsets.Install(installed!);
+            // Restored through the same public install path the provider uses, so the guard is live again afterwards.
+            TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
         }
+    }
+
+    [Fact]
+    public void Installing_a_second_conversion_is_refused()
+    {
+        // Two conversions would mean whichever ran last wins - the two-sources defect, literally.
+        Assert.Throws<InvalidOperationException>(() => TtOffsets.Install(DeltaT.ToJulianEphemerisDay));
     }
 }

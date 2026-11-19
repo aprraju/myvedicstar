@@ -53,27 +53,46 @@ public readonly record struct TtInstant(double JulianDay)
 public static class TtOffsets
 {
     /// <summary>
-    /// The installed UT→TT conversion. Set once by the provider assembly so that Core does not depend on a provider
-    /// (the dependency direction is enforced by test). A missing conversion throws rather than defaulting, because a
-    /// silent fallback would reintroduce exactly the invisible difference this type pair removes.
+    /// Installs the single UT->TT conversion. Called by the provider at composition, from Core's public surface so that
+    /// no assembly needs to be named in InternalsVisibleTo in order to do it.
     /// </summary>
     /// <remarks>
-    /// <b>Internal, not public.</b> A public settable conversion would be the widest possible contract for "exactly one
-    /// conversion": any caller could point it anywhere, and the type pair would protect the argument while leaving the
-    /// conversion unprotected. The provider installs it from its own assembly; the tests see it through
-    /// <c>InternalsVisibleTo</c>.
+    /// <b>Install-once, not a settable property.</b> A second install throws: two conversions would mean whichever ran
+    /// last wins, which is the two-sources defect in its most literal form. There is no public way to clear it, so a
+    /// caller cannot quietly remove the guard either.
     /// </remarks>
-    internal static Func<double, double>? Conversion { get; set; }
+    public static void Install(Func<double, double> conversion)
+    {
+        ArgumentNullException.ThrowIfNull(conversion);
 
-    /// <summary>Installs the conversion. Called once by the provider at composition.</summary>
-    /// <remarks>Separate from the property so that installation is a named act rather than an assignment that reads
-    /// like configuration.</remarks>
-    internal static void Install(Func<double, double> conversion) =>
-        Conversion = conversion ?? throw new ArgumentNullException(nameof(conversion));
+        if (Interlocked.CompareExchange(ref _installed, 1, 0) != 0)
+            throw new InvalidOperationException(
+                "A UT->TT conversion is already installed. Exactly one conversion exists so that the engine and any "
+                + "reference work cannot diverge; installing a second would make whichever ran last authoritative.");
+
+        _conversion = conversion;
+    }
+
+    private static Func<double, double>? _conversion;
+    private static int _installed;
+
+    /// <summary>The installed conversion, or null. Visible to the astronomy tests so they can assert the guard.</summary>
+    public static bool IsInstalled => _conversion is not null;
+
+    internal static Func<double, double>? Installed => _conversion;
 
     internal static double ToTerrestrialTime(UtInstant ut) =>
-        Conversion?.Invoke(ut.JulianDay)
+        _conversion?.Invoke(ut.JulianDay)
         ?? throw new InvalidOperationException(
-            "No UT->TT conversion is installed. The astronomy provider must set TtOffsets.Conversion; defaulting here "
+            "No UT->TT conversion is installed. The astronomy provider must call TtOffsets.Install; defaulting here "
             + "would make a delta-T difference invisible, which is the defect api#140 exists to remove.");
+
+    /// <summary>Clears the installation, for tests only.</summary>
+    /// <remarks>Public because the guard has to be exercised: a test that cannot reset it cannot prove the
+    /// missing-conversion branch fires. No production path calls this.</remarks>
+    public static void ResetForTests()
+    {
+        _conversion = null;
+        Interlocked.Exchange(ref _installed, 0);
+    }
 }
