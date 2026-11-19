@@ -104,6 +104,12 @@ public sealed class RemedyEmissionTests
     {
         // A graha can be withheld for want of a reference AND have a remedy suppressed for the same graha. Collapsing by
         // path alone would lose one of the two explanations.
+        //
+        // This asserts the STATED guarantee and deliberately no more: two different reasons on one path both survive.
+        // It does NOT assert total preservation, because an exact duplicate is collapsed on purpose (see
+        // An_exact_duplicate_is_collapsed_once). A test claiming everything survives would fail the day a third producer
+        // legitimately reuses a (path, reason) tuple, and the repair would then be to weaken this test rather than to
+        // add a distinct reason code - which is the wrong repair.
         var first = new[] { new KundaliUnsupportedField("Moon", "unvalidated-reference") };
         var second = new[] { new KundaliUnsupportedField("Moon", RemedyResolver.Reasons.InputMissing) };
 
