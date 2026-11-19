@@ -11,7 +11,18 @@ namespace MyVedicDay.Astronomy.Tests.Calculation;
 /// </summary>
 public sealed class UtInstantConversionTests
 {
-    /// <summary>The measured delta-T at J2000, in days, from the provider's own implementation.</summary>
+    /// <summary>The measured delta-T at J2000, in days.</summary>
+    /// <remarks>
+    /// <b>This literal is deliberately NOT derived from <see cref="DeltaT"/>.</b> Deriving it would call the same function
+    /// the conversion calls and compare the provider to itself - the api#131 tautology: a test that cannot disagree with
+    /// the thing it is testing. The value is written out so that a change to delta-T shows up here as a failure.
+    ///
+    /// Do not "fix" this into <c>DeltaT.ToJulianEphemerisDay(2451545.0)</c> in a DRY pass. The duplication looks like a
+    /// wart and IS the guard.
+    ///
+    /// This is a separate fact from the series pins below: those are protected by taking <c>atTt</c> through the
+    /// conversion rather than a hard-coded ephemeris day. One sentence covering both would hide one of them.
+    /// </remarks>
     private const double J2000DeltaTDays = 0.0007391204;
 
     public UtInstantConversionTests()
