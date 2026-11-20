@@ -114,4 +114,59 @@ public sealed class DependencyInspectionTests
         Assert.Contains("DE441", inventory, StringComparison.Ordinal);
         Assert.Contains("SwissEphNet", inventory, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Every_third_party_row_in_the_inventory_names_a_provenance_source()
+    {
+        // api#73 (FR-08 AC-1): a row that says "MIT" and nothing else is a claim with no provenance. Every row whose
+        // licence cell points at a section of the evidence document must carry, in that same document, a linked
+        // source. The licence alone is not evidence; the source is.
+        var inventory = File.ReadAllText(Path.Combine(SolutionRoot.FullName, "FR-08-DEPENDENCY-INVENTORY.md"));
+        var evidence = File.ReadAllText(Path.Combine(SolutionRoot.FullName, "FR-08-LICENSING-EVIDENCE.md"));
+
+        // Each "see evidence doc §N.M" reference in a licence cell must point at a section that exists.
+        var sectionReferences = System.Text.RegularExpressions.Regex
+            .Matches(inventory, @"evidence doc §(\d+(?:\.\d+)?)")
+            .Select(match => match.Groups[1].Value)
+            .Distinct()
+            .ToArray();
+        Assert.NotEmpty(sectionReferences);
+        foreach (var section in sectionReferences)
+            Assert.Contains("### " + section + " ", evidence, StringComparison.Ordinal);
+
+        // Every named dependency row must either carry its own link, or be one of the two rows this story recorded as
+        // having no stateable licence - and even those must name the URL they were actually checked against.
+        var rows = inventory
+            .Split('\n')
+            .Where(line => line.StartsWith("| ", StringComparison.Ordinal))
+            .Where(line => !line.Contains("---", StringComparison.Ordinal))
+            .Select(line => line.Trim('|', ' ').Split('|').Select(cell => cell.Trim()).ToArray())
+            .Where(cells => cells.Length >= 3)
+            .Where(cells => !cells[0].StartsWith("Package", StringComparison.OrdinalIgnoreCase)
+                            && !cells[0].StartsWith("Component", StringComparison.OrdinalIgnoreCase)
+                            && !cells[0].StartsWith("Dataset", StringComparison.OrdinalIgnoreCase)
+                            && !cells[0].StartsWith("*(none)*", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(rows);
+
+        var withoutEvidence = rows
+            .Where(cells => !cells.Any(cell => cell.Contains("http", StringComparison.OrdinalIgnoreCase))
+                            && !cells.Any(cell => cell.Contains("evidence doc", StringComparison.OrdinalIgnoreCase)))
+            .Select(cells => cells[0])
+            .ToArray();
+
+        Assert.True(withoutEvidence.Length == 0,
+            "These inventory rows state a licence with neither a source nor a pointer to the evidence document: "
+            + string.Join(", ", withoutEvidence));
+    }
+
+    [Fact]
+    public void The_inventory_does_not_claim_public_domain_for_the_spice_toolkit()
+    {
+        // api#73: the NAIF rules page never uses the words "public domain". It grants commercial use with no fee, an
+        // export classification and an AS-IS disclaimer with a recipient indemnity. Asserting a term the source does
+        // not use is the same defect as an unverified number, so a future edit cannot quietly put it back.
+        var inventory = File.ReadAllText(Path.Combine(SolutionRoot.FullName, "FR-08-DEPENDENCY-INVENTORY.md"));
+        Assert.DoesNotContain("Public domain", inventory, StringComparison.OrdinalIgnoreCase);
+    }
 }
