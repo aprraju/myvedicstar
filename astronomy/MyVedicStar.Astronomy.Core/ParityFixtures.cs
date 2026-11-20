@@ -50,8 +50,13 @@ public sealed record ParityFixtureRecord(
 /// absolute astronomical truth. That is exactly what the parity gate is for: it detects that SPICE and the analytical
 /// series disagree, which is the regression AST-06 must prevent.</para>
 /// <para>They are <b>not</b> an independent accuracy claim. Absolute accuracy against JPL Horizons
-/// (FR-02 AC-5, FR-04 AC-5) requires Horizons-derived fixtures, which this environment cannot fetch; that obligation
+/// (FR-02 AC-5, FR-04 AC-5) requires Horizons-derived fixtures, which live in a separate artifact
+/// (<c>horizons-fixtures.json</c>) so this file's self-comparison can never be mistaken for them. That obligation
 /// stays with AST-09 (#74) and is listed as outstanding rather than quietly satisfied by self-comparison.</para>
+/// <para><b>Correction:</b> this paragraph previously said Horizons "cannot be fetched" in this environment. That was
+/// wrong - the service is reachable from the build host, and a stale note claiming a capability is unavailable is the
+/// most expensive kind of comment, because it stops anyone from trying. What limits the fixture is not access but the
+/// <c>APPARENT</c>/geometric parameter set, which is unresolved (see #140).</para>
 /// </remarks>
 public static class ParityFixtures
 {
