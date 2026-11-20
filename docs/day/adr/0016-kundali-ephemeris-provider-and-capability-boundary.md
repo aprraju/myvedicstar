@@ -57,7 +57,33 @@ The engine therefore targets a pure-managed, high-precision VSOP87/ELP-2000 seri
 - Sun-Saturn: full VSOP87D (MPP02-class) heliocentric series plus geocentric reduction, light time and annual
   aberration - not the truncated Earth-only series. Truncation is chosen by tolerance budget and the chosen
   truncation is part of the engine version.
-- Moon: the full ELP-2000/82 series at a term count selected to hold the Lagna and pada budgets in section 4.
+- Moon: **Meeus chapter 47 truncated series** - 60 longitude/distance terms and 60 latitude terms, with the
+   accuracy stated in `LunarPosition.cs:10-11`: about 10 arcseconds in longitude, 4 in latitude.
+   **Correction record (#142, documentation only):** this line previously claimed "the full ELP-2000/82 series at
+   a term count selected to hold the Lagna and pada budgets in section 4". That overstated what shipped. **Method
+   of the count:** both term tables in `LunarPosition.cs` were counted as tuples by arity (6 fields for
+   longitude/distance, 5 for latitude) - 60 and 60 - and each block balances with zero leftover parentheses, so
+   the figures are the rows actually compiled, not a partial match.
+   **On the ~10" figure:** `LunarPosition.cs:10-11` states about 10 arcseconds longitude and 4 latitude for this
+   table. This ADR does not attribute that figure to a specific Meeus passage, so it is recorded here as the
+   implementation's own stated accuracy until a citation is added. The point stands regardless: the code was
+   honest about what it implements, and this ADR was the document that mis-described it.
+   **The consequence is a CONTRADICTION WITHIN THIS DOCUMENT, and it is an open defect.** Three lines disagree:
+   this section ships the ~10" Moon series; section 4 requires <= 3 arcseconds for the Moon and states its budgets
+   are "acceptance tolerances, not aspirations" whose breach "fails the build"; and the selection table above
+   rejects the same ~10" series as **"Demonstrably insufficient: Moon 10 arcseconds"**. In this ADR's own terms,
+   the configuration shipped is the one this document rejects, at the budget this document set. That is stated
+   as a contradiction rather than as a ratio, because a ratio invites a tolerance argument while "rejected by its
+   own selection table" does not.
+   **Resolution space - three options, none taken here:**
+   (a) ship a fuller lunar series that meets the <= 3" gate;
+   (b) an explicit owner decision to widen the Moon budget for this phase;
+   (c) reclassify section 4's Moon row as aspirational - **the heading explicitly forbids this**, so it can only
+   be chosen by the owner in writing, not by a documentation change.
+   **Section 4 itself is deliberately NOT edited in this PR:** a documentation correction that also moves the
+   acceptance budget would be two decisions in one diff, and the second is not the author's to make. **Status:
+   unresolved.** No code change is proposed: the implementation is correct for what it is.
+   **#140 must calibrate against the shipped ~10", not a full-ELP figure the code does not implement.**
 - Rahu/Ketu: mean lunar node (the standard convention); see section 3.6 for the explicit statement of what is and
   is not supported about the node.
 - Lagna: sidereal ascendant from local sidereal time and geographic latitude, using Lahiri ayanamsa as fixed by the
