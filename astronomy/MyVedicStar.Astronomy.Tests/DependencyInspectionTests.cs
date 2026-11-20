@@ -19,8 +19,14 @@ public sealed class DependencyInspectionTests
         }
     }
 
+    /// <summary>
+    /// Projects in the astronomy solution. Probes that consume the packages are deliberately excluded (api#76): a
+    /// probe must depend only on what ships, and asserting its project files here would let a probe reach into the
+    /// solution and still pass this test - the exact coupling the probe exists to rule out.
+    /// </summary>
     private static IEnumerable<FileInfo> ProjectFiles() =>
-        SolutionRoot.EnumerateFiles("*.csproj", SearchOption.AllDirectories);
+        SolutionRoot.EnumerateFiles("*.csproj", SearchOption.AllDirectories)
+            .Where(project => !project.FullName.Contains(".PackageCheck" + Path.DirectorySeparatorChar, StringComparison.Ordinal));
 
     private static string[] ReferencesOf(FileInfo project) =>
         XDocument.Load(project.FullName).Descendants("ProjectReference")

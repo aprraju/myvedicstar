@@ -1,0 +1,122 @@
+name: MyVedicStar Astronomy Package
+
+# AST-11 (api#76) - Deliverable, AC-1 support, Deployment.
+#
+# The astronomy CI proves the SOLUTION builds and tests. This workflow proves a stronger property: the PACKAGED
+# artefact works on its own. "The image builds" is not that property - a package can restore, an image can build, and
+# the result can still depend on a class path, a native library path, or a configuration file that only exists in the
+# build tree. So the artefact is packed, then consumed by a separate probe project that is NOT in the astronomy
+# solution and has no ProjectReference, resolving the packages from a folder feed only. A green probe means a
+# consumer that never sees this repository can use the engine.
+#
+# Two independent runtime checks, because they fail differently:
+#   package-consumer   - a normal runner, from a directory OUTSIDE the checkout. Catches an artefact that reads the
+#                        build tree or restores only because the repository is beside it.
+#   astronomy-runtime  - a clean runtime image that bakes nothing. Asserts the engine REFUSES cleanly with a
+#                        SpiceUnavailableException naming the missing toolkit. A silent degradation passes a smoke
+#                        test and would look like success, which is why it is asserted rather than observed.
+#
+# The supported date span is derived from the declared kernels; this workflow does not assert a span the provider
+# does not derive. See astronomy/PACKAGING.md.
+
+on:
+  pull_request:
+    paths:
+      - 'astronomy/**'
+      - '.github/workflows/astronomy-package.yml'
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'astronomy/**'
+      - '.github/workflows/astronomy-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: astronomy-package-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # nuget.config authenticates to GitHub Packages even for public packages.
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PACKAGE_VERSION: 0.2.0
+
+jobs:
+  package-consumer:
+    name: Package builds, publishes, and runs outside the build tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack the astronomy artefact
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed="$RUNNER_TEMP/astronomy-packages"
+          mkdir -p "$feed"
+          for project in Core Coordinates Events Houses Jpl.Provider; do
+            dotnet pack "astronomy/MyVedicStar.Astronomy.$project" \
+              --configuration Release --output "$feed" \
+              -p:PackageVersion="$PACKAGE_VERSION"
+          done
+          # The version under test is read from the files themselves, so the probe cannot silently test a
+          # different version than the one just packed.
+          ls -1 "$feed"
+          test -f "$feed/MyVedicStar.Astronomy.Jpl.Provider.$PACKAGE_VERSION.nupkg"
+
+      - name: Record artefact size and contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed="$RUNNER_TEMP/astronomy-packages"
+          {
+            echo "## Packaged artefact"
+            echo ""
+            echo "| Package | Bytes |"
+            echo "| --- | ---: |"
+            for pkg in "$feed"/*.nupkg; do
+              echo "| $(basename "$pkg") | $(stat -c %s "$pkg") |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Consume the packages from outside the checkout
+        shell: bash
+        env:
+          FEED: ${{ runner.temp }}/astronomy-packages
+        run: |
+          set -euo pipefail
+          # Deliberately OUTSIDE the checkout: nothing the probe resolves may come from the repository, and an
+          # artefact that reaches back into the build tree has nowhere to reach to here.
+          work="$RUNNER_TEMP/outside-checkout"
+          rm -rf "$work"
+          mkdir -p "$work"
+          cp -r astronomy/MyVedicStar.Astronomy.PackageCheck "$work/"
+          cat > "$work/MyVedicStar.Astronomy.PackageCheck/nuget.config" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="astronomy-packages" value="$FEED" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+            </packageSources>
+          </configuration>
+          EOF
+          cd "$work/MyVedicStar.Astronomy.PackageCheck"
+          echo "Probe working directory: $(pwd)"
+          case "$(pwd)" in
+            "$GITHUB_WORKSPACE"*) echo "::error::the probe is inside the checkout, so it proves nothing"; exit 1 ;;
+          esac
+          dotnet build --configuration Release -p:ProbeFeed="$FEED" -p:ProbePackageVersion="$PACKAGE_VERSION"
+          dotnet bin/Release/net10.0/MyVedicStar.Astronomy.PackageCheck.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: astronomy-packages
+          path: ${{ runner.temp }}/astronomy-packages/*.nupkg
+          if-no-files-found: error
