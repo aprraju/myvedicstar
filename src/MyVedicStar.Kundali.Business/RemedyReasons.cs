@@ -34,6 +34,18 @@ internal enum RemedyReason
 
     /// <summary>The finding was assessed but is not published (capability gap).</summary>
     CapabilityGap = 3,
+
+    /// <summary>The finding was assessed and is publishable, but the catalogue has no entry for its code.</summary>
+    /// <remarks>
+    /// <para><b>Distinct from every other reason because the cause is ours, not the engine's or the input's.</b>
+    /// The finding is real and evaluated; there is simply nothing written for it yet. Reported as
+    /// <see cref="InputMissing"/> it would tell a user their birth data was inadequate, and as nothing at all it would
+    /// render as "no remedy applies to this finding", which is a claim we cannot support.</para>
+    /// <para>Only reachable from a positively evaluated finding. A finding the engine could not assess reports
+    /// <see cref="InputMissing"/> even when the catalogue is also empty, because "we did not assess it" is true about
+    /// the engine while "the catalogue has nothing" is only true about us.</para>
+    /// </remarks>
+    CatalogueMissing = 4,
 }
 
 /// <summary>Wire text for <see cref="RemedyReason"/>: the only place a reason string is written down.</summary>
@@ -60,6 +72,7 @@ public static class Reasons
         RemedyReason.StoredStatusUnreadable => "stored-status-unreadable",
         RemedyReason.InputMissing => "input-missing",
         RemedyReason.CapabilityGap => "capability-gap",
+        RemedyReason.CatalogueMissing => "catalogue-missing",
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason,
             "Unrecognised remedy reason. Every cause needs its own stable wire text."),
     };

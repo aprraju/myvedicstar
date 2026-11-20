@@ -144,6 +144,26 @@ public sealed class RemedyResolverTests
     }
 
     [Fact]
+    public void The_declared_outcome_set_is_exactly_the_ones_this_design_names()
+    {
+        // Pins the CLOSED SET, which nothing did before: RemedyOutcome was mentioned in tests but never enumerated, so a
+        // fifth member could be added with every test green. RemedyReason already had this pin; RemedyOutcome did not.
+        //
+        // Two properties, deliberately:
+        //  - ADDITION: Enum.GetValues sees a new member, so the explicit expected list fails on it.
+        //  - REMOVAL: the expected list is written out, not derived from the enum, so a removed member still fails.
+        // A pin that only iterated the enum would catch growth and silently allow shrinkage - half a pin.
+        //
+        // The assertion compares NAMES via the explicit list rather than the collection count, so a failure names the
+        // member that is missing or unexpected instead of reporting a length mismatch.
+        var declared = Enum.GetValues<RemedyOutcome>().Select(outcome => outcome.ToString()).ToArray();
+
+        Assert.Equal(
+            ["Unspecified", "Attached", "NotEvaluated", "Withheld", "UnknownCode", "CatalogueMissing"],
+            declared);
+    }
+
+    [Fact]
     public void The_reserved_zero_outcome_is_not_the_renderable_one()
     {
         // default(RemedyOutcome) is what an uninitialised variable holds. If that were Attached, a bug elsewhere could
