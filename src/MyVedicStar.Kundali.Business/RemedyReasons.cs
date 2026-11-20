@@ -11,7 +11,7 @@ namespace MyVedicStar.Kundali.Business;
 /// <para><b>Values are stable and must not be renumbered.</b> They may appear in logs. The wire text is what clients
 /// see and what the contract promises, and it lives in exactly one place: <see cref="Reasons.ToWire"/>.</para>
 /// </remarks>
-public enum RemedyReason
+internal enum RemedyReason
 {
     /// <summary>The code is not produced by the current engine result at all.</summary>
     CatalogueStale = 0,
@@ -45,9 +45,16 @@ public enum RemedyReason
 /// </remarks>
 public static class Reasons
 {
+    // ToWire is public because the emission path calls it; the ENUM is internal so a serialiser cannot meet it.
+    // See RemedyResolution.ReasonWire for why that matters.
+
     /// <summary>The stable wire text for a reason.</summary>
     /// <exception cref="ArgumentOutOfRangeException">A value cast past the declared members.</exception>
-    public static string ToWire(RemedyReason reason) => reason switch
+    /// <remarks>
+    /// Internal, because its parameter type is internal - and that is the point: the enum cannot flow out to a
+    /// serializer, so the wire text is the only form that can leave the assembly.
+    /// </remarks>
+    internal static string ToWire(RemedyReason reason) => reason switch
     {
         RemedyReason.CatalogueStale => "catalogue-stale",
         RemedyReason.StoredStatusUnreadable => "stored-status-unreadable",

@@ -45,10 +45,32 @@ public enum RemedyOutcome
 /// <param name="Reason">Why this outcome applies. Non-null for every non-attached outcome; deliberately nullable for
 /// <see cref="RemedyOutcome.Attached"/> because an attachment needs no explanation - the same shape
 /// <c>KundaliChartPrecision.Status</c> uses.</param>
-public sealed record RemedyResolution(RemedyOutcome Outcome, string FindingCode, RemedyReason? Reason)
+public sealed record RemedyResolution(RemedyOutcome Outcome, string FindingCode)
 {
+    /// <summary>
+    /// The reason as its stable wire text, or null when the outcome needs no explanation.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>This is the only way a reason becomes text, and <see cref="Reason"/> is deliberately not public.</b> If
+    /// the enum were public, a serializer meeting it would emit the member name - <c>"CatalogueStale"</c> - while every
+    /// test still passed, because no test asserts what the serializer does with the enum. The wire value would then be
+    /// decided by reflection rather than by <see cref="Reasons.ToWire"/>, and the closed set would protect nothing at
+    /// the boundary it exists for.</para>
+    /// <para>Keeping the enum internal means it cannot reach a serializer at all: there is no public surface to
+    /// serialize it from. Tests are in a separate assembly and reach the reason through
+    /// <c>InternalsVisibleTo</c> if needed.</para>
+    /// </remarks>
+    /// <summary>
+    /// Why this outcome applies. Internal, so it cannot reach a serializer: see <see cref="ReasonWire"/>.
+    /// </summary>
+    internal RemedyReason? Reason { get; init; }
+
     /// <summary>The reason as its stable wire text, or null when the outcome needs no explanation.</summary>
     public string? ReasonWire => Reason is { } reason ? Reasons.ToWire(reason) : null;
+
+    /// <summary>Builds a resolution carrying a reason.</summary>
+    internal static RemedyResolution WithReason(RemedyOutcome outcome, string findingCode, RemedyReason reason) =>
+        new(outcome, findingCode) { Reason = reason };
 }
 
 /// <summary>
@@ -89,7 +111,7 @@ public static class RemedyResolver
         // Default-deny, spelled out: the attaching case is the one that must be positively proved, so it is the case
         // that requires a located finding AND an evaluated state. Everything else is a refusal with its own reason.
         if (!findings.TryGetValue(findingCode, out var state))
-            return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, RemedyReason.CatalogueStale);
+            return RemedyResolution.WithReason(RemedyOutcome.UnknownCode, findingCode, RemedyReason.CatalogueStale);
 
         // No discard arm - and MEASURED, NOT ASSUMED: adding a fifth member to RemedyFindingState did NOT fail the
         // build here. CS8509 did not fire and TreatWarningsAsErrors had nothing to escalate, and the reason is worth
@@ -103,11 +125,11 @@ public static class RemedyResolver
         // build failure.
         return state switch
         {
-            RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode, null),
-            RemedyFindingState.NotEvaluated => new RemedyResolution(RemedyOutcome.NotEvaluated, findingCode,
-                RemedyReason.InputMissing),
-            RemedyFindingState.Withheld => new RemedyResolution(RemedyOutcome.Withheld, findingCode,
-                RemedyReason.CapabilityGap),
+            RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode),
+            RemedyFindingState.NotEvaluated => RemedyResolution.WithReason(RemedyOutcome.NotEvaluated,
+                findingCode, RemedyReason.InputMissing),
+            RemedyFindingState.Withheld => RemedyResolution.WithReason(RemedyOutcome.Withheld,
+                findingCode, RemedyReason.CapabilityGap),
 
             // Reachable only for a value cast past the declared members. It is here because the compiler does not
             // enforce the closed set in this repository (see the note above), so an unrecognised state must refuse
@@ -145,7 +167,7 @@ public static class RemedyResolver
         if (IsKnownStatusText(storedStatusText))
             return Resolve(findingCode, findings);
 
-        return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, RemedyReason.StoredStatusUnreadable);
+        return RemedyResolution.WithReason(RemedyOutcome.UnknownCode, findingCode, RemedyReason.StoredStatusUnreadable);
     }
 
     private static bool IsKnownStatusText(string? text) => text?.Trim().ToLowerInvariant() switch
