@@ -34,6 +34,18 @@ public enum RemedyOutcome
 
     /// <summary>The code resolved to no finding at all in this result - the catalogue entry is stale or superseded.</summary>
     UnknownCode = 4,
+
+    /// <summary>The finding was evaluated and is publishable, but the catalogue offers nothing for it.</summary>
+    /// <remarks>
+    /// <para><b>Why this is a state of the world, not a fifth explanation of the same state.</b> The other four describe
+    /// what happened to <i>the finding</i>: evaluated, unassessable, withheld, absent. This one describes a finding that is
+    /// perfectly fine and a catalogue that is silent. Collapsing it into a reason on another outcome would put two
+    /// contradictory facts on the wire at once - an accurate <c>Evaluated</c> status reported through a non-attached
+    /// outcome - and a consumer would believe whichever field it read first.</para>
+    /// <para>Reachable <b>only</b> from a positively evaluated finding. A finding the engine could not assess stays
+    /// <see cref="NotEvaluated"/> even when the catalogue is also empty.</para>
+    /// </remarks>
+    CatalogueMissing = 5,
 }
 
 /// <summary>

@@ -1213,10 +1213,25 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
         var (emitted, emissionUnsupported) = RemedyEmission.Select(candidates);
 
+        // Findings and catalogue compared HERE, not in RemedyEmission.Select: that loop iterates the CATALOGUE, so a
+        // finding the catalogue has no entry for is never visited and cannot be reported from there. This is the only
+        // place where both sets are in hand.
+        //
+        // Only a positively Evaluated finding can produce CatalogueMissing. A NotEvaluated finding stays NotEvaluated
+        // even when the catalogue is also empty: "we did not assess it" is a fact about the engine, "the catalogue has
+        // nothing" is only a fact about us, and the engine fact outranks it. Without this filter the new outcome would
+        // absorb the old distinction instead of adding to it.
+        var catalogueMissing = stateByCode
+            .Where(finding => finding.Value == RemedyFindingState.Evaluated
+                && RemedyCatalogue.For(finding.Key) is null)
+            .Select(finding => new KundaliUnsupportedField(finding.Key,
+                Reasons.ToWire(RemedyReason.CatalogueMissing)))
+            .ToArray();
+
         return new KundaliRemediesSection(
             RemedyCatalogue.Version,
             emitted,
-            RemedyEmission.MergeUnsupported(capabilityUnsupported, emissionUnsupported));
+            RemedyEmission.MergeUnsupported(capabilityUnsupported, emissionUnsupported, catalogueMissing));
     }
 
     /// <summary>Sign index 0..11 per graha, for the rule engine. Grahas without a longitude are omitted.</summary>
