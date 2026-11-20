@@ -57,12 +57,12 @@ public static class RemedyEmission
 
                 case RemedyFindingState.NotEvaluated:
                     unsupported.Add(new KundaliUnsupportedField(remedy.FindingCode,
-                        RemedyResolver.Reasons.InputMissing));
+                        Reasons.ToWire(RemedyReason.InputMissing)));
                     break;
 
                 case RemedyFindingState.Withheld:
                     unsupported.Add(new KundaliUnsupportedField(remedy.FindingCode,
-                        RemedyResolver.Reasons.CapabilityGap));
+                        Reasons.ToWire(RemedyReason.CapabilityGap)));
                     break;
 
                 // Runtime refusal for a value cast past the declared members. A new declared member reaches this arm
