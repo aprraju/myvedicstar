@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- AST-11 (api#76). A separate, tiny, solution-external consumer of the PACKAGED MyVedicStar.Astronomy.* assemblies.
+
+       Why this project exists at all: a package can restore and still be unusable - a provider that cannot find its
+       native library, a configuration type that is internal, a contract that only compiles because the build tree
+       happened to be next to it. This probe is deliberately NOT in MyVedicStar.Astronomy.slnx and references no
+       project inside it. It consumes the .nupkg files from a local folder feed only, so if it builds and its checks
+       pass, the shipped artefact works on its own. The CI job runs it from a directory outside the checkout to prove
+       that the artefact does not read the build tree: anything it needs that is missing at run time would fail here
+       rather than in a consumer's deployment. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>MyVedicStar.Astronomy.PackageCheck</RootNamespace>
+
+    <!-- The version under test is supplied by CI from the .nupkg file names, so this file never carries a stale
+         number that would silently test a different build. A local run must pass -p:PackageVersion=... -->
+    <ProbePackageVersion Condition="'$(ProbePackageVersion)' == ''">0.2.0</ProbePackageVersion>
+
+    <!-- Packages come from the folder feed only. No ProjectReference and no implicit reference into the astronomy
+         solution is possible, which is the point of the probe. -->
+    <RestoreSources>$(ProbeFeed)</RestoreSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MyVedicStar.Astronomy.Core" Version="$(ProbePackageVersion)" />
+    <PackageReference Include="MyVedicStar.Astronomy.Coordinates" Version="$(ProbePackageVersion)" />
+    <PackageReference Include="MyVedicStar.Astronomy.Events" Version="$(ProbePackageVersion)" />
+    <PackageReference Include="MyVedicStar.Astronomy.Houses" Version="$(ProbePackageVersion)" />
+    <PackageReference Include="MyVedicStar.Astronomy.Jpl.Provider" Version="$(ProbePackageVersion)" />
+  </ItemGroup>
+
+</Project>
