@@ -23,6 +23,7 @@ public sealed class HorizonHeaderAssertionTests
         "Center geodetic : 144.59, 43.0781806, .132201     {E-lon(deg),Lat(deg),Alt(km)}",
         "Output units    : AU-D",
         "Reference frame : Ecliptic of J2000.0",
+        "2451544.500000000 = A.D. 2000-Jan-01 00:00:00.0000 TDB",
     ];
 
     private static readonly string[] GeocentricHeader =
@@ -33,6 +34,7 @@ public sealed class HorizonHeaderAssertionTests
         "Center geodetic : 0.0, 0.0, 0.0                   {E-lon(deg),Lat(deg),Alt(km)}",
         "Output units    : KM-S",
         "Reference frame : Ecliptic of J2000.0",
+        "2451544.500000000 = A.D. 2000-Jan-01 00:00:00.0000 TDB",
     ];
 
     [Fact]
@@ -40,17 +42,42 @@ public sealed class HorizonHeaderAssertionTests
     {
         var problems = HorizonHeaderAssertions.Check(TopocentricHeader);
 
-        // Exactly one problem: target body and centre body agree, so a check that only looked at those would pass.
-        // The site is the only line that reveals the 245 arcsecond parallax.
-        Assert.Single(problems);
-        Assert.Contains("Center-site name", problems[0], StringComparison.Ordinal);
-        Assert.Contains("500@399", problems[0], StringComparison.Ordinal);
+        // Target body and centre body both agree, so a check that only looked at those would pass this header. The
+        // site is the line that reveals the 245 arcsecond parallax; the units differ too (AU-D vs KM-S), and both are
+        // reported.
+        Assert.Contains(problems, p => p.Contains("Center-site name", StringComparison.Ordinal)
+            && p.Contains("500@399", StringComparison.Ordinal));
     }
 
     [Fact]
     public void A_geocentric_header_passes()
     {
         Assert.Empty(HorizonHeaderAssertions.Check(GeocentricHeader));
+    }
+
+    [Fact]
+    public void The_wrong_units_are_refused_by_name()
+    {
+        // The topocentric header is wrong in two ways: the site AND the units. Both must be reported, because a
+        // vector in AU compared against one in KM looks like a scale error rather than a unit error.
+        var problems = HorizonHeaderAssertions.Check(TopocentricHeader);
+
+        Assert.Equal(2, problems.Count);
+        Assert.Contains(problems, p => p.Contains("Center-site name", StringComparison.Ordinal));
+        Assert.Contains(problems, p => p.Contains("Output units", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_missing_time_scale_on_the_epoch_lines_is_refused()
+    {
+        var header = GeocentricHeader
+            .Select(line => line.EndsWith(" TDB", StringComparison.Ordinal) ? line[..^4] + " UT" : line)
+            .ToArray();
+
+        var problems = HorizonHeaderAssertions.Check(header);
+
+        Assert.Single(problems);
+        Assert.Contains("time scale", problems[0], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -65,7 +92,8 @@ public sealed class HorizonHeaderAssertionTests
 
         var problems = HorizonHeaderAssertions.Check(header);
 
-        Assert.Equal(2, problems.Count);
+        // Asserted by presence, not by count: the header is already wrong in other ways, and pinning the total would
+        // make this test fail every time a new named assertion is added rather than when the frame is wrong.
         Assert.Contains(problems, p => p.Contains("Center-site name", StringComparison.Ordinal));
         Assert.Contains(problems, p => p.Contains("Reference frame", StringComparison.Ordinal));
     }
@@ -77,7 +105,9 @@ public sealed class HorizonHeaderAssertionTests
         // empty result instead of an error.
         var problems = HorizonHeaderAssertions.Check([]);
 
-        Assert.Equal(2, problems.Count);
+        // Every named assertion must fire, and there is more than one, so an empty header can never read as clean.
+        Assert.NotEmpty(problems);
+        Assert.True(problems.Count > 2, "An empty header should trip every named assertion, not just a couple.");
     }
 
     [Fact]
