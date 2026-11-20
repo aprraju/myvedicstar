@@ -48,3 +48,8 @@ visible diff.
 Moon, which pin the analytical provider against a published source. They do **not** constitute an independent
 accuracy claim for SPICE: comparing SPICE to the analytical series proves the two *agree*, not that either is right.
 Absolute accuracy against JPL Horizons remains AST-09 (#74) work, and is listed as outstanding rather than implied.
+
+**Correction (this document previously said Horizons could not be fetched here):** that was wrong. The service is
+reachable from the build host. What remains unresolved is the `APPARENT`/geometric parameter set, not access — see
+#140. A note that claims a capability is unavailable is a self-fulfilling blocker: it has already cost one round of
+work, and it is the reason this line is corrected rather than deleted.
