@@ -171,7 +171,7 @@ jobs:
             echo "- Image size: **$((size / 1024 / 1024)) MiB** ($size bytes)"
             echo "- Probe wall time (container start to verdict): **$(( (end - start) / 1000000 )) ms**"
             echo "- Kernels baked into this image: **none** (by design - see astronomy/PACKAGING.md)"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: The engine must refuse, not degrade, with no kernel or toolkit
         shell: bash
