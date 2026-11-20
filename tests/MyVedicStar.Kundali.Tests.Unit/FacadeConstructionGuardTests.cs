@@ -68,6 +68,11 @@ public sealed class FacadeConstructionGuardTests
         // And it must not fire on the helper form, or the remedy would trip its own guard.
         Assert.False(ContainsBareConstruction("var facade = KundaliTestProvider.Create();"));
         Assert.False(ContainsBareConstruction("var facade = KundaliTestProvider.Create().With(clock);"));
+
+        // A file truncated mid-token must not be reported clean. This is the end-of-input path: with an early
+        // `return false` from the whole scan, a trailing `new ` or `new KundaliFacade` would pass silently.
+        Assert.True(ContainsBareConstruction("var facade = new "));
+        Assert.True(ContainsBareConstruction("var facade = new KundaliFacade"));
     }
 
     /// <summary>
@@ -80,11 +85,17 @@ public sealed class FacadeConstructionGuardTests
         while ((index = text.IndexOf("new", index, StringComparison.Ordinal)) >= 0)
         {
             var cursor = index + 3;
-            if (SkipWhitespace(text, ref cursor, out _) is false) return false;
+
+            // End of input while skipping whitespace after "new": the token could not be read, so this text may well
+            // be a truncated construction. Report it rather than falling through to a clean result - for a guard the
+            // safe direction is to fail loudly, and a file that ends at `new ` is not something a human wrote on
+            // purpose in a compiling tree.
+            if (SkipWhitespace(text, ref cursor, out _) is false) return true;
             if (!StartsWith(text, cursor, "KundaliFacade")) { index = cursor; continue; }
 
             cursor += "KundaliFacade".Length;
-            if (SkipWhitespace(text, ref cursor, out _) is false) return false;
+            // Same for a trailing `new KundaliFacade`, which is a construction whose argument list is cut off.
+            if (SkipWhitespace(text, ref cursor, out _) is false) return true;
             if (cursor < text.Length && text[cursor] == '(') return true;
 
             index = cursor;
