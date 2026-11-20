@@ -120,3 +120,68 @@ jobs:
           name: astronomy-packages
           path: ${{ runner.temp }}/astronomy-packages/*.nupkg
           if-no-files-found: error
+
+  astronomy-runtime:
+    name: Image builds and the engine refuses without a toolkit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack the astronomy artefact
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed="$RUNNER_TEMP/astronomy-packages"
+          mkdir -p "$feed"
+          for project in Core Coordinates Events Houses Jpl.Provider; do
+            dotnet pack "astronomy/MyVedicStar.Astronomy.$project" \
+              --configuration Release --output "$feed" \
+              -p:PackageVersion="$PACKAGE_VERSION"
+          done
+
+      - name: Build the runtime image with the packages baked in
+        shell: bash
+        env:
+          FEED: ${{ runner.temp }}/astronomy-packages
+        run: |
+          set -euo pipefail
+          docker build \
+            --file astronomy/runtime/Dockerfile \
+            --build-context probesrc=astronomy/MyVedicStar.Astronomy.PackageCheck \
+            --build-arg PACKAGE_VERSION="$PACKAGE_VERSION" \
+            --tag myvedicstar-astronomy-runtime:ci \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            "$FEED"
+
+      - name: Record image size and start-up
+        shell: bash
+        run: |
+          set -euo pipefail
+          size=$(docker image inspect myvedicstar-astronomy-runtime:ci --format '{{.Size}}')
+          start=$(date +%s%N)
+          docker run --rm myvedicstar-astronomy-runtime:ci --expect-no-toolkit > "$RUNNER_TEMP/probe.log" 2>&1
+          end=$(date +%s%N)
+          cat "$RUNNER_TEMP/probe.log"
+          {
+            echo "## Runtime image"
+            echo ""
+            echo "- Image size: **$((size / 1024 / 1024)) MiB** ($size bytes)"
+            echo "- Probe wall time (container start to verdict): **$(( (end - start) / 1000000 )) ms**"
+            echo "- Kernels baked into this image: **none** (by design - see astronomy/PACKAGING.md)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: The engine must refuse, not degrade, with no kernel or toolkit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'RESULT: all package checks passed' "$RUNNER_TEMP/probe.log"; then
+            echo "::error::the toolkit-free probe did not pass; see the log above"
+            exit 1
+          fi
+          grep -q 'SpiceUnavailableException' "$RUNNER_TEMP/probe.log" || {
+            echo "::error::the engine did not name its missing dependency; a silent fallback is not acceptable"
+            exit 1
+          }
