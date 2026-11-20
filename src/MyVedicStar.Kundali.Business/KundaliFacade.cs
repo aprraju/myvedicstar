@@ -1228,10 +1228,23 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
                 Reasons.ToWire(RemedyReason.CatalogueMissing)))
             .ToArray();
 
+        // api#154: the same shape one row down. A finding the engine could NOT assess, whose code the catalogue does
+        // not carry, was likewise never visited - invisible in both lists. Its reason is InputMissing, not
+        // CatalogueMissing: "we did not assess it" is a fact about the engine and outranks "the catalogue has nothing",
+        // which is only a fact about us. The distinction is the whole point of this issue, so it is asserted on the
+        // wire text rather than on presence alone.
+        var unassessableWithoutEntry = stateByCode
+            .Where(finding => finding.Value == RemedyFindingState.NotEvaluated
+                && RemedyCatalogue.For(finding.Key) is null)
+            .Select(finding => new KundaliUnsupportedField(finding.Key,
+                Reasons.ToWire(RemedyReason.InputMissing)))
+            .ToArray();
+
         return new KundaliRemediesSection(
             RemedyCatalogue.Version,
             emitted,
-            RemedyEmission.MergeUnsupported(capabilityUnsupported, emissionUnsupported, catalogueMissing));
+            RemedyEmission.MergeUnsupported(capabilityUnsupported, emissionUnsupported, catalogueMissing,
+                unassessableWithoutEntry));
     }
 
     /// <summary>Sign index 0..11 per graha, for the rule engine. Grahas without a longitude are omitted.</summary>
