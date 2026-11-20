@@ -45,7 +45,33 @@ public enum RemedyOutcome
 /// <param name="Reason">Why this outcome applies. Non-null for every non-attached outcome; deliberately nullable for
 /// <see cref="RemedyOutcome.Attached"/> because an attachment needs no explanation - the same shape
 /// <c>KundaliChartPrecision.Status</c> uses.</param>
-public sealed record RemedyResolution(RemedyOutcome Outcome, string FindingCode, string? Reason);
+public sealed record RemedyResolution(RemedyOutcome Outcome, string FindingCode)
+{
+    /// <summary>
+    /// The reason as its stable wire text, or null when the outcome needs no explanation.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>This is the only way a reason becomes text, and <see cref="Reason"/> is deliberately not public.</b> If
+    /// the enum were public, a serializer meeting it would emit the member name - <c>"CatalogueStale"</c> - while every
+    /// test still passed, because no test asserts what the serializer does with the enum. The wire value would then be
+    /// decided by reflection rather than by <see cref="Reasons.ToWire"/>, and the closed set would protect nothing at
+    /// the boundary it exists for.</para>
+    /// <para>Keeping the enum internal means it cannot reach a serializer at all: there is no public surface to
+    /// serialize it from. Tests are in a separate assembly and reach the reason through
+    /// <c>InternalsVisibleTo</c> if needed.</para>
+    /// </remarks>
+    /// <summary>
+    /// Why this outcome applies. Internal, so it cannot reach a serializer: see <see cref="ReasonWire"/>.
+    /// </summary>
+    internal RemedyReason? Reason { get; init; }
+
+    /// <summary>The reason as its stable wire text, or null when the outcome needs no explanation.</summary>
+    public string? ReasonWire => Reason is { } reason ? Reasons.ToWire(reason) : null;
+
+    /// <summary>Builds a resolution carrying a reason.</summary>
+    internal static RemedyResolution WithReason(RemedyOutcome outcome, string findingCode, RemedyReason reason) =>
+        new(outcome, findingCode) { Reason = reason };
+}
 
 /// <summary>
 /// Decides whether a stored remedy may be shown, by resolving its finding code against the current finding set.
@@ -67,42 +93,6 @@ public sealed record RemedyResolution(RemedyOutcome Outcome, string FindingCode,
 /// </remarks>
 public static class RemedyResolver
 {
-    /// <summary>Reason codes attached to a non-attached outcome. Stable; a client may switch on these.</summary>
-    public static class Reasons
-    {
-        /// <summary>The code is not produced by the current engine result at all.</summary>
-        public const string CatalogueStale = "catalogue-stale";
-
-        /// <summary>The code appeared in the stored payload but its status could not be read back.</summary>
-        /// <remarks>
-        /// <para><b>This is a normal path, not a corruption case.</b> Sections persist per revision by design,
-        /// so any remedy that outlives a vocabulary change reaches this state. It is expected traffic that must
-        /// be handled, not defensive coding against data that cannot occur - a branch classified the latter way
-        /// gets deleted in a tidy-up.</para>
-        /// Distinct from <see cref="CatalogueStale"/> on purpose. Both land on <see cref="RemedyOutcome.UnknownCode"/>
-        /// because neither may render a remedy, but they have different causes and different fixes: one means the
-        /// catalogue moved on, the other means the stored payload was written under a vocabulary this build no longer
-        /// reads. Collapsing them would send a maintainer to the catalogue for a problem that is in the stored revision.
-        /// </remarks>
-        public const string StoredStatusUnreadable = "stored-status-unreadable";
-
-        /// <summary>The finding could not be assessed because an input was missing.</summary>
-        public const string InputMissing = "input-missing";
-
-        /// <summary>The finding was assessed but is not published (capability gap).</summary>
-        public const string CapabilityGap = "capability-gap";
-
-        /// <summary>
-        /// The refusal raised when state carries a value outside the declared members.
-        /// </summary>
-        /// <remarks>
-        /// A shared identifier, not shared prose: the producer and the test both name this constant, so rewording the
-        /// message cannot leave a test asserting a string nothing emits any more. A message assertion with no shared
-        /// identifier is a spell-check rather than a contract.
-        /// </remarks>
-        public const string UnrecognisedStateMessage =
-            "Unrecognised finding state. The resolver is default-deny: an unknown state must never attach a remedy.";
-    }
 
 
 
@@ -121,7 +111,7 @@ public static class RemedyResolver
         // Default-deny, spelled out: the attaching case is the one that must be positively proved, so it is the case
         // that requires a located finding AND an evaluated state. Everything else is a refusal with its own reason.
         if (!findings.TryGetValue(findingCode, out var state))
-            return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, Reasons.CatalogueStale);
+            return RemedyResolution.WithReason(RemedyOutcome.UnknownCode, findingCode, RemedyReason.CatalogueStale);
 
         // No discard arm - and MEASURED, NOT ASSUMED: adding a fifth member to RemedyFindingState did NOT fail the
         // build here. CS8509 did not fire and TreatWarningsAsErrors had nothing to escalate, and the reason is worth
@@ -135,11 +125,11 @@ public static class RemedyResolver
         // build failure.
         return state switch
         {
-            RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode, null),
-            RemedyFindingState.NotEvaluated => new RemedyResolution(RemedyOutcome.NotEvaluated, findingCode,
-                Reasons.InputMissing),
-            RemedyFindingState.Withheld => new RemedyResolution(RemedyOutcome.Withheld, findingCode,
-                Reasons.CapabilityGap),
+            RemedyFindingState.Evaluated => new RemedyResolution(RemedyOutcome.Attached, findingCode),
+            RemedyFindingState.NotEvaluated => RemedyResolution.WithReason(RemedyOutcome.NotEvaluated,
+                findingCode, RemedyReason.InputMissing),
+            RemedyFindingState.Withheld => RemedyResolution.WithReason(RemedyOutcome.Withheld,
+                findingCode, RemedyReason.CapabilityGap),
 
             // Reachable only for a value cast past the declared members. It is here because the compiler does not
             // enforce the closed set in this repository (see the note above), so an unrecognised state must refuse
@@ -162,7 +152,7 @@ public static class RemedyResolver
     /// enum-to-decision, but neither protects against a payload that was <i>stored</i> under a vocabulary this build no
     /// longer reads. Sections persist per revision, so that payload is served long after it was written.</para>
     /// <para>An unreadable stored status resolves to <see cref="RemedyOutcome.UnknownCode"/> - it must not render - but
-    /// its reason is <see cref="Reasons.StoredStatusUnreadable"/>, not <see cref="Reasons.CatalogueStale"/>. Same
+    /// its reason is <see cref="RemedyReason.StoredStatusUnreadable"/>, not <see cref="RemedyReason.CatalogueStale"/>. Same
     /// outcome, different cause, different fix: the catalogue is fine, the stored revision is the problem.</para>
     /// </remarks>
     public static RemedyResolution ResolveStored(string findingCode, string? storedStatusText,
@@ -177,10 +167,10 @@ public static class RemedyResolver
         if (IsKnownStatusText(storedStatusText))
             return Resolve(findingCode, findings);
 
-        return new RemedyResolution(RemedyOutcome.UnknownCode, findingCode, Reasons.StoredStatusUnreadable);
+        return RemedyResolution.WithReason(RemedyOutcome.UnknownCode, findingCode, RemedyReason.StoredStatusUnreadable);
     }
 
-    private static bool IsKnownStatusText(string text) => text.Trim().ToLowerInvariant() switch
+    private static bool IsKnownStatusText(string? text) => text?.Trim().ToLowerInvariant() switch
     {
         "evaluated" or "not-evaluated" or "withheld" => true,
         // No default arm: an unrecognised stored status is the case this method exists to name.

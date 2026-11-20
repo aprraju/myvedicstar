@@ -24,7 +24,7 @@ public sealed class RemedyResolverTests
 
         Assert.Equal(RemedyOutcome.UnknownCode, resolution.Outcome);
         Assert.NotNull(resolution.Reason);
-        Assert.Equal(RemedyResolver.Reasons.CatalogueStale, resolution.Reason);
+        Assert.Equal(RemedyReason.CatalogueStale, resolution.Reason);
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public sealed class RemedyResolverTests
 
         Assert.Equal(RemedyOutcome.NotEvaluated, resolution.Outcome);
         Assert.NotNull(resolution.Reason);
-        Assert.Equal(RemedyResolver.Reasons.InputMissing, resolution.Reason);
-        Assert.NotEqual(RemedyResolver.Reasons.CatalogueStale, resolution.Reason);
+        Assert.Equal(RemedyReason.InputMissing, resolution.Reason);
+        Assert.NotEqual(RemedyReason.CatalogueStale, resolution.Reason);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class RemedyResolverTests
 
         Assert.Equal(RemedyOutcome.Withheld, resolution.Outcome);
         Assert.NotNull(resolution.Reason);
-        Assert.Equal(RemedyResolver.Reasons.CapabilityGap, resolution.Reason);
+        Assert.Equal(RemedyReason.CapabilityGap, resolution.Reason);
     }
 
     [Fact]
@@ -68,7 +68,10 @@ public sealed class RemedyResolverTests
 
         var reasons = new[] { unknown.Reason, notEvaluated.Reason, withheld.Reason };
         Assert.Equal(3, reasons.Distinct().Count());
-        Assert.All(reasons, reason => Assert.False(string.IsNullOrWhiteSpace(reason)));
+        // Every non-attached outcome names its own cause, and the enum makes "named" a type-level fact rather than a
+        // non-empty-string check - the three are distinct members, not three strings that happen to differ.
+        Assert.All(reasons, reason => Assert.NotNull(reason));
+        Assert.Equal(3, reasons.Select(RemedyReason? (r) => r).Distinct().Count());
     }
 
     // ---- the attaching case, proved positively ----
@@ -137,7 +140,7 @@ public sealed class RemedyResolverTests
         // message it was constructed with - so an equality assertion here would fail on framework formatting rather
         // than on the guard, and would have to hard-code the suffix to pass, which is the transcription this constant
         // exists to avoid.
-        Assert.Contains(RemedyResolver.Reasons.UnrecognisedStateMessage, failure.Message, StringComparison.Ordinal);
+        Assert.Contains(MyVedicStar.Kundali.Business.Reasons.UnrecognisedStateMessage, failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -160,8 +163,8 @@ public sealed class RemedyResolverTests
         var fromPayload = RemedyResolver.ResolveStored("dosha:mangal", "some-retired-status", Findings());
 
         Assert.Equal(fromCatalogue.Outcome, fromPayload.Outcome);
-        Assert.Equal(RemedyResolver.Reasons.CatalogueStale, fromCatalogue.Reason);
-        Assert.Equal(RemedyResolver.Reasons.StoredStatusUnreadable, fromPayload.Reason);
+        Assert.Equal(RemedyReason.CatalogueStale, fromCatalogue.Reason);
+        Assert.Equal(RemedyReason.StoredStatusUnreadable, fromPayload.Reason);
         Assert.NotEqual(fromCatalogue.Reason, fromPayload.Reason);
     }
 
@@ -173,7 +176,7 @@ public sealed class RemedyResolverTests
         var resolution = RemedyResolver.ResolveStored("dosha:mangal", "evaluated", Findings());
 
         Assert.Equal(RemedyOutcome.UnknownCode, resolution.Outcome);
-        Assert.Equal(RemedyResolver.Reasons.CatalogueStale, resolution.Reason);
+        Assert.Equal(RemedyReason.CatalogueStale, resolution.Reason);
     }
 
     [Fact]

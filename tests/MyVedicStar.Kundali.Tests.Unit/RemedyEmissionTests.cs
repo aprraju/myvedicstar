@@ -44,9 +44,9 @@ public sealed class RemedyEmissionTests
         // Silent omission is the pattern this codebase refuses: the consumer must be able to tell that a finding had a
         // remedy which was withheld, not that no remedy exists.
         Assert.Contains(unsupported, field =>
-            field.Path == "dosha:mangal" && field.Reason == RemedyResolver.Reasons.CapabilityGap);
+            field.Path == "dosha:mangal" && field.Reason == Reasons.ToWire(RemedyReason.CapabilityGap));
         Assert.Contains(unsupported, field =>
-            field.Path == "yoga:raja" && field.Reason == RemedyResolver.Reasons.InputMissing);
+            field.Path == "yoga:raja" && field.Reason == Reasons.ToWire(RemedyReason.InputMissing));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class RemedyEmissionTests
         };
         var fromEmission = new[]
         {
-            new KundaliUnsupportedField("dosha:mangal", RemedyResolver.Reasons.CapabilityGap),
+            new KundaliUnsupportedField("dosha:mangal", Reasons.ToWire(RemedyReason.CapabilityGap)),
         };
 
         var merged = RemedyEmission.MergeUnsupported(fromCapability, fromEmission);
@@ -111,7 +111,7 @@ public sealed class RemedyEmissionTests
         // legitimately reuses a (path, reason) tuple, and the repair would then be to weaken this test rather than to
         // add a distinct reason code - which is the wrong repair.
         var first = new[] { new KundaliUnsupportedField("Moon", "unvalidated-reference") };
-        var second = new[] { new KundaliUnsupportedField("Moon", RemedyResolver.Reasons.InputMissing) };
+        var second = new[] { new KundaliUnsupportedField("Moon", Reasons.ToWire(RemedyReason.InputMissing)) };
 
         var merged = RemedyEmission.MergeUnsupported(first, second);
 
@@ -134,7 +134,7 @@ public sealed class RemedyEmissionTests
     public void Order_is_preserved_so_the_most_specific_explanation_stays_first()
     {
         var first = new[] { new KundaliUnsupportedField("Moon", "unvalidated-reference") };
-        var second = new[] { new KundaliUnsupportedField("Moon", RemedyResolver.Reasons.InputMissing) };
+        var second = new[] { new KundaliUnsupportedField("Moon", Reasons.ToWire(RemedyReason.InputMissing)) };
 
         var merged = RemedyEmission.MergeUnsupported(first, second);
 
