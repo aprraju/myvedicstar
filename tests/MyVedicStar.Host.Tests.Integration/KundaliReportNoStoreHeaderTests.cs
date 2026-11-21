@@ -52,10 +52,6 @@ public sealed class KundaliReportNoStoreHeaderTests
         Assert.True(response.Headers.CacheControl?.NoStore == true,
             $"Report responses must be no-store so a proxy cannot serve a revoked report; "
             + $"Cache-Control was '{response.Headers.CacheControl}'.");
-
-        Assert.True(response.Headers.CacheControl?.NoStore == true,
-            $"Report responses must be no-store so a proxy cannot serve a revoked report; "
-            + $"Cache-Control was '{response.Headers.CacheControl}'.");
     }
 
     /// <summary>
@@ -79,7 +75,11 @@ public sealed class KundaliReportNoStoreHeaderTests
             .Where(method => method.Name is nameof(KundaliController.RequestReport) or nameof(KundaliController.GetReport))
             .ToArray();
 
-        Assert.Equal(2, reportActions.Length);
+        // Assert the name SET, not a count: a count tells the next reader something changed, not which route
+        // drifted. This test exists to be readable at the moment it fails.
+        Assert.Equal(
+            new[] { nameof(KundaliController.GetReport), nameof(KundaliController.RequestReport) },
+            reportActions.Select(action => action.Name).Order().ToArray());
 
         foreach (var action in reportActions)
         {
