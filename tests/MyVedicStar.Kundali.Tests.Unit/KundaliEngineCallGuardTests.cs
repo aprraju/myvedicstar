@@ -53,6 +53,11 @@ public sealed class KundaliEngineCallGuardTests : IDisposable
             .With<TimeProvider>(new FixedClock())
             .With(Substitute.For<IKundaliResultCache>())
             .With<IKundaliCalculationEngine>(engine)
+            // api#149: the rule sets are supplied explicitly, because the container fallbacks now refuse to name a
+            // RulesVersion - a version that reaches identity has to come from a registration that actually exists.
+            .With<IKundaliAshtakavargaRules>(new UnregisteredAshtakavargaRules())
+            .With<IKundaliShadbalaRules>(new UnregisteredShadbalaRules())
+            .With<IKundaliYogaRules>(new UnregisteredYogaRules())
             .Build();
         facade = provider.CreateScope().ServiceProvider.GetRequiredService<IKundaliFacade>();
     }

@@ -232,7 +232,10 @@ internal sealed class UnconfiguredDivisionalMapper : IKundaliDivisionalMapper
 /// zeroes, which would look like a valid empty chart.</summary>
 internal sealed class UnconfiguredAshtakavargaRules : IKundaliAshtakavargaRules
 {
-    public string RulesVersion => "unconfigured";
+    /// <summary>The version throws for the same reason the scoring calls do: the facade reads it on the ordinary path
+    /// to build every result's revision key, so a version string here would reach identity before any scoring call
+    /// refused. A missing registration must fail where the version is asked for.</summary>
+    public string RulesVersion => throw new InvalidOperationException("No Ashtakavarga rules are registered.");
 
     public IReadOnlyList<string> ScoredPlanets => [];
 
@@ -249,7 +252,9 @@ internal sealed class UnconfiguredAshtakavargaRules : IKundaliAshtakavargaRules
 /// strength.</summary>
 internal sealed class UnconfiguredShadbalaRules : IKundaliShadbalaRules
 {
-    public string RulesVersion => "unconfigured";
+    /// <summary>Throws rather than naming a version: an unconfigured version reaching identity would be
+    /// indistinguishable from any other unconfigured result.</summary>
+    public string RulesVersion => throw new InvalidOperationException("No Shadbala rules are registered.");
 
     public string Unit => "rupas";
 
@@ -266,7 +271,9 @@ internal sealed class UnconfiguredShadbalaRules : IKundaliShadbalaRules
 /// evaluate, so a missing registration surfaces as an unsupported section rather than as an empty clean chart.</summary>
 internal sealed class UnconfiguredYogaRules : IKundaliYogaRules
 {
-    public string RulesVersion => "unconfigured";
+    /// <summary>Throws rather than naming a version: an unconfigured version reaching identity would be
+    /// indistinguishable from any other unconfigured result.</summary>
+    public string RulesVersion => throw new InvalidOperationException("No yoga rules are registered.");
 
     public IReadOnlyList<string> Statuses => [];
 
