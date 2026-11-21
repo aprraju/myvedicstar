@@ -1,0 +1,256 @@
+{
+  "$comment": "AST-09 corpus specification (issue #74). The case matrix is a SPEC, not an assertion: case enumeration is code (tests/MyVedicDay.Astronomy.Tests.Calculation/HorizonsCorpusSpec.cs) and must reproduce this matrix exactly. CaseCounts is the number of cases carried per dimension; the suite asserts >= 10000 enumerated cases and reports counts per category. Editing a number here without editing the enumeration is a failing test, not a silent narrowing.",
+  "bodies": [
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+    "MeanNode",
+    "TrueNode"
+  ],
+  "dateSpanUtYears": {
+    "from": 1800,
+    "to": 2200
+  },
+  "sites": [
+    {
+      "id": "kanyakumari",
+      "latitudeDegrees": 8.078,
+      "longitudeDegrees": 77.541,
+      "elevationMetres": 30
+    },
+    {
+      "id": "chennai",
+      "latitudeDegrees": 13.083,
+      "longitudeDegrees": 80.27,
+      "elevationMetres": 6
+    },
+    {
+      "id": "singapore",
+      "latitudeDegrees": 1.29,
+      "longitudeDegrees": 103.852,
+      "elevationMetres": 15
+    },
+    {
+      "id": "nairobi",
+      "latitudeDegrees": -1.292,
+      "longitudeDegrees": 36.822,
+      "elevationMetres": 1795
+    },
+    {
+      "id": "quito",
+      "latitudeDegrees": -0.18,
+      "longitudeDegrees": -78.468,
+      "elevationMetres": 2850
+    },
+    {
+      "id": "delhi",
+      "latitudeDegrees": 28.614,
+      "longitudeDegrees": 77.209,
+      "elevationMetres": 216
+    },
+    {
+      "id": "cairo",
+      "latitudeDegrees": 30.044,
+      "longitudeDegrees": 31.236,
+      "elevationMetres": 23
+    },
+    {
+      "id": "losangeles",
+      "latitudeDegrees": 34.052,
+      "longitudeDegrees": -118.244,
+      "elevationMetres": 71
+    },
+    {
+      "id": "tokyo",
+      "latitudeDegrees": 35.677,
+      "longitudeDegrees": 139.65,
+      "elevationMetres": 40
+    },
+    {
+      "id": "beijing",
+      "latitudeDegrees": 39.904,
+      "longitudeDegrees": 116.407,
+      "elevationMetres": 44
+    },
+    {
+      "id": "newyork",
+      "latitudeDegrees": 40.713,
+      "longitudeDegrees": -74.006,
+      "elevationMetres": 10
+    },
+    {
+      "id": "madrid",
+      "latitudeDegrees": 40.417,
+      "longitudeDegrees": -3.704,
+      "elevationMetres": 667
+    },
+    {
+      "id": "paris",
+      "latitudeDegrees": 48.857,
+      "longitudeDegrees": 2.352,
+      "elevationMetres": 35
+    },
+    {
+      "id": "london",
+      "latitudeDegrees": 51.507,
+      "longitudeDegrees": -0.128,
+      "elevationMetres": 11
+    },
+    {
+      "id": "berlin",
+      "latitudeDegrees": 52.52,
+      "longitudeDegrees": 13.405,
+      "elevationMetres": 34
+    },
+    {
+      "id": "moscow",
+      "latitudeDegrees": 55.756,
+      "longitudeDegrees": 37.617,
+      "elevationMetres": 156
+    },
+    {
+      "id": "reykjavik",
+      "latitudeDegrees": 64.147,
+      "longitudeDegrees": -21.943,
+      "elevationMetres": 15
+    },
+    {
+      "id": "tromso",
+      "latitudeDegrees": 69.649,
+      "longitudeDegrees": 18.955,
+      "elevationMetres": 10
+    },
+    {
+      "id": "longyearbyen",
+      "latitudeDegrees": 78.223,
+      "longitudeDegrees": 15.649,
+      "elevationMetres": 20
+    },
+    {
+      "id": "mcmurdo",
+      "latitudeDegrees": -77.848,
+      "longitudeDegrees": 166.669,
+      "elevationMetres": 24
+    }
+  ],
+  "ayanamsas": [
+    "Lahiri",
+    "Raman",
+    "Krishnamurti"
+  ],
+  "edgeCases": [
+    {
+      "id": "us-dst-spring-forward-2007-03-11",
+      "latitudeDegrees": 40.713,
+      "longitudeDegrees": -74.006,
+      "timezone": "America/New_York",
+      "localDate": "2007-03-11"
+    },
+    {
+      "id": "us-dst-fall-back-2007-11-04",
+      "latitudeDegrees": 40.713,
+      "longitudeDegrees": -74.006,
+      "timezone": "America/New_York",
+      "localDate": "2007-11-04"
+    },
+    {
+      "id": "eu-dst-spring-forward-2024-03-31",
+      "latitudeDegrees": 51.507,
+      "longitudeDegrees": -0.128,
+      "timezone": "Europe/London",
+      "localDate": "2024-03-31"
+    },
+    {
+      "id": "eu-dst-fall-back-2024-10-27",
+      "latitudeDegrees": 51.507,
+      "longitudeDegrees": -0.128,
+      "timezone": "Europe/London",
+      "localDate": "2024-10-27"
+    },
+    {
+      "id": "india-half-hour-offset",
+      "latitudeDegrees": 13.083,
+      "longitudeDegrees": 80.27,
+      "timezone": "Asia/Kolkata",
+      "localDate": "2024-01-15"
+    },
+    {
+      "id": "nepal-quarter-hour-offset",
+      "latitudeDegrees": 27.717,
+      "longitudeDegrees": 85.324,
+      "timezone": "Asia/Kathmandu",
+      "localDate": "2024-01-15"
+    },
+    {
+      "id": "leap-second-2016-12-31",
+      "latitudeDegrees": 51.507,
+      "longitudeDegrees": -0.128,
+      "timezone": "UTC",
+      "localDate": "2016-12-31"
+    },
+    {
+      "id": "leap-second-2015-06-30",
+      "latitudeDegrees": 51.507,
+      "longitudeDegrees": -0.128,
+      "timezone": "UTC",
+      "localDate": "2015-06-30"
+    },
+    {
+      "id": "polar-night-longyearbyen",
+      "latitudeDegrees": 78.223,
+      "longitudeDegrees": 15.649,
+      "timezone": "Arctic/Longyearbyen",
+      "localDate": "2024-12-21"
+    },
+    {
+      "id": "polar-day-longyearbyen",
+      "latitudeDegrees": 78.223,
+      "longitudeDegrees": 15.649,
+      "timezone": "Arctic/Longyearbyen",
+      "localDate": "2024-06-21"
+    },
+    {
+      "id": "delta-t-extreme-1800",
+      "latitudeDegrees": 48.857,
+      "longitudeDegrees": 2.352,
+      "timezone": "Europe/Paris",
+      "localDate": "1800-01-01"
+    },
+    {
+      "id": "delta-t-extreme-2200",
+      "latitudeDegrees": 48.857,
+      "longitudeDegrees": 2.352,
+      "timezone": "Europe/Paris",
+      "localDate": "2200-12-31"
+    }
+  ],
+  "caseCounts": {
+    "planetaryPositions": 8000,
+    "tithiNakshatraTransitions": 800,
+    "sunriseSunset": 800,
+    "lagna": 240,
+    "ayanamsa": 120,
+    "historicalDates": 40
+  },
+  "minimumTotalCases": 10000,
+  "tolerances": {
+    "planetsArcseconds": 1,
+    "moonArcseconds": 3,
+    "lagnaArcseconds": 5,
+    "ayanamsaArcseconds": 1,
+    "eclipseContactSeconds": 2,
+    "sunriseSunsetSeconds": 30
+  },
+  "referenceSource": {
+    "service": "JPL Horizons",
+    "frame": "ICRF astrometric (planets), apparent (Sun/Moon) - recorded per fixture record together with the conversion applied to tropical mean-equinox-of-date",
+    "materialisation": "Fixtures are generated once and checked in as astronomy/horizons-fixtures.json. Tests never perform network I/O."
+  }
+}
