@@ -16,6 +16,9 @@
   <Folder Name="/providers/">
     <Project Path="MyVedicStar.Astronomy.Jpl.Provider/MyVedicStar.Astronomy.Jpl.Provider.csproj" />
   </Folder>
+  <Folder Name="/bench/">
+    <Project Path="MyVedicStar.Astronomy.CacheBench/MyVedicStar.Astronomy.CacheBench.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="MyVedicStar.Astronomy.Tests/MyVedicStar.Astronomy.Tests.csproj" />
   </Folder>
