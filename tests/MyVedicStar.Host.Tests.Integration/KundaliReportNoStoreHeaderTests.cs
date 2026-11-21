@@ -35,6 +35,14 @@ public sealed class KundaliReportNoStoreHeaderTests
 
         // The status is not the claim under test; the header is. Asserting the status too keeps the test honest about
         // the path it actually exercised, so a future 401/500 does not silently still pass on a header alone.
+        //
+        // api#57: this guard excluded only Unauthorized, so a 500 passed the assertion written to catch it - the comment
+        // named 500 and the code permitted it. Measured, not assumed: on this head the route returns 500 (see the
+        // commit message), so the negative is now the whole failure class. A no-store header on a server-error body
+        // proves the filter ran; it says nothing about the route working.
+        Assert.True((int)response.StatusCode < 500,
+            $"Report route returned {(int)response.StatusCode}; a 5xx carries no-store but proves the route is broken. "
+            + "api#57: the report routes are unwired, so this asserts the failure is not a server error.");
         Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
 
         Assert.True(response.Headers.CacheControl?.NoStore == true,
