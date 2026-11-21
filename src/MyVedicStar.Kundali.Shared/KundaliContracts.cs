@@ -671,12 +671,31 @@ public sealed record KundaliBalaSection(
 
 /// <summary>One planet's Shadbala. <paramref name="ComponentsWithheld"/> names the classical components that are
 /// missing so the total is never mistaken for a six-fold score.</summary>
-/// <param name="ComponentStates">Machine-readable state per component (computed / withheld / placeholder). A client
-/// summing <paramref name="Components"/> must consult this rather than treat every number as strength   a placeholder
-/// zero and a computed zero are identical numerically.</param>
+/// <remarks><b><paramref name="Components"/> cannot be summed, or ranked, as strength.</b> <paramref name="Total"/> is
+/// the strength, and it is the only strength number here: use <paramref name="Total"/> for strength, and
+/// <paramref name="RatioToThreshold"/> (gated on <c>KundaliBalaSection.Complete</c>) for a comparison against the
+/// classical required-rupas table.
+/// <para>The breakdown exists so a consumer can SEE how the published total was built and audit it against provenance;
+/// it is a disclosure of parts, not a repertoire to add up. The total sums only the members of
+/// <paramref name="ComponentsInTotal"/>, each reachable by key from this dictionary. It deliberately excludes the
+/// members of <paramref name="ComponentsExcludedFromTotal"/>.</para>
+/// <para><b>The size of that gap is not visible from <paramref name="Components"/> alone.</b> A withheld component is
+/// a key absent from <paramref name="Components"/> but present in <paramref name="ComponentsWithheld"/>, so summing the
+/// dictionary drops an unknown quantity without changing its shape. A placeholder component is worse: it is present
+/// with a value that IS a number (Dig Bala is <c>0.0</c>), so summing the dictionary adds a zero that never
+/// represented strength while looking exactly like a measured zero. In both cases the sum is subtly wrong rather than
+/// obviously wrong, which is why the rule is stated flatly instead of as a warning about an edge case.</para>
+/// <para>Count keys, not values, when validating: <paramref name="ComponentStates"/> is total over
+/// <paramref name="Components"/> - one state per key, never fewer - and it is the only discriminator between a
+/// measured number and a placeholder.</para></remarks>
+/// <param name="ComponentStates">Machine-readable state per component (computed / withheld / placeholder), one entry
+/// per key in <paramref name="Components"/> and therefore total over it. The state, not the number, decides whether a
+/// value is strength: a placeholder zero and a computed zero are identical numerically.</param>
 /// <param name="ComponentsInTotal">Exactly which components the total sums, so the total is never correct only for a
 /// reader who also read a prose list.</param>
-/// <param name="ComponentsExcludedFromTotal">Components present in the breakdown that do not contribute strength.</param>
+/// <param name="ComponentsExcludedFromTotal">Components present in the breakdown that do not contribute strength. They
+/// are in <paramref name="Components"/> and not in <paramref name="ComponentsInTotal"/>, which is why summing that
+/// dictionary contradicts <paramref name="Total"/>.</param>
 public sealed record KundaliShadbalaPlanet(
     string Planet,
     IReadOnlyDictionary<string, double> Components,
