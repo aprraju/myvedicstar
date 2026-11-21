@@ -536,8 +536,33 @@ public sealed class KundaliUnconfiguredRulesVersionTests
         Assert.Empty(cache.WrittenKeys);
     }
 
+    /// <summary>
+    /// The positive control for the invalidation assertions. <see cref="RecordingResultCache.RemovedKeys"/> is fed only by
+    /// <c>RemoveAsync</c>, so "nothing was written" above - and in the invalidate case of the theory - only means something
+    /// if this same cache, in this same fixture shape, records the removal when the rule sets are registered. A cache that
+    /// could never record a removal would make those assertions pass vacuously. Proved by flipping registerRules to false:
+    /// this test then fails on the fallback's throw, which is the only difference between the two cases.
+    /// </summary>
+    [Fact]
+    public async Task A_registered_rules_fallback_does_record_the_invalidation_it_performs()
+    {
+        var (facade, cache) = UnconfiguredRulesFacade(registerRules: true);
+
+        var result = await facade.ApplyProfileChangeAsync(user, profileId, 7,
+            KundaliProfileChangeKinds.BirthInput, CancellationToken.None);
+
+        Assert.False(result.DisplayOnly);
+        // Exactly one removal, and no store: a birth-input change invalidates exactly the one cached payload it dirtied.
+        // The count is asserted rather than the key's text because the key is a hash; pinning its text would pin the
+        // hashing scheme instead of the behaviour.
+        Assert.Single(cache.RemovedKeys);
+        Assert.StartsWith("kundali:", Assert.Single(cache.RemovedKeys), StringComparison.Ordinal);
+        Assert.Single(cache.WrittenKeys);
+    }
+
     /// <summary>Builds a facade whose only gap is the rule registrations, so the failure is attributable to them.</summary>
-    private (IKundaliFacade Facade, RecordingResultCache Cache) UnconfiguredRulesFacade()
+    private (IKundaliFacade Facade, RecordingResultCache Cache) UnconfiguredRulesFacade(
+        bool registerRules = false)
     {
         var profiles = Substitute.For<IKundaliProfileReader>();
         profiles.GetRegisteredAccountIdAsync(user, CancellationToken.None).Returns(accountId);
@@ -584,7 +609,7 @@ public sealed class KundaliUnconfiguredRulesVersionTests
 
         var cache = new RecordingResultCache();
 
-        var facade = KundaliTestProvider.Create()
+        var builder = KundaliTestProvider.Create()
             .With(profiles)
             .With(repository)
             .With(alerts)
@@ -593,8 +618,17 @@ public sealed class KundaliUnconfiguredRulesVersionTests
             .With<IKundaliResultCache>(cache)
             .With<TimeProvider>(clock)
             .With<IKundaliDivisionalMapper>(new UnconfiguredDivisionalMapperStubForRulesVersionTests())
-            .With<IKundaliDignityRules>(new NoDignityRules2())
-            .BuildFacade();
+            .With<IKundaliDignityRules>(new NoDignityRules2());
+
+        // The control case registers real stand-in rule sets; the theory deliberately leaves them unregistered so the
+        // container fallbacks are what refuses. Both use this one builder, so the two differ only in that fact.
+        if (registerRules)
+            builder = builder
+                .With<IKundaliAshtakavargaRules>(new CacheTestAshtakavargaRules())
+                .With<IKundaliShadbalaRules>(new CacheTestShadbalaRules())
+                .With<IKundaliYogaRules>(new CacheTestYogaRules());
+
+        var facade = builder.BuildFacade();
 
         return (facade, cache);
     }
@@ -623,6 +657,9 @@ public sealed class KundaliUnconfiguredRulesVersionTests
 
         public List<string> WrittenKeys { get; } = [];
 
+        /// <summary>Keys that reached a removal. Kept apart from writes so a test can tell an invalidation from a store.</summary>
+        public List<string> RemovedKeys { get; } = [];
+
         public Task<T?> GetAsync<T>(string key, CancellationToken token) where T : class
         {
             ReadKeys.Add(key);
@@ -639,7 +676,36 @@ public sealed class KundaliUnconfiguredRulesVersionTests
         public Task RemoveAsync(string key, CancellationToken token)
         {
             WrittenKeys.Add(key);
+            RemovedKeys.Add(key);
             return Task.CompletedTask;
         }
     }
+}
+
+/// <summary>Stand-in rule sets for the invalidation control: a nameable version and no data. They exist so the control
+/// exercises the version tuple through a registration that answers, rather than through a fallback that refuses.</summary>
+internal sealed class CacheTestAshtakavargaRules : IKundaliAshtakavargaRules
+{
+    public string RulesVersion => "none";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) => [];
+    public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
+}
+
+internal sealed class CacheTestShadbalaRules : IKundaliShadbalaRules
+{
+    public string RulesVersion => "none";
+    public string Unit => "rupas";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyDictionary<string, string> WithheldComponents =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) => [];
+}
+
+internal sealed class CacheTestYogaRules : IKundaliYogaRules
+{
+    public string RulesVersion => "none";
+    public IReadOnlyList<string> Statuses => [];
+    public IReadOnlyList<string> Catalogue => [];
+    public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) => new("none", [], []);
 }
