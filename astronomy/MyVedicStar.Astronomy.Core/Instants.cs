@@ -87,8 +87,17 @@ public sealed class TtConversionSeam : IDisposable
         _toUt = toUt;
     }
 
-    /// <summary>The conversion the process actually uses; installed once by the astronomy provider.</summary>
-    public static TtConversionSeam Default { get; private set; } = new(null, null, null);
+    // The conversion the process actually uses, installed by the astronomy provider at composition. Field-backed rather
+    // than a property so it can be published atomically: a request that reads it sees either the old seam or the new one,
+    // never a half-installed one, and the mutable-static census test (api#75) recognises exactly this one field.
+    private static TtConversionSeam _default = new(null, null, null);
+
+    /// <summary>The conversion the process actually uses; installed by the astronomy provider at composition.</summary>
+    public static TtConversionSeam Default
+    {
+        get => Volatile.Read(ref _default);
+        private set => Volatile.Write(ref _default, value);
+    }
 
     /// <summary>
     /// A seam with <b>no</b> conversion. This is the state the latch could only reach by accident, and the reason the
