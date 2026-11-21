@@ -65,3 +65,8 @@ An unknown key still fails at composition rather than degrading.
 Local runs report **40** failures with the default flipped; the CI rollup reported **41**. One test differs between the
 two environments and has not been isolated. This is recorded rather than rounded, because a count that moved by one is
 an unexplained difference, not a rounding artifact.
+
+## Provisioning follow-up
+
+The CSPICE/kernel provisioning need is filed as #173 and linked from here so the deferral above has an owner rather
+than a hope. #77 and AST-05 (#70) both depend on it before the default can flip.
