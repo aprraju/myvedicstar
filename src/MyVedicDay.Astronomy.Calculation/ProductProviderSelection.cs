@@ -18,12 +18,15 @@ public static class ProductProviderSelection
 {
     /// <summary>The key used when <c>Astronomy:Provider</c> is absent from host configuration.</summary>
     /// <remarks>
-    /// <c>spice</c> since AST-12 (#77): the JPL/SPICE provider is the production default and the superseded
-    /// ADR-0016 analytical series is retired from the default path. Setting <c>Astronomy:Provider=analytical</c> or
-    /// <c>compare</c> keeps the old provider reachable for comparison and rollback (story AC-2); that is
-    /// configuration, not a code change.
+    /// Still <c>analytical</c>. AST-12 (#77) completes the composition - the SPICE provider is registered,
+    /// reachable and tested - but the absent-key default <b>does not flip here</b>, and the reason is not a
+    /// preference: the SPICE provider requires the native CSPICE toolkit and the DE440/DE441 kernels, and neither
+    /// exists in the test host, the CI image or the deployment image (<c>cspice</c> appears nowhere in
+    /// <c>.github/</c> or <c>deploy/</c>). Making it the default would convert an accuracy migration into an outage
+    /// for every Panchang, Festivals and Muhurta request. The default flips at AST-05 (#70), once provisioning is
+    /// its own reviewed change. <c>spice</c> and <c>compare</c> remain opt-in by configuration.
     /// </remarks>
-    public const string DefaultKey = ProviderSelectionParser.SpiceKey;
+    public const string DefaultKey = ProviderSelectionParser.AnalyticalKey;
 
     /// <summary>
     /// Resolves the provider key from configuration: the configured value when present, otherwise

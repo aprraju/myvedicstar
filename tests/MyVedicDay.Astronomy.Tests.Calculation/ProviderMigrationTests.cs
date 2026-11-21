@@ -46,13 +46,22 @@ public sealed class ProviderMigrationTests
     // ---- AST-12 (#77): the production default is the SPICE provider, and the old provider stays reachable ----
 
     [Fact]
-    public void An_absent_key_resolves_to_the_SPICE_cutover_default_in_one_place()
+    public void An_absent_key_resolves_to_the_documented_default_in_one_place()
     {
-        Assert.Equal(ProviderSelection.Spice, ProductProviderSelection.Resolve(null));
-        Assert.Equal(ProviderSelection.Spice, ProductProviderSelection.Resolve("   "));
+        // AST-12 (#77) ruling: the default stays analytical until the CSPICE toolkit is provisioned (AST-05, #70).
+        // The cutover composition is complete and tested; the flip is deferred, not forgotten.
+        Assert.Equal(ProviderSelection.Analytical, ProductProviderSelection.Resolve(null));
+        Assert.Equal(ProviderSelection.Analytical, ProductProviderSelection.Resolve("   "));
 
         // The declared default is a key the parser accepts, so absence can never produce an unparseable value.
-        Assert.Equal(ProviderSelection.Spice, ProviderSelectionParser.Parse(ProductProviderSelection.DefaultKey));
+        Assert.Equal(ProviderSelection.Analytical, ProviderSelectionParser.Parse(ProductProviderSelection.DefaultKey));
+    }
+
+    [Fact]
+    public void The_SPICE_provider_is_opt_in_by_configuration_after_the_deferral()
+    {
+        Assert.Equal(ProviderSelection.Spice, ProductProviderSelection.Resolve("spice"));
+        Assert.Equal(ProviderSelection.Compare, ProductProviderSelection.Resolve("compare"));
     }
 
     [Fact]

@@ -51,9 +51,10 @@ public static class MyVedicStarApiModule
         // port/adapter ownership with the host rather than inside a module registration.
         //
         // An absent Astronomy:Provider is not a silent default: absence resolves to ProductProviderSelection's
-        // documented default, matching PanchangBusinessServiceCollectionExtensions, and since AST-12 (#77) that
-        // default is the SPICE provider. An UNKNOWN value still fails at composition. The engine factory is supplied
-        // here as well: the SPICE default needs one, and selecting it without an engine is an error, not a fallback.
+        // documented default, matching PanchangBusinessServiceCollectionExtensions. AST-12 (#77) left that default at
+        // analytical deliberately: spice needs the native CSPICE toolkit, which no image here provisions, so making it
+        // the default would 503 every calculation. The flip is AST-05 (#70). An UNKNOWN value still fails at
+        // composition, and the engine factory is supplied so an opt-in spice/compare key composes instead of erroring.
         // AddAstronomy (not AddAstronomyProvider alone) because it registers the satellite services the engine and
         // calendar need alongside the port - notably IAyanamsa. AddAstronomyProvider binds IEphemeris only, so calling
         // it alone leaves IAyanamsa unregistered and the engine unresolvable at request time.

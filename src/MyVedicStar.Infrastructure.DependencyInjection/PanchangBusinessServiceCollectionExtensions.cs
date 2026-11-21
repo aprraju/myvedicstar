@@ -72,8 +72,9 @@ public static class PanchangBusinessServiceCollectionExtensions
         // fails at composition rather than degrading to the analytical series. An ABSENT value resolves to the
         // documented default instead, because absence is a normal state - the Day and Star hosts load their own
         // layered configuration and neither ships this section today. Defaulting absence in one named place keeps
-        // that explicit. The default is read from ProductProviderSelection rather than written out here, so the
-        // AST-12 (#77) cutover to the SPICE provider happened in one place instead of in every host.
+        // that explicit. The default is read from ProductProviderSelection rather than written out here, so the flip
+        // to SPICE (deferred to AST-05, #70, because the native CSPICE toolkit is not provisioned) happens in one
+        // place instead of in every host.
         services.AddAstronomyProvider(
             ProviderSelectionParser.ToKey(ProductProviderSelection.Resolve(
                 configuration[AstronomyProviderRegistration.ConfigurationKey])),

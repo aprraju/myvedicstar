@@ -1,56 +1,67 @@
 # FR-06 provider migration - cutover record (AST-12, #77)
 
-The provider default is now **`spice`** (JPL/SPICE over NAIF CSPICE + DE440/DE441). The superseded ADR-0016
-analytical (VSOP87D/ELP-2000) implementation is no longer the default; it remains **registered and reachable** as
-`analytical`, and `compare` still runs both.
+## Status: composition complete, default flip DEFERRED to AST-05 (#70)
 
-## What actually changed
+The SPICE provider is registered, reachable, wired into both product hosts, and covered by tests. The **absent-key
+default remains `analytical`** and does not flip in this story. That is a ruling, not an oversight, and the reason is
+below.
+
+## Why the default does not flip here
+
+Selecting `spice` requires the **native NAIF CSPICE toolkit** plus the DE440/DE441 kernels. Neither exists in the
+test host, the CI image, or the deployment image: `cspice` appears nowhere under `.github/` or `deploy/`. Making
+`spice` the absent-key default therefore turns every Panchang, Festivals and Muhurta request into a dependency on an
+unprovisioned native library - an accuracy migration converted into an outage.
+
+Measured, not assumed: with the default flipped, `MyVedicDay.Api.Tests.Integration` went to **40 failed / 130 passed /
+171**. All 40 share one exception:
+
+```
+SpiceUnavailableException: The native SPICE toolkit ('cspice') could not be loaded.
+  at SpiceAstronomyEngine.EnsureAvailable
+  at SpiceAstronomyEngine.GetPositions
+  at ProviderEngineAdapter.GetEquatorial
+  at AstronomyEngineEphemerisAdapter.GetSunEquatorial
+  at SunEventCalculator.Refine -> CalculateSunset
+  at PanchangCalculator.CalculateSunEvents -> FestivalCalculator.CalculateDays
+```
+
+A competing hypothesis - that the equatorial path was the cause - was tested in code by deriving equatorial
+coordinates from the validated ecliptic surface. Failures stayed at 40, so the hypothesis was wrong and those edits
+were reverted. The blocker is provisioning, upstream of any calculation route.
+
+## What this story does deliver
 
 | Change | Where |
 | --- | --- |
-| Absent `Astronomy:Provider` now resolves to `spice` | `ProductProviderSelection.DefaultKey` - declared **once**, in the product assembly |
-| Both product hosts read that single default and supply the SPICE engine factory | `PanchangBusinessServiceCollectionExtensions`, `MyVedicStarApiModule` |
+| Absent-key default declared once, in one place | `ProductProviderSelection` |
+| Both product hosts read that default and supply the SPICE engine factory | `PanchangBusinessServiceCollectionExtensions`, `MyVedicStarApiModule` |
 | SPICE engine construction from configuration (`Astronomy:Spice`) | `SpiceProviderComposition` |
-| `IEphemerisEngine` is satisfied by a production type | `ProviderEngineAdapter` (product side) over `SpiceAstronomyEngine` |
-| `SpiceAstronomyEngine` answers tropical longitude through the FR-02 planetary surface | `SpiceAstronomyEngine.GetTropicalLongitude` |
+| `IEphemerisEngine` satisfied by a production type | `ProviderEngineAdapter` over `SpiceAstronomyEngine` |
+| `SpiceAstronomyEngine.GetTropicalLongitude` via the FR-02 surface | provider assembly |
+| Tests pinning the default, the opt-in keys and the port satisfaction | `ProviderMigrationTests` |
 
-**No consumer project was edited.** `PanchangElementCalculator`, `SunEventCalculator`, `MoonEventCalculator`,
-`LunisolarCalendar` and the Kundali engine all resolve `IEphemeris` through DI, which is what story AC-1 and the
-"no Kundali story changes" constraint require.
+**No consumer project was edited.** Panchang element, sun/moon event, lunisolar calendar and Kundali consumers all
+resolve `IEphemeris` through DI.
 
-## The defect this story found and fixed
+## Opt-in and rollback (story AC-2)
 
-Before this change **no production type implemented `IEphemerisEngine`**. The `spice` and `compare` keys could only
-be composed with a test double, so the default provider was unreachable in production and the "cutover" could not have
-happened by configuration alone. The port now extends `IAstronomyEngine` and `ProviderEngineAdapter` closes it; a test
-(`The_default_provider_is_constructible_from_the_production_engine_type`) fails if that regresses.
+`Astronomy:Provider` accepts `analytical` (default), `spice` and `compare` (both, emitting parity deltas). A host
+that mounts the toolkit and kernels sets `spice`; a host that does not gets `analytical` without any code change.
+An unknown key still fails at composition rather than degrading.
 
-## Rollback (story AC-2)
+## Deferred, named
 
-Set `Astronomy:Provider` to `analytical` (old provider) or `compare` (both, emits parity deltas) and restart. No
-code change, no redeploy beyond configuration. Both keys remain parsed and registered, and
-`An_unknown_provider_key_fails_at_registration` still guarantees a typo fails at composition rather than silently
-degrading.
+1. **Default flip to `spice`** - blocked on CSPICE + kernel provisioning (its own issue), then AST-05 (#70).
+2. **Equatorial/parallax on the SPICE provider** - the validated surface publishes ecliptic coordinates only and no
+   lunar parallax; the adapter refuses rather than returning a zero, because a zero moves moonrise/moonset with no
+   evidence trail (D1). Closes with the AST-05 equatorial surface.
+3. **SPICE body numerics** - still `NotImplementedException` (AST-04/AST-05). Opting into `spice` today therefore fails
+   loudly on first calculation rather than silently reverting to the analytical series.
+4. **No production deployment or promotion** is performed by this change.
 
-## Verification performed
+## Known count discrepancy
 
-- `MyVedicStar.slnx` builds clean (warnings-as-errors on).
-- `MyVedicDay.Astronomy.Tests.Calculation`: **104/104 pass**, including four new AST-12 tests (default resolution,
-  configured key precedence, unknown-key refusal, production-type port satisfaction).
-- `MyVedicStar.Astronomy.Tests`: **136/136 pass**, including the FR-08 inventory and no-Swiss-artefact gates.
-
-## Outstanding, stated rather than implied
-
-1. **Equatorial/parallax on the SPICE provider is refused, not approximated.** `ProviderEngineAdapter.GetEquatorial`
-   throws `AstronomyNotSupportedException` because the validated surface publishes ecliptic coordinates only and
-   horizontal parallax is not part of it. Sun/Moon **longitude** consumers (tithi, nakshatra, yoga, karana, month
-   boundaries) route through SPICE; sunrise/sunset and moonrise/moonset need the AST-05 equatorial surface before this
-   gap closes. A zero parallax was rejected deliberately: it would move moonrise/moonset with no evidence trail (D1).
-2. **SPICE body numerics are still `NotImplementedException`** in `GetPlanetaryPosition` (AST-04/AST-05). The port
-   now routes into them, so a SPICE-selected host fails loudly at first calculation on a machine without the numerics
-   rather than returning the analytical series. That is the intended D1 behaviour, and it is why the cutover's
-   remaining dependency is AST-05, not a configuration detail.
-3. **Kernel paths and the reported toolkit version are deployment configuration** (`Astronomy:Spice:Kernels[]`,
-   `ReportedToolkitVersion`). The image must mount `/var/spice` and report its CSPICE version, or
-   `VerifyToolkitMatchesInventory` fails as designed.
-4. **No production deployment or promotion was performed** by this change; that requires explicit authorization.
+Local runs report **40** failures with the default flipped; the CI rollup reported **41**. One test differs between the
+two environments and has not been isolated. This is recorded rather than rounded, because a count that moved by one is
+an unexplained difference, not a rounding artifact.
