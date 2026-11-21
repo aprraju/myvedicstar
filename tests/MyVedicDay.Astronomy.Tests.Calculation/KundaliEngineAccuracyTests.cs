@@ -132,6 +132,84 @@ public sealed class KundaliEngineAccuracyTests
             + $"{budgetArcseconds}. Actual {series}, expected 133.162655.");
     }
 
+    /// <summary>
+    /// The residual between the unoffset mean-equinox lunar series and the reference the Drik offset was measured
+    /// against, asserted at a named instant and bounded rather than pinned (api#148).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This claim previously existed only as arithmetic in a pull-request conversation: three people agreed the
+    /// residual was 0.271 arcsec and nothing in the code could notice if it moved. An inference that lives in a thread
+    /// is not evidence, and a later auditor of the drik offset had to re-derive it from prose.
+    /// </para>
+    /// <para>
+    /// <b>Bounded, never exact.</b> 0.271 is tighter than this series guarantees; pinning it would make any legitimate
+    /// refinement to the series fail, and a test that fails when the engine improves is one nobody removes, because
+    /// failing-on-improvement looks like rigour. The reported residual is in the failure message so a real move is
+    /// visible without asserting its current value.
+    /// </para>
+    /// <para>
+    /// <b>The budget is the fixture's, not a fresh constant.</b> It is read from the (Moon, MeanEquinoxResidual) row so
+    /// editing a budget is a diff in data; a literal 1.8 here would be the two-sources defect api#106/129 removed,
+    /// rebuilt one commit later. That row currently borrows the Meeus 47.a precision because the owner has not set a
+    /// budget for this claim (#144) - so this asserts the residual holds, and says so, rather than claiming a
+    /// published tolerance exists for it. The 28 arcsec offset was MEASURED too; neither number is published.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_unoffset_lunar_series_stays_within_a_stated_band_of_the_residual_reference()
+    {
+        var fixtures = ParityFixtures.Load(FindSolutionRoot());
+        var row = Assert.Single(fixtures,
+            f => f.Body == CelestialBody.Moon && f.Claim == FixtureClaim.MeanEquinoxResidual);
+
+        // The instant is the row's, so the assertion and the budget can never drift onto different instants.
+        var series = LunarPosition.MeanEquinoxLongitude(DeltaT.ToJulianEphemerisDay(row.JulianDayUt));
+        // Plain subtraction, deliberately NOT AngleMath.NormalizeDegrees: this compares two values near 133 degrees, and
+        // the modular helper maps a difference of a few hundredths of an arcsecond to nearly a full revolution. The
+        // wrap belongs where a longitude is produced, not where two nearby longitudes are subtracted.
+        var differenceArcseconds =
+            Math.Abs(series - row.TropicalLongitudeDegrees) * ArcsecondsPerDegree;
+
+        Assert.True(differenceArcseconds <= row.ToleranceArcseconds,
+            $"Unoffset lunar series is {differenceArcseconds:F3} arcseconds from the residual reference at "
+            + $"JD {row.JulianDayUt}, budget {row.ToleranceArcseconds}. Actual {series}, "
+            + $"reference {row.TropicalLongitudeDegrees}.");
+
+        // Falsifiability of the lookup, not just of the value (api#148). The budget above resolves only because this
+        // claim has exactly one row. A claim covering two instants must refuse an instant-less lookup instead of
+        // resolving by ordering - asserted through the real lookup against a temporary fixture, so the guard is proved
+        // on the production path rather than restated in the test.
+        var directory = Directory.CreateTempSubdirectory("api148-ambiguous-");
+        try
+        {
+            ParityFixtures.Save(directory.FullName,
+            [
+                new ParityFixture(CelestialBody.Moon, MoonReferenceJdUt, 133.162655, "test", 1.8,
+                    FixtureClaim.MeanEquinoxResidual),
+                new ParityFixture(CelestialBody.Moon, MoonReferenceJdUt + 1d, 133.162655, "test", 1.8,
+                    FixtureClaim.MeanEquinoxResidual)
+            ]);
+
+            var ambiguous = Assert.Throws<InvalidOperationException>(() =>
+                ParityFixtures.ToleranceArcseconds(directory.FullName, CelestialBody.Moon,
+                    FixtureClaim.MeanEquinoxResidual));
+            Assert.Contains("ambiguous", ambiguous.Message, StringComparison.OrdinalIgnoreCase);
+
+            // Naming the instant still resolves, so the guard refuses ambiguity and not the claim itself.
+            Assert.Equal(1.8, ParityFixtures.ToleranceArcseconds(directory.FullName, CelestialBody.Moon,
+                FixtureClaim.MeanEquinoxResidual, MoonReferenceJdUt));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+
+        // And the row must stay out of the parity comparison set: the engine never returns the unoffset series.
+        Assert.DoesNotContain(ParityFixtures.Comparisons(fixtures),
+            f => f.Claim == FixtureClaim.MeanEquinoxResidual);
+    }
+
     /// <summary>The budget for a body's composed engine value, read from the fixture so it is the only source.</summary>
     /// <remarks>
     /// Resolves the <see cref="FixtureClaim.EngineReference"/> row specifically (api#130). A body-only lookup would pick

@@ -16,6 +16,14 @@ public enum FixtureClaim
     /// NO position of its own: it is a different claim about the same instant, not a second measurement of the engine
     /// value, and giving it a position would let the parity gate compare against a value the engine never returns.</summary>
     UnoffsetSeries = 1,
+
+    /// <summary>The unoffset analytical series at the instant the Drik offset was MEASURED against, with the agreed
+    /// budget for the residual there. A third row rather than a reuse of UnoffsetSeries because it is a different
+    /// instant and a different claim: UnoffsetSeries says the series lands on Meeus 47.a, this says the series stays
+    /// within a stated band of the measured reference once the offset is no longer absorbing the difference (api#148).
+    /// Like UnoffsetSeries it has NO position of its own - the engine never returns the unoffset value, so it must
+    /// never enter the parity comparison set.</summary>
+    MeanEquinoxResidual = 2,
 }
 
 /// <summary>
