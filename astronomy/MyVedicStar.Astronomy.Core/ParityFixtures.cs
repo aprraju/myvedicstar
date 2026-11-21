@@ -118,13 +118,35 @@ public static class ParityFixtures
     /// Keyed on <c>(body, claim)</c> explicitly. A body-only lookup cannot answer "which tolerance" when a body carries
     /// two claims, which is why the unoffset series tolerance was a literal in a test rather than data (api#130). The
     /// failure is thrown rather than defaulted: a missing row must not resolve to a permissive budget.
+    /// <para>
+    /// api#148 widened the key from (body, claim) to (body, claim, instant) for the same reason, one axis further on.
+    /// The Moon now carries two rows with the same claim class at instants about eighteen years apart (Meeus 47.a and
+    /// the instant the Drik offset was measured at), so claim alone is ambiguous again. The instant is an optional
+    /// filter so the api#130 callers keep their meaning: omitting it resolves only a claim with exactly one row, and
+    /// refuses when it has several, rather than resolving one by ordering.
+    /// </para>
     /// </remarks>
-    public static double ToleranceArcseconds(string solutionRoot, CelestialBody body, FixtureClaim claim) =>
-        Load(solutionRoot).Where(fixture => fixture.Body == body && fixture.Claim == claim)
-            .Select(fixture => (double?)fixture.ToleranceArcseconds)
-            .FirstOrDefault()
-        ?? throw new InvalidOperationException(
-            $"No {claim} reference for {body} in {FileName}, so no tolerance can be defended.");
+    public static double ToleranceArcseconds(string solutionRoot, CelestialBody body, FixtureClaim claim,
+        double? julianDayUt = null)
+    {
+        var matches = Load(solutionRoot)
+            .Where(fixture => fixture.Body == body && fixture.Claim == claim
+                && (julianDayUt is null || fixture.JulianDayUt == julianDayUt.Value))
+            .ToArray();
+
+        if (matches.Length == 1)
+            return matches[0].ToleranceArcseconds;
+
+        // Zero matches is the api#130 failure. More than one is the api#148 failure and gets its own message: a body
+        // that has acquired a second row for the same claim must not silently resolve by ordering, which is the
+        // ambiguity the Claim field was introduced to remove and which this returns one level down if left unguarded.
+        throw new InvalidOperationException(
+            matches.Length == 0
+                ? $"No {claim} reference for {body}{(julianDayUt is null ? string.Empty : $" at JD {julianDayUt}")} "
+                  + $"in {FileName}, so no tolerance can be defended."
+                : $"The {claim} reference for {body} is ambiguous in {FileName}: {matches.Length} rows match and no "
+                  + "instant was named. Name the instant; picking one by ordering is how a budget becomes unowned.");
+    }
 
     /// <summary>The rows the analytic-vs-SPICE parity gate compares. Only one claim has an engine value to compare.</summary>
     public static IEnumerable<ParityFixture> Comparisons(IEnumerable<ParityFixture> fixtures) =>

@@ -22,5 +22,13 @@
     "tropicalLongitudeDegrees": 133.162655,
     "toleranceArcseconds": 1.8,
     "source": "Meeus Astronomical Algorithms (2nd ed.) example 47.a, mean-equinox longitude 133.162655 at 2448724.5 TT. This is the analytical series BEFORE the Drik Panchang offset, so it is a different claim from the Moon/EngineReference row above and carries the worked example's own published precision (0.0005 degrees, about 1.8 arcsec) rather than the composed 3 arcsec budget. Same instant, same Delta T conversion as the EngineReference row."
+  },
+  {
+    "body": "Moon",
+    "claim": "MeanEquinoxResidual",
+    "julianDayUt": 2448724.4993171296,
+    "tropicalLongitudeDegrees": 133.162655,
+    "toleranceArcseconds": 1.8,
+    "source": "api#148. Same instant and same reference as the Moon/UnoffsetSeries row, stated as its OWN claim because it is a different statement: not 'the series lands on Meeus 47.a within the example's precision' but 'the series sits a stated, bounded distance from it'. The series returns 133.16257985 there, so the residual is 0.271 arcsec (PR #135 reports exactly this, actual 133.1625798479953 against 133.162655). BUDGET IS BORROWED, NOT PUBLISHED: 1.8 arcsec is the Meeus 47.a precision carried by the UnoffsetSeries row, used until the owner sets a budget for this claim (#144); a replacement must not exceed the 3 arcsec lunar ceiling. 0.271 is what was MEASURED, not a tolerance - it is tighter than the series guarantees, and pinning it would fail on any legitimate refinement. The row carries the reference longitude because that is what the residual is measured against; it gets NO position in the parity comparison set, because GetMoonLongitude never returns the unoffset series."
   }
 ]
