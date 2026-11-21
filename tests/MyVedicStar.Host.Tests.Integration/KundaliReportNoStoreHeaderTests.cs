@@ -1,5 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Reflection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using MyVedicStar.API.Controllers;
 using Xunit;
 
 namespace MyVedicStar.Host.Tests.Integration;
@@ -33,20 +37,58 @@ public sealed class KundaliReportNoStoreHeaderTests
         var response = await client.GetAsync(
             "/api/v1/kundali/" + Guid.NewGuid() + "/reports/" + Guid.NewGuid());
 
-        // The status is not the claim under test; the header is. Asserting the status too keeps the test honest about
-        // the path it actually exercised, so a future 401/500 does not silently still pass on a header alone.
+        // The status is now part of the claim, not a sanity sidelight. api#57: this assertion used to exclude only
+        // Unauthorized, so a 500 passed the guard whose comment promised "a future 401/500 does not silently still pass".
         //
-        // api#57: this guard excluded only Unauthorized, so a 500 passed the assertion written to catch it - the comment
-        // named 500 and the code permitted it. Measured, not assumed: on this head the route returns 500 (see the
-        // commit message), so the negative is now the whole failure class. A no-store header on a server-error body
-        // proves the filter ran; it says nothing about the route working.
-        Assert.True((int)response.StatusCode < 500,
-            $"Report route returned {(int)response.StatusCode}; a 5xx carries no-store but proves the route is broken. "
-            + "api#57: the report routes are unwired, so this asserts the failure is not a server error.");
-        Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+        // This guard is INVERTED deliberately, per architect ruling, rather than relaxed or routed around:
+        // 500 is the honest status while the report store and renderer are absent. 501 would mean reshaping the
+        // exception to suit the response code - the same inversion as a 202 behind a Location note, one layer down -
+        // and 503 would say "try again later" when nothing will change. So the test asserts the truthful answer:
+        // the endpoint refuses, and it refuses as a server-side gap rather than as a client error.
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+
+        // Kept, and this is why: it proves the no-store filter RAN ON THE ERROR PATH. A pipeline that drops headers
+        // when an exception escapes would leave a 500 cacheable, and the 500 assertion above would still pass.
+        Assert.True(response.Headers.CacheControl?.NoStore == true,
+            $"Report responses must be no-store so a proxy cannot serve a revoked report; "
+            + $"Cache-Control was '{response.Headers.CacheControl}'.");
 
         Assert.True(response.Headers.CacheControl?.NoStore == true,
             $"Report responses must be no-store so a proxy cannot serve a revoked report; "
             + $"Cache-Control was '{response.Headers.CacheControl}'.");
+    }
+
+    /// <summary>
+    /// api#57 falsifier: the DECLARED status set for both report routes is exactly 500 - nothing more.
+    /// </summary>
+    /// <remarks>
+    /// The wire test above proves the behaviour today. This proves the contract agrees with it, and it exists to fail
+    /// the moment the two drift apart. Concretely: when report generation is wired, if 202/200/404/409/410 are declared
+    /// without a code path that can produce them, that is the same defect api#57 was opened for - a declaration that
+    /// lies to the client. Wired honestly, this test goes red and must be updated in the same change that earns the
+    /// statuses. Wired carelessly, it goes red for the right reason.
+    ///
+    /// Read by reflection rather than through MVC's action-descriptor provider so it needs no host, matching
+    /// KundaliReportCacheDisciplineTests.
+    /// </remarks>
+    [Fact]
+    public void Both_report_routes_declare_only_the_500_they_can_produce()
+    {
+        var reportActions = typeof(KundaliController)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => method.Name is nameof(KundaliController.RequestReport) or nameof(KundaliController.GetReport))
+            .ToArray();
+
+        Assert.Equal(2, reportActions.Length);
+
+        foreach (var action in reportActions)
+        {
+            var declared = action.GetCustomAttributes<ProducesResponseTypeAttribute>()
+                .Select(attribute => attribute.StatusCode)
+                .Order()
+                .ToArray();
+
+            Assert.Equal([StatusCodes.Status500InternalServerError], declared);
+        }
     }
 }
