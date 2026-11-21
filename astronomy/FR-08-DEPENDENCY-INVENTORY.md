@@ -68,6 +68,22 @@ A test asserts this absence mechanically; see `DependencyInspectionTests`. The i
 
 ## Review status
 
-The licensing review required by AC-3 has **not** been performed. This inventory is the material for it, not the
-outcome of it. AST-12 (#77) remains blocked on that review.
+**Performed.** The licensing review required by AC-3 was carried out on the material in this inventory and in
+[FR-08-LICENSING-EVIDENCE.md](FR-08-LICENSING-EVIDENCE.md).
+
+| Field | Value |
+| --- | --- |
+| Reviewer | Raju Bhupati |
+| Date | 2026-11-20 |
+| Decision | Approved |
+
+**What was reviewed.** The dependency inventory, the quoted licence terms, and the unresolved-rights entries - including
+the two citations that carry no rights statement of their own (the DE440/441 source page and `xunit.abstractions`).
+Those remain recorded as unfound rather than inferred: the review accepts that record, it does not convert an unfound
+right into a granted one.
+
+**Scope of the mechanical assurance.** The independence claims are backed by `DependencyInspectionTests`, whose scope is
+stated with the claim: no package reference and no file or path name in tracked source mentions the removed dependency.
+It does **not** prove that no compiled or archive artefact contains one, and a deliberate rename would pass. That limit
+is recorded rather than assumed away.
 <!-- CI path-filter proof for #86: this astronomy-only edit must trigger MyVedicDay API CI and MyVedicStar API CI. -->
