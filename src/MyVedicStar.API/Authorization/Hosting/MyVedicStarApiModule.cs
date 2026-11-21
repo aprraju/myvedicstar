@@ -1,5 +1,4 @@
 using MyVedicDay.Astronomy;
-using MyVedicStar.Astronomy.Core;
 using MyVedicStar.API.Authorization.ErrorHandling;
 using MyVedicStar.Authorize.Business.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -51,14 +50,16 @@ public static class MyVedicStarApiModule
         // first request needing a position would have failed at runtime with CI green. Composing it here keeps
         // port/adapter ownership with the host rather than inside a module registration.
         //
-        // An absent Astronomy:Provider is not a silent default: absence resolves to the analytical key by name,
-        // matching PanchangBusinessServiceCollectionExtensions, and stays that way until #77 flips the default
-        // after the parity gate. An UNKNOWN value still fails at composition.
+        // An absent Astronomy:Provider is not a silent default: absence resolves to ProductProviderSelection's
+        // documented default, matching PanchangBusinessServiceCollectionExtensions, and since AST-12 (#77) that
+        // default is the SPICE provider. An UNKNOWN value still fails at composition. The engine factory is supplied
+        // here as well: the SPICE default needs one, and selecting it without an engine is an error, not a fallback.
         // AddAstronomy (not AddAstronomyProvider alone) because it registers the satellite services the engine and
         // calendar need alongside the port - notably IAyanamsa. AddAstronomyProvider binds IEphemeris only, so calling
         // it alone leaves IAyanamsa unregistered and the engine unresolvable at request time.
-        services.AddAstronomy(ProviderSelectionParser.Parse(
-            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey));
+        services.AddAstronomy(
+            ProductProviderSelection.Resolve(configuration[AstronomyProviderRegistration.ConfigurationKey]),
+            MyVedicStar.Infrastructure.DependencyInjection.SpiceProviderComposition.EngineFactory(configuration));
         services.AddOptions<HealthEndpointOptions>()
             .Bind(configuration.GetSection(HealthEndpointOptions.SectionName))
             .ValidateDataAnnotations()

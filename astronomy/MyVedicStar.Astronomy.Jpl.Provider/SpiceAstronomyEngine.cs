@@ -70,6 +70,26 @@ public sealed class SpiceAstronomyEngine : IAstronomyEngine
     public AstronomyCapabilityReport GetCapabilities() => AstronomyCapabilities.Report();
 
     /// <summary>
+    /// Tropical longitude of one body at a Julian Day UT, mean equinox of date - the shape the product's
+    /// <c>IEphemeris</c> port needs (FR-06, AST-12 #77).
+    /// </summary>
+    /// <remarks>
+    /// This adds no second calculation route: it asks the same FR-02 planetary surface that AST-02 delivered
+    /// (<see cref="GetPlanetaryPosition"/>), so when those numerics arrive the port changes with them. A body the
+    /// engine does not support raises <see cref="AstronomyNotSupportedException"/> through that call; nothing is
+    /// approximated or substituted (D1).
+    /// </remarks>
+    public double GetTropicalLongitude(CelestialBody body, double julianDayUt)
+    {
+        var position = GetPlanetaryPosition(
+            PlanetaryRequest.Create(body, PositionCenter.Geocentric, PositionConvention.Apparent,
+                ZodiacConvention.Tropical, NodeConvention.Mean),
+            new JulianDayUt(julianDayUt));
+        return position.LongitudeDegrees;
+    }
+
+
+    /// <summary>
     /// Provenance for a result. The toolkit version is the one the image reports; when the host reports nothing this
     /// returns null rather than a constant, so the FR-08 inventory claim stays falsifiable (architect note 2).
     /// </summary>

@@ -10,6 +10,7 @@
     <ProjectReference Include="../MyVedicDay.Ai.Shared/MyVedicDay.Ai.Shared.csproj" />
     <ProjectReference Include="../MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
     <ProjectReference Include="../../astronomy/MyVedicStar.Astronomy.Core/MyVedicStar.Astronomy.Core.csproj" />
+    <ProjectReference Include="../../astronomy/MyVedicStar.Astronomy.Jpl.Provider/MyVedicStar.Astronomy.Jpl.Provider.csproj" />
     <ProjectReference Include="../MyVedicDay.Caching/MyVedicDay.Caching.csproj" />
     <ProjectReference Include="../MyVedicDay.Festivals.Business/MyVedicDay.Festivals.Business.csproj" />
     <ProjectReference Include="../MyVedicDay.Festivals.Calculation/MyVedicDay.Festivals.Calculation.csproj" />

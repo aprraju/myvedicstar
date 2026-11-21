@@ -72,9 +72,12 @@ public static class PanchangBusinessServiceCollectionExtensions
         // fails at composition rather than degrading to the analytical series. An ABSENT value resolves to the
         // documented default instead, because absence is a normal state - the Day and Star hosts load their own
         // layered configuration and neither ships this section today. Defaulting absence in one named place keeps
-        // that explicit, and decision D2 keeps the analytical series the default until AST-12 (#77) flips it.
+        // that explicit. The default is read from ProductProviderSelection rather than written out here, so the
+        // AST-12 (#77) cutover to the SPICE provider happened in one place instead of in every host.
         services.AddAstronomyProvider(
-            configuration[AstronomyProviderRegistration.ConfigurationKey] ?? ProviderSelectionParser.AnalyticalKey);
+            ProviderSelectionParser.ToKey(ProductProviderSelection.Resolve(
+                configuration[AstronomyProviderRegistration.ConfigurationKey])),
+            MyVedicStar.Infrastructure.DependencyInjection.SpiceProviderComposition.EngineFactory(configuration));
         services.AddPanchangCalculation();
         services.AddPanchangData(configuration);
 
