@@ -104,24 +104,49 @@ public sealed class UtInstantConversionTests
     [Fact]
     public void The_providers_composition_is_what_populates_the_default_seam()
     {
-        // api#159. This test project never composes a host, so nothing may have touched the default on its behalf - the
-        // latch's worst state ("no conversion, and later tests cannot get one back") is now just `HasConversion == false`,
-        // which is observable rather than inferred from an ordering accident.
-        Assert.False(TtConversionSeam.Default.HasConversion,
-            "A test project that never composed a host must not find a conversion installed by another test.");
-
-        // And the provider really does install one: composition is the only thing that changes this.
+        // api#159. No precondition on the state this test found: `Default` is process-wide and another class may
+        // legitimately have installed a conversion already, so "it was false when I arrived" is not a fact any test can
+        // honestly assert - and asserting it is exactly how the old hazard was smuggled back in, decided by ordering.
+        //
+        // What IS assertable is the act: composition installs a default, and that default converts. The absence half is
+        // carried by the seam tests, where an Uninstalled() seam converts nothing no matter what the default holds.
         TtConversionSeam.InstallDefault(DeltaT.ToJulianEphemerisDay, DeltaT.ToJulianDayUt);
         try
         {
-            Assert.True(TtConversionSeam.Default.HasConversion);
+            Assert.True(TtConversionSeam.Default.HasConversion,
+                "Composition installs the provider's DeltaT as the default conversion.");
             Assert.Equal(2451545.0 + J2000DeltaTDays,
                 new UtInstant(2451545.0).ToTerrestrialTime(TtConversionSeam.Default).JulianDay, 7);
         }
         finally
         {
-            // Default is process-wide by design (the provider sets it once at composition); put the process back the
-            // way this project found it so this test cannot decide what a LATER test sees - the api#159 hazard itself.
+            // Put the process back the way this test found it. Composition is the only thing that sets the default, so
+            // restoring "no conversion" is the state a project that never composed a host is entitled to.
+            TtConversionSeam.ResetDefaultForTests();
+        }
+    }
+
+    /// <summary>
+    /// The test that replaces the deleted precondition, in the class whose claim it is: the default being installed or
+    /// not cannot change what an <see cref="TtConversionSeam.Uninstalled"/> seam does.
+    /// </summary>
+    [Fact]
+    public void An_uninstalled_seam_converts_nothing_whatever_the_default_holds()
+    {
+        var absent = TtConversionSeam.Uninstalled();
+        Assert.False(absent.HasConversion);
+        Assert.Throws<InvalidOperationException>(() => { _ = new UtInstant(2451545.0).ToTerrestrialTime(absent); });
+
+        // Now put a conversion in the process-wide default and ask the same seam again: unchanged.
+        TtConversionSeam.InstallDefault(DeltaT.ToJulianEphemerisDay, DeltaT.ToJulianDayUt);
+        try
+        {
+            Assert.True(TtConversionSeam.Default.HasConversion);
+            Assert.False(absent.HasConversion);
+            Assert.Throws<InvalidOperationException>(() => { _ = new UtInstant(2451545.0).ToTerrestrialTime(absent); });
+        }
+        finally
+        {
             TtConversionSeam.ResetDefaultForTests();
         }
     }
