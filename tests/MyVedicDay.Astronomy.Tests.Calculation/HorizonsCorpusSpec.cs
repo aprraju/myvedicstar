@@ -91,8 +91,29 @@ public sealed class HorizonsCorpusSpec
     public CorpusTolerances Tolerances => Document.Tolerances;
 
     /// <summary>Loads the spec from a directory or from <c>astronomy/</c> beneath it, as the other fixtures do.</summary>
+    /// <remarks>
+    /// <paramref name="solutionRoot"/> may name the JSON file itself, which is how the loader is exercised against an
+    /// edited copy without mutating the checked-in one. A directory-only signature forced the falsifiability test to
+    /// copy the file into a temp directory under the expected name - which silently tested "file not found" instead of
+    /// the refusal it was written for.
+    /// </remarks>
     public static HorizonsCorpusSpec Load(string solutionRoot)
     {
+        var path = ResolvePath(solutionRoot);
+        var document = JsonSerializer.Deserialize<CorpusSpecDocument>(File.ReadAllText(path), SerializerOptions)
+                       ?? throw new InvalidOperationException($"AST-09 corpus spec '{FileName}' is empty or invalid.");
+
+        Validate(document);
+        return new HorizonsCorpusSpec(document);
+    }
+
+    private static string ResolvePath(string solutionRoot)
+    {
+        // Any existing FILE is loaded as-is: the falsifiability test needs to point at an edited copy under a temp
+        // name, and enforcing the file name here made that test hit a not-found path instead of the refusal.
+        if (File.Exists(solutionRoot))
+            return solutionRoot;
+
         var direct = Path.Combine(solutionRoot, FileName);
         var nested = Path.Combine(solutionRoot, "astronomy", FileName);
         var path = File.Exists(direct) ? direct : nested;
@@ -100,12 +121,7 @@ public sealed class HorizonsCorpusSpec
             throw new FileNotFoundException(
                 $"AST-09 corpus spec '{FileName}' is missing at '{direct}' or '{nested}'. The corpus cannot be " +
                 "enumerated without it.", path);
-
-        var document = JsonSerializer.Deserialize<CorpusSpecDocument>(File.ReadAllText(path), SerializerOptions)
-                       ?? throw new InvalidOperationException($"AST-09 corpus spec '{FileName}' is empty or invalid.");
-
-        Validate(document);
-        return new HorizonsCorpusSpec(document);
+        return path;
     }
 
     /// <summary>
@@ -249,20 +265,29 @@ public sealed class HorizonsCorpusSpec
                        ?? throw new InvalidOperationException(
                            $"Edge case '{edgeCase.Id}' names unknown zone '{edgeCase.Timezone}'.");
             var localDate = LocalDatePattern.Iso.Parse(edgeCase.LocalDate).Value;
+
+            // A date before the declared span is still carried, but it is not a span case: Paris local midnight in 1800
+            // is 1799-12-31 UT, which sits 0.4 second before the span's own start. Refusing it would drop the Delta-T
+            // edge the architect asked for; folding it into the span silently would be a wrong instant. The check in
+            // HorizonsCorpusTests allows the edge cases a one-day margin and holds span cases to the span exactly.
             cases.Add(new CorpusCase(
                 $"historical-{edgeCase.Id}",
                 CorpusCategory.HistoricalDates,
                 CelestialBody.Sun,
-                JulianDay.FromInstant(localDate.AtStartOfDayIn(zone).ToInstant()),
+                // InZoneLeniently: on a DST spring-forward date the local midnight may not exist, and the lenient
+                // mapping lands on the first valid instant rather than throwing - which is the behaviour the edge
+                // case exists to exercise.
+                JulianDay.FromInstant(localDate.At(LocalTime.Midnight).InZoneLeniently(zone).ToInstant()),
                 edgeCase.Id,
                 $"apparent|{edgeCase.Timezone}|dst-or-leap-second-edge"));
         }
 
         var target = Document.CaseCounts.HistoricalDates;
         var remaining = target - Document.EdgeCases.Count;
+        var count = remaining;
         for (var index = 0; remaining > 0; index++, remaining--)
         {
-            var epoch = FixtureSpanEpoch(index, remaining);
+            var epoch = FixtureSpanEpoch(index, count);
             cases.Add(new CorpusCase(
                 $"historical-span-{index:D3}",
                 CorpusCategory.HistoricalDates,
@@ -293,14 +318,22 @@ public sealed class HorizonsCorpusSpec
         return epochs;
     }
 
-    private double FixtureSpanEpoch(int index, int remaining)
+    /// <summary>
+    /// An epoch at each end of the fixture span first, then evenly between them.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="count"/> is the total number of span cases, not the number left: passing the countdown made the
+    /// divisor shrink with the loop, so the first span case divided the whole span by one and landed in 1800. The
+    /// original code also returned <c>from</c>/<c>to</c> for indices 0/1 and then ignored them, emitting an epoch out of
+    /// range on the first iteration - a spread function that has to be tested is a spread function that was wrong.
+    /// </remarks>
+    private double FixtureSpanEpoch(int index, int count)
     {
         var from = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.From.Year, ParityFixtures.From.Month,
             ParityFixtures.From.Day));
         var to = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.To.Year, ParityFixtures.To.Month,
             ParityFixtures.To.Day));
-        var fraction = remaining == 1 ? 0.0 : 1.0 - index / (double)(remaining - 1);
-        return index == 0 ? from : index == 1 ? to : from + (to - from) * fraction;
+        return count <= 1 ? from : from + (to - from) * (index / (double)(count - 1));
     }
 
     private static NodeConvention NodeConventionFor(CelestialBody body) => body switch

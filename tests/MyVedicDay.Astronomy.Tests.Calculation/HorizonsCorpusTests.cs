@@ -84,7 +84,14 @@ public sealed class HorizonsCorpusTests
         var from = JulianDay.FromUtcMidnight(new LocalDate(spec.Document.DateSpanUtYears.From, 1, 1));
         var to = JulianDay.FromUtcMidnight(new LocalDate(spec.Document.DateSpanUtYears.To, 12, 31));
 
-        Assert.All(cases, caseItem => Assert.InRange(caseItem.JulianDayUt, from, to + 1.0));
+        // Span-generated cases sit inside the span exactly; declared edge cases get a one-day margin because a local
+        // midnight in a zone east or west of Greenwich can land a fraction of a second outside a UT-midnight span.
+        // That margin is stated here rather than widening the range for everything, which would hide a real spread bug
+        // in the planetary or transition enumeration.
+        var edgeIds = spec.EdgeCases.Select(edgeCase => $"historical-{edgeCase.Id}").ToHashSet();
+        Assert.All(cases, caseItem => Assert.InRange(caseItem.JulianDayUt,
+            edgeIds.Contains(caseItem.Id) ? from - 1.0 : from,
+            edgeIds.Contains(caseItem.Id) ? to + 1.0 : to));
 
         // The declared span must contain the parity fixture span, or a body covered by parity has no accuracy case.
         var fixtureFrom = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.From.Year, ParityFixtures.From.Month,
@@ -178,7 +185,10 @@ public sealed class HorizonsCorpusTests
         File.WriteAllText(temp, lowered);
         try
         {
-            Assert.Throws<InvalidOperationException>(() => HorizonsCorpusSpec.Load(Path.Combine(Path.GetDirectoryName(temp)!, "")));
+            // Load the edited file BY PATH. Passing its temp directory asked the loader for a file named
+            // horizons-corpus-spec.json that was never there, so the assertion passed on FileNotFoundException-shaped
+            // intent rather than on the refusal it names.
+            Assert.Throws<InvalidOperationException>(() => HorizonsCorpusSpec.Load(temp));
         }
         finally
         {
