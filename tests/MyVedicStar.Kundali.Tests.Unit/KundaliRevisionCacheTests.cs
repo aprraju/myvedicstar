@@ -456,8 +456,256 @@ public sealed class KundaliUnconfiguredAshtakavargaTests
         Assert.Throws<InvalidOperationException>(() =>
             rules.Sarva(new Dictionary<string, int[]>()));
 
-        Assert.Equal("unconfigured", rules.RulesVersion);
+        // api#149: the version itself refuses. The string "unconfigured" used to answer here, before any scoring call
+        // threw, and the facade reads it on the ordinary path to build every result's revision key - so the fallback
+        // contributed to identity while claiming to be unconfigured.
+        Assert.Throws<InvalidOperationException>(() => rules.RulesVersion);
         _ = unsupported;
         await Task.CompletedTask;
     }
+}
+
+/// <summary>
+/// api#149. A fallback may not contribute a <c>RulesVersion</c> that reaches identity. Every unconfigured rule set used
+/// to answer <c>"unconfigured"</c> here, which meant every unconfigured result keyed identically to every other
+/// unconfigured result, and an unconfigured result could not be told apart from one under a different future rule set.
+/// </summary>
+/// <remarks>
+/// The assertions are deliberately ordered so a <c>try</c>/<c>catch</c> around the cache write cannot satisfy them: the
+/// request must throw, and the cache must hold nothing afterwards. A catch that swallowed the throw and still produced
+/// the key would leave an entry, and the second assertion would be red.
+/// </remarks>
+public sealed class KundaliUnconfiguredRulesVersionTests
+{
+    private readonly ClaimsPrincipal user = new(new ClaimsIdentity([], "test"));
+    private readonly Guid accountId = Guid.NewGuid();
+    private readonly Guid profileId = Guid.NewGuid();
+    private readonly IKundaliProfileReader profiles = Substitute.For<IKundaliProfileReader>();
+    private readonly IKundaliRepository repository = Substitute.For<IKundaliRepository>();
+    private readonly IKundaliAstronomyMetadataReader metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
+    private readonly IKundaliCalculationEngine engine = Substitute.For<IKundaliCalculationEngine>();
+    private readonly IKundaliAlertRepository alerts = Substitute.For<IKundaliAlertRepository>();
+    private readonly MutableClock clock = new();
+
+    private static readonly KundaliAstronomyMetadata Metadata =
+        new("analytical", "analytical", "Lahiri", "WholeSign", "Mean", "Sidereal");
+
+    private static KundaliInputSnapshot Snapshot(long profileRevision) =>
+        new(new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),
+            new TimeOnly(6, 15, 0), 13.0827m, 80.2707m, "Asia/Kolkata", profileRevision);
+
+    private static KundaliProfileDisplay Display() =>
+        new("Asha", new DateOnly(1990, 4, 12), BirthTimeMode.Known, new TimeOnly(6, 15, 0), new TimeOnly(6, 15, 0),
+            new TimeOnly(6, 15, 0), "Chennai", 13.0827m, 80.2707m, "Asia/Kolkata");
+
+    [Fact]
+    public void Every_unconfigured_rule_set_refuses_to_name_a_version()
+    {
+        Assert.Throws<InvalidOperationException>(() => new UnconfiguredAshtakavargaRules().RulesVersion);
+        Assert.Throws<InvalidOperationException>(() => new UnconfiguredShadbalaRules().RulesVersion);
+        Assert.Throws<InvalidOperationException>(() => new UnconfiguredYogaRules().RulesVersion);
+    }
+
+    /// <summary>
+    /// The fallback must fail where the version is asked for, not where a cache key is built - and the failure must
+    /// leave nothing behind. Three separate entry points are exercised because they reach the version tuple at
+    /// different points: the overview reads it before its first cache read, a generate path reaches it after repository
+    /// work, and a profile-change invalidation reaches it on the removal path.
+    /// </summary>
+    [Theory]
+    [InlineData("overview")]
+    [InlineData("generate")]
+    [InlineData("invalidate")]
+    public async Task An_unconfigured_rules_fallback_fails_the_request_and_writes_no_cache_entry(string entryPoint)
+    {
+        var (facade, cache) = UnconfiguredRulesFacade();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            if (entryPoint == "overview")
+                await facade.GetOverviewAsync(user, profileId, CancellationToken.None);
+            else if (entryPoint == "generate")
+                await facade.GenerateAsync(user, profileId, CancellationToken.None);
+            else
+                await facade.ApplyProfileChangeAsync(user, profileId, 7,
+                    KundaliProfileChangeKinds.BirthInput, CancellationToken.None);
+        });
+
+        // "No entry exists" asserted positively: a `try`/`catch` around the cache write satisfies the throw assertion
+        // above and still produces the key once. The recorded key lists are what make that red rather than invisible.
+        Assert.Empty(cache.WrittenKeys);
+    }
+
+    /// <summary>
+    /// The positive control for the invalidation assertions. <see cref="RecordingResultCache.RemovedKeys"/> is fed only by
+    /// <c>RemoveAsync</c>, so "nothing was written" above - and in the invalidate case of the theory - only means something
+    /// if this same cache, in this same fixture shape, records the removal when the rule sets are registered. A cache that
+    /// could never record a removal would make those assertions pass vacuously. Proved by flipping registerRules to false:
+    /// this test then fails on the fallback's throw, which is the only difference between the two cases.
+    /// </summary>
+    [Fact]
+    public async Task A_registered_rules_fallback_does_record_the_invalidation_it_performs()
+    {
+        var (facade, cache) = UnconfiguredRulesFacade(registerRules: true);
+
+        var result = await facade.ApplyProfileChangeAsync(user, profileId, 7,
+            KundaliProfileChangeKinds.BirthInput, CancellationToken.None);
+
+        Assert.False(result.DisplayOnly);
+        // Exactly one removal, and no store: a birth-input change invalidates exactly the one cached payload it dirtied.
+        // The count is asserted rather than the key's text because the key is a hash; pinning its text would pin the
+        // hashing scheme instead of the behaviour.
+        Assert.Single(cache.RemovedKeys);
+        Assert.StartsWith("kundali:", Assert.Single(cache.RemovedKeys), StringComparison.Ordinal);
+        Assert.Single(cache.WrittenKeys);
+    }
+
+    /// <summary>Builds a facade whose only gap is the rule registrations, so the failure is attributable to them.</summary>
+    private (IKundaliFacade Facade, RecordingResultCache Cache) UnconfiguredRulesFacade(
+        bool registerRules = false)
+    {
+        var profiles = Substitute.For<IKundaliProfileReader>();
+        profiles.GetRegisteredAccountIdAsync(user, CancellationToken.None).Returns(accountId);
+        profiles.GetSnapshotAsync(user, profileId, CancellationToken.None).Returns(Snapshot(profileRevision: 7));
+        profiles.GetDisplayAsync(user, profileId, CancellationToken.None).Returns(Display());
+        profiles.GetAyanamsaAsync(user, CancellationToken.None).Returns("Lahiri");
+
+        var metadata = Substitute.For<IKundaliAstronomyMetadataReader>();
+        metadata.GetAsync(user, CancellationToken.None).Returns(Metadata);
+
+        // The engine is stubbed to return no placements rather than being left as a bare substitute whose Calculate
+        // answers null: an unstubbed engine fails the overview on a null dereference before the version tuple is read,
+        // and the throw assertion would then be satisfied by the wrong defect.
+        engine.Calculate(Arg.Any<KundaliEngineInput>()).Returns(new KundaliEngineResult(
+            null, null, null, null, [], null, null, [], []));
+
+        // An empty view is returned rather than null: the generate path reads the aggregate's revision to build the
+        // next one, so a null here would fail before the version tuple is ever asked for.
+        repository.GetAsync(accountId, profileId, Arg.Any<long?>(), Arg.Any<CancellationToken>())
+            .Returns(new KundaliView(new KundaliAggregate(Guid.NewGuid(), profileId, Guid.NewGuid(), 7,
+                DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                new KundaliRevisionSummary(Guid.NewGuid(), 7, KundaliGenerationStatus.Succeeded, null,
+                    new KundaliProvenance("kundali-foundation-0", "analytical", "foundation-0", "host", "Lahiri"),
+                    Snapshot(7).ComputeHash(), IsStale: false, IsPartial: false, CompletedSections: [],
+                    DateTimeOffset.UnixEpoch)));
+
+        // The aggregate add is the last step of a generate for a profile that already has a current revision; it must
+        // return a view with a revision, or the stamping step dereferences null before the version tuple is asked for.
+        repository.AddRevisionAsync(accountId, profileId, Arg.Any<long>(), Arg.Any<KundaliInputSnapshot>(),
+                Arg.Any<KundaliProvenance>(), Arg.Any<CancellationToken>())
+            .Returns(new KundaliView(new KundaliAggregate(Guid.NewGuid(), profileId, Guid.NewGuid(), 8,
+                DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                new KundaliRevisionSummary(Guid.NewGuid(), 8, KundaliGenerationStatus.Pending, null,
+                    new KundaliProvenance("kundali-foundation-0", "analytical", "foundation-0", "host", "Lahiri"),
+                    Snapshot(7).ComputeHash(), IsStale: false, IsPartial: false, CompletedSections: [],
+                    DateTimeOffset.UnixEpoch)));
+
+        // The invalidation path reads the applied change's result before it builds the version tuple; an unstubbed
+        // substitute returns null and the test would fail on a null reference instead of on the property under test.
+        repository.ApplyProfileChangeAsync(accountId, profileId, Arg.Any<long>(), Arg.Any<long>(),
+                KundaliProfileChangeKinds.BirthInput, Arg.Any<CancellationToken>())
+            .Returns(new KundaliProfileChangeResult(profileId, 7, Applied: true, DisplayOnly: false,
+                AggregateRevision: 8, AbandonedRevisionId: null));
+
+        var cache = new RecordingResultCache();
+
+        var builder = KundaliTestProvider.Create()
+            .With(profiles)
+            .With(repository)
+            .With(alerts)
+            .With(metadata)
+            .With(engine)
+            .With<IKundaliResultCache>(cache)
+            .With<TimeProvider>(clock)
+            .With<IKundaliDivisionalMapper>(new UnconfiguredDivisionalMapperStubForRulesVersionTests())
+            .With<IKundaliDignityRules>(new NoDignityRules2());
+
+        // The control case registers real stand-in rule sets; the theory deliberately leaves them unregistered so the
+        // container fallbacks are what refuses. Both use this one builder, so the two differ only in that fact.
+        if (registerRules)
+            builder = builder
+                .With<IKundaliAshtakavargaRules>(new CacheTestAshtakavargaRules())
+                .With<IKundaliShadbalaRules>(new CacheTestShadbalaRules())
+                .With<IKundaliYogaRules>(new CacheTestYogaRules());
+
+        var facade = builder.BuildFacade();
+
+        return (facade, cache);
+    }
+
+    private sealed class UnconfiguredDivisionalMapperStubForRulesVersionTests : IKundaliDivisionalMapper
+    {
+        public bool IsImplemented(int divisional) => false;
+
+        public int SignIn(int divisional, double siderealLongitude) =>
+            throw new ArgumentOutOfRangeException(nameof(divisional));
+    }
+
+    private sealed class NoDignityRulesForRulesVersionTests : IKundaliDignityRules
+    {
+        public IReadOnlyList<string> DignityStates => [];
+
+        public string DignityOf(string planet, double siderealLongitude) => "neutral";
+
+        public IReadOnlyList<int> AspectedSigns(string planet, int fromSign) => [];
+    }
+
+    /// <summary>Records every key that reached the cache, so "no entry exists" is an observation rather than an absence.</summary>
+    private sealed class RecordingResultCache : IKundaliResultCache
+    {
+        public List<string> ReadKeys { get; } = [];
+
+        public List<string> WrittenKeys { get; } = [];
+
+        /// <summary>Keys that reached a removal. Kept apart from writes so a test can tell an invalidation from a store.</summary>
+        public List<string> RemovedKeys { get; } = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken token) where T : class
+        {
+            ReadKeys.Add(key);
+            return Task.FromResult<T?>(null);
+        }
+
+        public Task SetAsync<T>(string key, T value, DateTimeOffset validUntil, string policy,
+            CancellationToken token) where T : class
+        {
+            WrittenKeys.Add(key);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken token)
+        {
+            WrittenKeys.Add(key);
+            RemovedKeys.Add(key);
+            return Task.CompletedTask;
+        }
+    }
+}
+
+/// <summary>Stand-in rule sets for the invalidation control: a nameable version and no data. They exist so the control
+/// exercises the version tuple through a registration that answers, rather than through a fallback that refuses.</summary>
+internal sealed class CacheTestAshtakavargaRules : IKundaliAshtakavargaRules
+{
+    public string RulesVersion => "none";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) => [];
+    public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
+}
+
+internal sealed class CacheTestShadbalaRules : IKundaliShadbalaRules
+{
+    public string RulesVersion => "none";
+    public string Unit => "rupas";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyDictionary<string, string> WithheldComponents =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) => [];
+}
+
+internal sealed class CacheTestYogaRules : IKundaliYogaRules
+{
+    public string RulesVersion => "none";
+    public IReadOnlyList<string> Statuses => [];
+    public IReadOnlyList<string> Catalogue => [];
+    public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) => new("none", [], []);
 }

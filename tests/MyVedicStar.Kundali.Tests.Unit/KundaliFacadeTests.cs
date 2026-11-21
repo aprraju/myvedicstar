@@ -37,6 +37,12 @@ public sealed class KundaliFacadeTests : IDisposable
             .With(repository)
             .With<TimeProvider>(new FixedClock())
             .With(Substitute.For<IKundaliResultCache>())
+            // api#149: the rule sets are supplied explicitly. The container fallbacks refuse to name a RulesVersion,
+            // because a version that reaches identity must be a real one; a test that leaves them unregistered would
+            // be asserting against a host that cannot produce a key at all, not against the behaviour it names.
+            .With<IKundaliAshtakavargaRules>(new UnregisteredAshtakavargaRules())
+            .With<IKundaliShadbalaRules>(new UnregisteredShadbalaRules())
+            .With<IKundaliYogaRules>(new UnregisteredYogaRules())
             .Build();
         facade = provider.CreateScope().ServiceProvider.GetRequiredService<IKundaliFacade>();
     }
@@ -270,4 +276,33 @@ public sealed class KundaliFacadeTests : IDisposable
 internal sealed class FixedClock : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => new(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
+}
+
+
+/// <summary>api#149 stand-in rule sets for <see cref="KundaliFacadeTests"/>. They name a real version and return no
+/// data, which is what these tests are about: the version must reach identity from a registration that exists.</summary>
+internal sealed class UnregisteredAshtakavargaRules : IKundaliAshtakavargaRules
+{
+    public string RulesVersion => "none";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyList<int> Bhinna(string planet, IReadOnlyDictionary<string, int> signByReference) => [];
+    public IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet) => [];
+}
+
+internal sealed class UnregisteredShadbalaRules : IKundaliShadbalaRules
+{
+    public string RulesVersion => "none";
+    public string Unit => "rupas";
+    public IReadOnlyList<string> ScoredPlanets => [];
+    public IReadOnlyDictionary<string, string> WithheldComponents =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyList<KundaliShadbalaResult> Compute(IReadOnlyDictionary<string, double> longitudeByPlanet) => [];
+}
+
+internal sealed class UnregisteredYogaRules : IKundaliYogaRules
+{
+    public string RulesVersion => "none";
+    public IReadOnlyList<string> Statuses => [];
+    public IReadOnlyList<string> Catalogue => [];
+    public KundaliYogaEvaluation Evaluate(IReadOnlyDictionary<string, int> signByGraha) => new("none", [], []);
 }
