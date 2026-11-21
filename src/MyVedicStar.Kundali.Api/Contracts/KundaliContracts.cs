@@ -362,6 +362,16 @@ public sealed record KundaliBalaResponse(
 
 /// <summary>One planet's strength. <c>componentsWithheld</c> names the classical components that are missing, so a
 /// partial total is never mistaken for a six-fold score.</summary>
+/// <remarks><b><c>components</c> cannot be summed, or ranked, as strength; <c>total</c> is the strength.</b> The
+/// dictionary discloses the parts of <c>total</c> so a client can audit it, not a set of numbers to add up:
+/// <c>total</c> sums exactly the members of <c>componentsInTotal</c> and excludes <c>componentsExcludedFromTotal</c>.
+/// <para>A client summing <c>components</c> is wrong twice over, and silently. A withheld component (see
+/// <c>componentsWithheld</c>) is a key that is simply absent, so the sum drops an unknown quantity without changing
+/// shape. A placeholder component is present with a real-looking number (<c>dig</c> is <c>0.0</c>), so the sum adds a
+/// zero that was never strength and is numerically identical to a measured zero.</para>
+/// <para><c>componentStates</c> is total over <c>components</c> - one state per key - and is the only discriminator
+/// between a measured value and a placeholder. Read <c>total</c> for strength, and gate any comparison of
+/// <c>ratioToThreshold</c> on the section's <c>complete</c> flag.</para></remarks>
 public sealed record KundaliShadbalaPlanetResponse(
     string Planet,
     IReadOnlyDictionary<string, double> Components,
