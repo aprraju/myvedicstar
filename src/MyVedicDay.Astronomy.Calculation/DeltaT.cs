@@ -68,6 +68,26 @@ internal static class DeltaT
     /// <summary>Converts a Julian Day in Universal Time to a Julian Ephemeris Day (Terrestrial Time).</summary>
     public static double ToJulianEphemerisDay(double julianDayUt) => julianDayUt + (GetSeconds(julianDayUt) / SecondsPerDay);
 
+    /// <summary>
+    /// The inverse of <see cref="ToJulianEphemerisDay"/> (api#159). A seam holds a forward conversion and its inverse
+    /// together, so a round trip cannot pair one conversion's forward with another's inverse.
+    /// </summary>
+    /// <remarks>
+    /// ΔT is a function of the <b>UT</b> day, so the exact inverse solves <c>jdUt + deltaT(jdUt)/86400 = jdTt</c> rather
+    /// than simply subtracting ΔT evaluated at the TT day. ΔT changes by ~0.3 s over a decade, so the difference between
+    /// the two is far below a microsecond; the iteration is used because "close enough" is exactly the reasoning that
+    /// made the original argument mistake invisible.
+    /// </remarks>
+    public static double ToJulianDayUt(double julianDayTt)
+    {
+        var jdUt = julianDayTt - (GetSeconds(julianDayTt) / SecondsPerDay);
+
+        for (var i = 0; i < 4; i++)
+            jdUt = julianDayTt - (GetSeconds(jdUt) / SecondsPerDay);
+
+        return jdUt;
+    }
+
     private static double LongTerm(double year)
     {
         var u = (year - 1820) / 100;

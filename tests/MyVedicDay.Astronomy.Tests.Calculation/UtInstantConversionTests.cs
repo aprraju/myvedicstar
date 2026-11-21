@@ -25,19 +25,17 @@ public sealed class UtInstantConversionTests
     /// </remarks>
     private const double J2000DeltaTDays = 0.0007391204;
 
-    public UtInstantConversionTests()
-    {
-        // Deliberately NOT `??=`, and deliberately explicit: this fixture installs the real conversion as an act, not
-        // as a fallback that would also fire if nothing were wired. Install is one-shot, so the sample test below
-        // resets first; every other test depends on this one install.
-        TtOffsets.ResetForTests();
-        TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
-    }
+    /// <summary>
+    /// api#159: the real conversion, held by <b>this test instance</b>. Nothing is installed process-wide and nothing is
+    /// reset, so no test can change what another test sees and an unlucky order cannot leave the process uninstalled.
+    /// </summary>
+    private static readonly TtConversionSeam Real =
+        TtConversionSeam.Installed(DeltaT.ToJulianEphemerisDay, DeltaT.ToJulianDayUt);
 
     [Fact]
     public void Converting_J2000_from_UT_to_TT_lands_on_the_measured_ephemeris_day()
     {
-        var tt = new UtInstant(2451545.0).ToTerrestrialTime();
+        var tt = new UtInstant(2451545.0).ToTerrestrialTime(Real);
 
         Assert.Equal(2451545.0 + J2000DeltaTDays, tt.JulianDay, 7);
     }
@@ -47,7 +45,7 @@ public sealed class UtInstantConversionTests
     {
         // The whole finding: same literal, two instants. 63.86 s is ~35 arcsec of lunar motion and ~2.5 arcsec of solar
         // motion, so the mistake is invisible on the Sun and fatal on the Moon.
-        var tt = new UtInstant(2451545.0).ToTerrestrialTime();
+        var tt = new UtInstant(2451545.0).ToTerrestrialTime(Real);
         var seconds = (tt.JulianDay - 2451545.0) * 86400.0;
 
         Assert.InRange(seconds, 63.8, 63.9);
@@ -60,7 +58,7 @@ public sealed class UtInstantConversionTests
         // the repo's own table). If the series moves while the conversion stays correct, this fails - which the
         // conversion pin alone could not detect.
         var atUt = LunarPosition.MeanEquinoxLongitude(2451545.0);
-        var atTt = LunarPosition.MeanEquinoxLongitude(new UtInstant(2451545.0).ToTerrestrialTime().JulianDay);
+        var atTt = LunarPosition.MeanEquinoxLongitude(new UtInstant(2451545.0).ToTerrestrialTime(Real).JulianDay);
 
         Assert.Equal(223.3187110273, atUt, 9);
         Assert.Equal(223.3275960948, atTt, 9);
@@ -75,7 +73,7 @@ public sealed class UtInstantConversionTests
         // GetMoonLongitude takes UT. Feeding the TT literal is a 31.99 arcsec error, and the type pair is what stops it
         // being written: this test documents the magnitude, it cannot prevent the mistake.
         var viaUt = new MeeusEphemeris().GetMoonLongitude(2451545.0);
-        var deltaT = (new UtInstant(2451545.0).ToTerrestrialTime().JulianDay - 2451545.0);
+        var deltaT = (new UtInstant(2451545.0).ToTerrestrialTime(Real).JulianDay - 2451545.0);
 
         Assert.Equal(223.3353738726, viaUt, 9);
         Assert.True(deltaT > 0, "delta-T must be positive at J2000; a sign error here would invert the whole finding.");
@@ -84,28 +82,72 @@ public sealed class UtInstantConversionTests
     [Fact]
     public void A_missing_conversion_throws_rather_than_defaulting()
     {
-        // A silent fallback would reintroduce the invisible difference the type pair exists to remove.
-        TtOffsets.ResetForTests();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() => new UtInstant(2451545.0).ToTerrestrialTime());
-        }
-        finally
-        {
-            // Restored through the same public install path the provider uses, so the guard is live again afterwards.
-            TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
-        }
+        // A silent fallback would reintroduce the invisible difference the type pair exists to remove. api#159: the
+        // missing state is CONSTRUCTED here, not produced by a reset that the previous test had to give back.
+        var absent = TtConversionSeam.Uninstalled();
+
+        Assert.Throws<InvalidOperationException>(() => { _ = new UtInstant(2451545.0).ToTerrestrialTime(absent); });
     }
 
     [Fact]
-    public void A_second_install_is_taken_once_and_does_not_replace_the_first()
+    public void The_installed_conversion_survives_a_neighbour_observing_absence()
     {
-        // Two conversions would mean whichever ran last wins - the two-sources defect, literally. The second call must
-        // lose, and it must not throw: composing twice is normal (a test host beside the real one) and refusing it would
-        // fail start-up for a condition that is not actually two different conversions.
-        var accepted = TtOffsets.Install(DeltaT.ToJulianEphemerisDay);
+        // The latch's real hazard: a test that looked at the uninstalled branch left every LATER test without a
+        // conversion. Here the neighbouring seam is constructed, used and disposed, and this one is untouched.
+        var absent = TtConversionSeam.Uninstalled();
+        Assert.False(absent.HasConversion);
+        absent.Dispose();
 
-        Assert.False(accepted, "Only the first install may take effect.");
-        Assert.True(TtOffsets.IsInstalled);
+        Assert.Equal(2451545.0 + J2000DeltaTDays, new UtInstant(2451545.0).ToTerrestrialTime(Real).JulianDay, 7);
+    }
+
+    [Fact]
+    public void The_providers_composition_is_what_populates_the_default_seam()
+    {
+        // api#159. No precondition on the state this test found: `Default` is process-wide and another class may
+        // legitimately have installed a conversion already, so "it was false when I arrived" is not a fact any test can
+        // honestly assert - and asserting it is exactly how the old hazard was smuggled back in, decided by ordering.
+        //
+        // What IS assertable is the act: composition installs a default, and that default converts. The absence half is
+        // carried by the seam tests, where an Uninstalled() seam converts nothing no matter what the default holds.
+        TtConversionSeam.InstallDefault(DeltaT.ToJulianEphemerisDay, DeltaT.ToJulianDayUt);
+        try
+        {
+            Assert.True(TtConversionSeam.Default.HasConversion,
+                "Composition installs the provider's DeltaT as the default conversion.");
+            Assert.Equal(2451545.0 + J2000DeltaTDays,
+                new UtInstant(2451545.0).ToTerrestrialTime(TtConversionSeam.Default).JulianDay, 7);
+        }
+        finally
+        {
+            // Put the process back the way this test found it. Composition is the only thing that sets the default, so
+            // restoring "no conversion" is the state a project that never composed a host is entitled to.
+            TtConversionSeam.ResetDefaultForTests();
+        }
+    }
+
+    /// <summary>
+    /// The test that replaces the deleted precondition, in the class whose claim it is: the default being installed or
+    /// not cannot change what an <see cref="TtConversionSeam.Uninstalled"/> seam does.
+    /// </summary>
+    [Fact]
+    public void An_uninstalled_seam_converts_nothing_whatever_the_default_holds()
+    {
+        var absent = TtConversionSeam.Uninstalled();
+        Assert.False(absent.HasConversion);
+        Assert.Throws<InvalidOperationException>(() => { _ = new UtInstant(2451545.0).ToTerrestrialTime(absent); });
+
+        // Now put a conversion in the process-wide default and ask the same seam again: unchanged.
+        TtConversionSeam.InstallDefault(DeltaT.ToJulianEphemerisDay, DeltaT.ToJulianDayUt);
+        try
+        {
+            Assert.True(TtConversionSeam.Default.HasConversion);
+            Assert.False(absent.HasConversion);
+            Assert.Throws<InvalidOperationException>(() => { _ = new UtInstant(2451545.0).ToTerrestrialTime(absent); });
+        }
+        finally
+        {
+            TtConversionSeam.ResetDefaultForTests();
+        }
     }
 }
