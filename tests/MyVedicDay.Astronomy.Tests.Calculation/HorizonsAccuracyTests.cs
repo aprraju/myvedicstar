@@ -37,6 +37,11 @@ public sealed class HorizonsAccuracyTests
         Assert.Equal(14, reference.Rows.Count);
         Assert.Equal("DE441", reference.Provenance.EphemerisSource);
 
+        // The pinned numbers must carry a stated explanation for the convention difference, or they are pinned only
+        // because they are what came out.
+        Assert.NotNull(reference.Provenance.AberrationAnalysis);
+        Assert.False(string.IsNullOrWhiteSpace(reference.Provenance.AberrationAnalysis.Derivation));
+
         // A row whose instant or longitude is missing is not a reference; a row whose derivation is missing cannot be
         // re-fetched, so nobody can tell it from a hand-written number.
         Assert.All(reference.Rows, row =>
@@ -119,6 +124,27 @@ public sealed class HorizonsAccuracyTests
 
         foreach (var pinned in PinnedUnmetCases)
             Assert.Contains(pinned, failures);
+    }
+
+    [Fact]
+    public void The_aberration_term_is_stated_and_the_solar_residual_is_not_claimed_consistent_with_it()
+    {
+        var analysis = Reference.Value.Provenance.AberrationAnalysis;
+
+        // The term is 20.4955 arcsec in longitude for the Sun and does not vary with date, because it follows the
+        // Earth's orbital speed. A residual that changes sign and magnitude between epochs cannot be that term, and
+        // the artifact must not imply otherwise.
+        Assert.Equal(20.4955, analysis.TermArcseconds, 4);
+        Assert.Contains("NOT CONSISTENT", analysis.Verdict, StringComparison.OrdinalIgnoreCase);
+
+        var measured = new[] { analysis.MeasuredSunResidualsArcseconds.Jd2451545,
+            analysis.MeasuredSunResidualsArcseconds.Jd2461115 };
+        Assert.All(measured, value => Assert.True(Math.Abs(value) < analysis.TermArcseconds,
+            $"A measured solar residual ({value}) at or above the aberration term would suggest the term is the whole " +
+            "story; the artifact says it is not, so the two must not silently agree."));
+
+        // And the pin must be described as a measurement, not as an explained quantity.
+        Assert.Contains("NOT as an explained quantity", analysis.WhatThisMeans);
     }
 
     [Fact]
@@ -227,7 +253,26 @@ public sealed class HorizonsAccuracyTests
         string EphemerisSource,
         string TimeScale,
         string Frame,
-        string Centre);
+        string Centre,
+        HorizonsAberrationAnalysis AberrationAnalysis);
+
+    /// <summary>
+    /// The aberration term at these epochs, and whether the measured residual is consistent with it.
+    /// </summary>
+    /// <remarks>
+    /// A pinned number with no stated cause is pinned because it is what came out, not because it is understood. This
+    /// record forces the distinction: the term is a constant in longitude, so a residual that changes with epoch cannot
+    /// be attributed to it, and the artifact has to say so rather than let the reader assume it.
+    /// </remarks>
+    public sealed record HorizonsAberrationAnalysis(
+        double TermArcseconds,
+        string Derivation,
+        SunResiduals MeasuredSunResidualsArcseconds,
+        string Verdict,
+        string WhatThisMeans,
+        string OwnedBy);
+
+    public sealed record SunResiduals(double Jd2451545, double Jd2461115);
 
     public sealed record HorizonsReferenceEpoch(double JulianDayUt, string UtcLabel);
 

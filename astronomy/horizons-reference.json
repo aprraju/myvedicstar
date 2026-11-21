@@ -7,7 +7,18 @@
     "ephemerisSource": "DE441",
     "timeScale": "UT. Every row comes from the OBSERVER output, whose Date__(UT) column is Universal Time - the scale IEphemeris and IGrahaPositionsProvider both take, so the engine's own Delta-T handling is exercised rather than bypassed.",
     "frame": "Ecliptic of date (ObsEcLon), apparent: Horizons applies light-time, aberration and precession/nutation to the observer table. The engine's Sun/Moon series and planet longitudes are tropical of date; any residual therefore includes the engine's omission of full aberration, which is the quantity being measured.",
-    "centre": "GEOCENTRIC, CENTER=500@399, confirmed by the Center body name and Center-site name lines of each response."
+    "centre": "GEOCENTRIC, CENTER=500@399, confirmed by the Center body name and Center-site name lines of each response.",
+    "aberrationAnalysis": {
+      "termArcseconds": 20.4955,
+      "derivation": "Annual aberration in ecliptic longitude delta-lambda = -(kappa/d)*cos(lambda - lambda_sun)/cos(beta), kappa = 20.4955 arcsec. For the Sun seen from Earth, lambda = lambda_sun and d = 1 AU, so the term is the full -20.4955 arcsec. The engine's solar series applies no aberration, and Horizons' observer table does.",
+      "measuredSunResidualsArcseconds": {
+        "jd2451545": 13.708,
+        "jd2461115": -6.387
+      },
+      "verdict": "NOT CONSISTENT. The aberration term is a constant 20.4955 arcsec at both epochs because it depends on the Earth's orbital speed, not on the date. The measured residuals are 13.708 and -6.387 arcsec - both smaller in magnitude than the term, and they change sign and size between the epochs. If aberration were the whole difference the residual would be a steady 20.5 arcsec. Subtracting the term would leave -6.787 and -14.108 arcsec, which is not a smaller or better-behaved residual but a differently wrong one.",
+      "whatThisMeans": "Part of the solar residual is unexplained by the stated convention difference. The pinned numbers are therefore recorded as what the measurement produced, NOT as an explained quantity. The target of 1 arcsec is unreachable under this comparison for at least the aberration reason alone, but that is a distinct finding from the residual's actual cause and must not be used to stand in for it.",
+      "ownedBy": "#144 and the owner for the tolerance decision; the solar series' missing aberration is an accuracy defect against FR-02 and is not waived here."
+    }
   },
   "rejectedApproaches": [
     "A first attempt derived geocentric longitudes by subtracting an Earth heliocentric vector from a planet heliocentric vector, both fetched as VECTORS rows. The values assigned to Sun-centred queries were in fact geocentric: the response bodies were cross-checked only after Venus disagreed with the engine by 143 degrees, which is how the mislabelling was caught. That derivation is withdrawn rather than corrected, because a second derivation is a second chance to mislabel; the observer table returns the geocentric longitude directly, with its centre and target printed in the response.",
