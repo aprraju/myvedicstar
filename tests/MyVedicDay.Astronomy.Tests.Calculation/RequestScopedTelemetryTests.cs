@@ -35,7 +35,8 @@ public sealed class RequestScopedTelemetryTests
     public void Astronomy_assemblies_have_no_mutable_static_state_to_cross_a_request_boundary()
     {
         // Exactly one exception, named: the default UT->TT conversion. It is process state BY DESIGN (the provider installs
-        // it at composition), it is replaced atomically by reference so no request ever reads a half-installed seam, and
+        // it at composition), it is published under a release/acquire barrier so a concurrent reader never keeps seeing a
+        // stale seam after install (visibility, not tearing: the reference write was always atomic), and
         // it never holds a caller's input - a seam is conversion functions, not data. Everything else must be a finding.
         const string DefaultConversion = "MyVedicStar.Astronomy.Core.TtConversionSeam._default";
 

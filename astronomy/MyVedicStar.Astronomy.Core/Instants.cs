@@ -88,8 +88,10 @@ public sealed class TtConversionSeam : IDisposable
     }
 
     // The conversion the process actually uses, installed by the astronomy provider at composition. Field-backed rather
-    // than a property so it can be published atomically: a request that reads it sees either the old seam or the new one,
-    // never a half-installed one, and the mutable-static census test (api#75) recognises exactly this one field.
+    // than a property so publication carries a release/acquire barrier. A reference assignment is already atomic, so a
+    // torn read was never the risk; the risk was VISIBILITY - without the barrier another thread could keep reading the
+    // stale seam after install. With it, a concurrent reader sees either the old seam or the new one. The mutable-static
+    // census test (api#75) recognises exactly this one field.
     private static TtConversionSeam _default = new(null, null, null);
 
     /// <summary>The conversion the process actually uses; installed by the astronomy provider at composition.</summary>
