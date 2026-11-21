@@ -21,83 +21,145 @@ namespace MyVedicStar.Astronomy.Core;
 public readonly record struct UtInstant(double JulianDay)
 {
     /// <summary>
-    /// Converts to Terrestrial Time. <b>Passing this result to anything that expects <see cref="UtInstant"/> does not
-    /// compile</b>, which is the entire point of the type pair.
+    /// Converts to Terrestrial Time through <b>the seam the caller was given</b> (api#159). <b>Passing this result to
+    /// anything that expects <see cref="UtInstant"/> does not compile</b>, which is the entire point of the type pair.
     /// </summary>
-    public TtInstant ToTerrestrialTime() => new(TtOffsets.ToTerrestrialTime(this));
+    /// <exception cref="InvalidOperationException">
+    /// The seam has no conversion. That is a state the seam can hold and a test can construct; it is not an accident of
+    /// test ordering.
+    /// </exception>
+    public TtInstant ToTerrestrialTime(TtConversionSeam seam)
+    {
+        ArgumentNullException.ThrowIfNull(seam);
+        return seam.ToTerrestrialTime(this);
+    }
 
     public override string ToString() => $"JD {JulianDay:R} UT";
 }
 
-/// <summary>
-/// An instant expressed as a Julian Day in <b>Terrestrial Time</b> — an ephemeris day (api#140).
-/// </summary>
-/// <remarks>
-/// This is what the analytical series take. It is deliberately a distinct type from <see cref="UtInstant"/> so that
-/// the argument mistake that caused a 31.99 arcsecond discrepancy cannot be written: the compiler rejects it.
-/// </remarks>
-/// <param name="JulianDay">Julian Day in TT (JDE).</param>
 public readonly record struct TtInstant(double JulianDay)
 {
+    /// <summary>
+    /// Converts back to Universal Time through the same seam (api#159). Provided because a seam pairs a conversion with
+    /// its inverse at construction; on the latched design this direction did not exist.
+    /// </summary>
+    public UtInstant ToUniversalTime(TtConversionSeam seam)
+    {
+        ArgumentNullException.ThrowIfNull(seam);
+        return seam.ToUniversalTime(this);
+    }
+
     public override string ToString() => $"JDE {JulianDay:R} TT";
 }
 
 /// <summary>
-/// The one place UT becomes TT for reference work (api#140).
+/// The one place UT becomes TT for reference work (api#140), as a <b>per-instance seam</b> (api#159).
 /// </summary>
 /// <remarks>
-/// The conversion is <b>called, not reimplemented</b>: the astronomy provider's <c>DeltaT</c> is the only
-/// implementation, so the generator and the engine cannot diverge — a divergence would be impossible rather than
-/// something a test has to notice. See <c>TtOffsets.Conversion</c>, which the provider installs at start-up.
+/// <para>
+/// The previous design was a process-wide install-once latch. That made the two worlds a test must distinguish - "a
+/// conversion is loaded" and "no conversion is loaded" - decided by whichever test ran first, and an unlucky order left
+/// every later test in the process running with <b>no</b> conversion. The latch itself made it worse: <c>Install</c>
+/// became a no-op once anything had installed, so the restore after a test could not take effect either.
+/// </para>
+/// <para>
+/// A seam holds its conversion <b>as a field</b>. Absence is therefore a state that can be <b>constructed</b> and
+/// asserted: <see cref="Uninstalled"/> has no conversion and throws when asked to convert. Nothing here is a switch:
+/// holding an uninstalled seam does not affect <see cref="Default"/> or any other seam, so observing absence cannot
+/// break the world for the next test - which is what a production-callable reset did.
+/// </para>
+/// <para>
+/// The conversion is still <b>called, not reimplemented</b>: the astronomy provider installs its own <c>DeltaT</c> as
+/// <see cref="Default"/>, so the generator and the engine cannot disagree.
+/// </para>
 /// </remarks>
-public static class TtOffsets
+public sealed class TtConversionSeam : IDisposable
 {
-    /// <summary>
-    /// Installs the single UT->TT conversion. Called by the provider at composition, from Core's public surface so that
-    /// no assembly needs to be named in InternalsVisibleTo in order to do it.
-    /// </summary>
-    /// <remarks>
-    /// <b>Install-once, not a settable property.</b> Only the first call takes effect, decided atomically, so two
-    /// conversions can never both be live - which would mean whichever ran last wins, the two-sources defect in its
-    /// most literal form. Later calls return false rather than throwing, because composing twice is a normal thing
-    /// (two hosts in one process, a test host beside the real one) and is not itself two different conversions.
-    /// There is no public way to clear it, so a caller cannot quietly remove the guard either.
-    /// </remarks>
-    public static bool Install(Func<double, double> conversion)
+    private readonly TtConversionSeam? _previous;
+    private readonly Func<double, double>? _toTt;
+    private readonly Func<double, double>? _toUt;
+    private bool _disposed;
+
+    private TtConversionSeam(TtConversionSeam? previous, Func<double, double>? toTt, Func<double, double>? toUt)
     {
-        ArgumentNullException.ThrowIfNull(conversion);
-
-        // Atomic, not check-then-act. Composition can run concurrently - two hosts in one process, or a test host
-        // alongside the real one - and a guarded read followed by a write races between them. CompareExchange decides
-        // exactly one winner, and the losers return false rather than throwing: installing the SAME conversion twice is
-        // idempotent, and refusing it would fail start-up for a condition that is not actually two conversions.
-        var winner = Interlocked.CompareExchange(ref _installed, 1, 0) == 0;
-        if (winner)
-            _conversion = conversion;
-
-        return winner;
+        _previous = previous;
+        _toTt = toTt;
+        _toUt = toUt;
     }
 
-    private static Func<double, double>? _conversion;
-    private static int _installed;
+    /// <summary>The conversion the process actually uses; installed once by the astronomy provider.</summary>
+    public static TtConversionSeam Default { get; private set; } = new(null, null, null);
 
-    /// <summary>The installed conversion, or null. Visible to the astronomy tests so they can assert the guard.</summary>
-    public static bool IsInstalled => _conversion is not null;
+    /// <summary>
+    /// A seam with <b>no</b> conversion. This is the state the latch could only reach by accident, and the reason the
+    /// old design could not assert the missing-conversion branch without a production-visible reset.
+    /// </summary>
+    public static TtConversionSeam Uninstalled() => new(Default, null, null);
 
-    internal static Func<double, double>? Installed => _conversion;
-
-    internal static double ToTerrestrialTime(UtInstant ut) =>
-        _conversion?.Invoke(ut.JulianDay)
-        ?? throw new InvalidOperationException(
-            "No UT->TT conversion is installed. The astronomy provider must call TtOffsets.Install; defaulting here "
-            + "would make a delta-T difference invisible, which is the defect api#140 exists to remove.");
-
-    /// <summary>Clears the installation, for tests only.</summary>
-    /// <remarks>Public because the guard has to be exercised: a test that cannot reset it cannot prove the
-    /// missing-conversion branch fires. No production path calls this.</remarks>
-    public static void ResetForTests()
+    /// <summary>
+    /// A seam holding this exact conversion and its inverse. Both directions are supplied together, so a round trip
+    /// cannot silently pair a forward from one conversion with the inverse of another.
+    /// </summary>
+    public static TtConversionSeam Installed(Func<double, double> toTt, Func<double, double> toUt)
     {
-        _conversion = null;
-        Interlocked.Exchange(ref _installed, 0);
+        ArgumentNullException.ThrowIfNull(toTt);
+        ArgumentNullException.ThrowIfNull(toUt);
+        return new(Default, toTt, toUt);
+    }
+
+    /// <summary>
+    /// Installs <paramref name="toTt"/> and <paramref name="toUt"/> as <see cref="Default"/>. Called by the provider at
+    /// composition. Not install-once, and deliberately so: composing twice is normal (two hosts in one process), and a
+    /// refusal left later work with whatever won first, including nothing at all.
+    /// </summary>
+    public static void InstallDefault(Func<double, double> toTt, Func<double, double> toUt)
+    {
+        ArgumentNullException.ThrowIfNull(toTt);
+        ArgumentNullException.ThrowIfNull(toUt);
+        Default = new(null, toTt, toUt);
+    }
+
+    /// <summary>
+    /// Clears <see cref="Default"/> back to "no conversion", for tests only.
+    /// </summary>
+    /// <remarks>
+    /// api#159. This is the ONE thing a test may do to process-wide state, and it is deliberately a separate method
+    /// rather than a switch on an instance: it touches only what composition sets, so it cannot make an ABSENT seam
+    /// appear present, and it cannot make a test's own conversion disappear mid-test. The defect being removed was a
+    /// reset that both cleared global state AND was the only way to observe absence; here absence is constructed.
+    /// </remarks>
+    public static void ResetDefaultForTests() => Default = new(null, null, null);
+
+    /// <summary>Whether this seam holds a conversion. An observation, not a switch.</summary>
+    public bool HasConversion => _toTt is not null && _toUt is not null;
+
+    /// <summary>Converts through this seam. Throws when this seam holds no conversion - that is the assertable state.</summary>
+    public TtInstant ToTerrestrialTime(UtInstant ut) => new(ToTerrestrialTimeDays(ut));
+
+    /// <summary>Converts back through this seam's own inverse. Throws when this seam holds no conversion.</summary>
+    public UtInstant ToUniversalTime(TtInstant tt) =>
+        new(_toUt?.Invoke(tt.JulianDay)
+            ?? throw new InvalidOperationException(
+                "This TT->UT seam holds no conversion. The latch design could not express this direction at all."));
+
+    private double ToTerrestrialTimeDays(UtInstant ut) =>
+        _toTt?.Invoke(ut.JulianDay)
+        ?? throw new InvalidOperationException(
+            "This UT->TT seam holds no conversion. Defaulting here would make a delta-T difference invisible, which is "
+            + "the defect api#140 exists to remove. Install one at composition, or construct this seam with one.");
+
+    /// <summary>Restores the seam that was default when this one was constructed.</summary>
+    /// <remarks>
+    /// Scoped restore, not a reset: it puts back the value this seam captured, so tests cannot leak into each other by
+    /// order. Nothing outside this assembly can call it - it is a member of a type the production code path never holds.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        if (_previous is not null)
+            Default = _previous;
     }
 }

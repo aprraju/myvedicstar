@@ -84,7 +84,7 @@ public sealed class InstantTypeCompileControlTests
 
             internal static class Probe
             {
-                internal static TtInstant Correct(UtInstant ut) => ut.ToTerrestrialTime();
+                internal static TtInstant Correct(UtInstant ut, TtConversionSeam seam) => ut.ToTerrestrialTime(seam);
             }
             """;
 
