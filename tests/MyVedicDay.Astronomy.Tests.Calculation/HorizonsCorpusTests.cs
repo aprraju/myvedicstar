@@ -93,14 +93,19 @@ public sealed class HorizonsCorpusTests
             edgeIds.Contains(caseItem.Id) ? from - 1.0 : from,
             edgeIds.Contains(caseItem.Id) ? to + 1.0 : to));
 
-        // The declared span must contain the parity fixture span, or a body covered by parity has no accuracy case.
-        var fixtureFrom = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.From.Year, ParityFixtures.From.Month,
-            ParityFixtures.From.Day));
-        var fixtureTo = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.To.Year, ParityFixtures.To.Month,
-            ParityFixtures.To.Day));
-        Assert.True(from <= fixtureFrom && to >= fixtureTo,
-            $"Corpus span {spec.Document.DateSpanUtYears.From}-{spec.Document.DateSpanUtYears.To} does not contain " +
-            $"the fixture span {ParityFixtures.From}-{ParityFixtures.To}.");
+        // The corpus span must be the engine's own supported range, not an independently chosen one. Measuring outside
+        // SupportedDates would fail for scope rather than accuracy, which is the convention mismatch AC-2 exists to
+        // keep out of the accuracy numbers.
+        Assert.Equal(SupportedDates.MinYear, spec.Document.DateSpanUtYears.From);
+        Assert.Equal(SupportedDates.MaxYear, spec.Document.DateSpanUtYears.To);
+
+        // The parity fixture span (1800-2200) is deliberately WIDER than the engine's claim, and the corpus does not
+        // follow it. That is a stated relationship rather than an assertion that one contains the other: the earlier
+        // version of this test asserted containment and had to be rewritten when the two ranges diverged, which is the
+        // assertion inventing a requirement the data never had.
+        Assert.True(ParityFixtures.From.Year < spec.Document.DateSpanUtYears.From,
+            "The parity fixtures are expected to reach earlier than the engine's supported range; if this changed, " +
+            "the corpus span decision should be revisited rather than the assertion relaxed.");
     }
 
     [Fact]

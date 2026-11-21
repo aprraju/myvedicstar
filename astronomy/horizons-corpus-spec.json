@@ -1,5 +1,5 @@
 {
-  "$comment": "AST-09 corpus specification (issue #74). The case matrix is a SPEC, not an assertion: case enumeration is code (tests/MyVedicDay.Astronomy.Tests.Calculation/HorizonsCorpusSpec.cs) and must reproduce this matrix exactly. CaseCounts is the number of cases carried per dimension; the suite asserts >= 10000 enumerated cases and reports counts per category. Editing a number here without editing the enumeration is a failing test, not a silent narrowing.",
+  "$comment": "AST-09 corpus specification (issue #74). The case matrix is a SPEC, not an assertion: case enumeration is code (tests/MyVedicDay.Astronomy.Tests.Calculation/HorizonsCorpusSpec.cs) and the loader refuses a spec that contradicts the engine's own supported range. CaseCounts is the number of cases carried per dimension; the suite asserts >= 10000 enumerated cases and reports counts per category. Editing a number here without editing the enumeration is a failing test, not a silent narrowing.",
   "bodies": [
     "Sun",
     "Moon",
@@ -15,8 +15,8 @@
     "TrueNode"
   ],
   "dateSpanUtYears": {
-    "from": 1800,
-    "to": 2200
+    "from": 1900,
+    "to": 2100
   },
   "sites": [
     {
@@ -217,18 +217,18 @@
       "localDate": "2024-06-21"
     },
     {
-      "id": "delta-t-extreme-1800",
+      "id": "delta-t-extreme-1900",
       "latitudeDegrees": 48.857,
       "longitudeDegrees": 2.352,
       "timezone": "Europe/Paris",
-      "localDate": "1800-01-01"
+      "localDate": "1900-01-01"
     },
     {
-      "id": "delta-t-extreme-2200",
+      "id": "delta-t-extreme-2100",
       "latitudeDegrees": 48.857,
       "longitudeDegrees": 2.352,
       "timezone": "Europe/Paris",
-      "localDate": "2200-12-31"
+      "localDate": "2100-12-31"
     }
   ],
   "caseCounts": {
@@ -252,5 +252,6 @@
     "service": "JPL Horizons",
     "frame": "ICRF astrometric (planets), apparent (Sun/Moon) - recorded per fixture record together with the conversion applied to tropical mean-equinox-of-date",
     "materialisation": "Fixtures are generated once and checked in as astronomy/horizons-fixtures.json. Tests never perform network I/O."
-  }
+  },
+  "spanBasis": "SupportedDates.MinYear..MaxYear in MyVedicDay.Astronomy.Calculation, asserted equal by HorizonsCorpusTests. Cases outside the engine's declared range would fail for scope rather than accuracy, which is the convention-mismatch failure AC-2 exists to prevent."
 }

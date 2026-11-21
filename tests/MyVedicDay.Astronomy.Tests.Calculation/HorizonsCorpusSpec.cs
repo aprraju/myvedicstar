@@ -329,10 +329,11 @@ public sealed class HorizonsCorpusSpec
     /// </remarks>
     private double FixtureSpanEpoch(int index, int count)
     {
-        var from = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.From.Year, ParityFixtures.From.Month,
-            ParityFixtures.From.Day));
-        var to = JulianDay.FromUtcMidnight(new LocalDate(ParityFixtures.To.Year, ParityFixtures.To.Month,
-            ParityFixtures.To.Day));
+        // The span cases use the SPEC's span, not the parity fixture span. Those two ranges were equal when this code
+        // was written and is no longer: the fixture span is 1800-2200 while the engine only claims 1900-2100, so
+        // reading the dates from the fixtures put 14 cases outside the corpus they belong to.
+        var from = JulianDay.FromUtcMidnight(new LocalDate(Document.DateSpanUtYears.From, 1, 1));
+        var to = JulianDay.FromUtcMidnight(new LocalDate(Document.DateSpanUtYears.To, 12, 31));
         return count <= 1 ? from : from + (to - from) * (index / (double)(count - 1));
     }
 
