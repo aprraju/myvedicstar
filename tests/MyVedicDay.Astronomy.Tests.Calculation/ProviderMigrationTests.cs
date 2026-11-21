@@ -43,6 +43,50 @@ public sealed class ProviderMigrationTests
         Assert.Contains("silently change results", failure.Message, StringComparison.Ordinal);
     }
 
+    // ---- AST-12 (#77): the production default is the SPICE provider, and the old provider stays reachable ----
+
+    [Fact]
+    public void An_absent_key_resolves_to_the_documented_default_in_one_place()
+    {
+        // AST-12 (#77) ruling: the default stays analytical until the CSPICE toolkit is provisioned (AST-05, #70).
+        // The cutover composition is complete and tested; the flip is deferred, not forgotten.
+        Assert.Equal(ProviderSelection.Analytical, ProductProviderSelection.Resolve(null));
+        Assert.Equal(ProviderSelection.Analytical, ProductProviderSelection.Resolve("   "));
+
+        // The declared default is a key the parser accepts, so absence can never produce an unparseable value.
+        Assert.Equal(ProviderSelection.Analytical, ProviderSelectionParser.Parse(ProductProviderSelection.DefaultKey));
+    }
+
+    [Fact]
+    public void The_SPICE_provider_is_opt_in_by_configuration_after_the_deferral()
+    {
+        Assert.Equal(ProviderSelection.Spice, ProductProviderSelection.Resolve("spice"));
+        Assert.Equal(ProviderSelection.Compare, ProductProviderSelection.Resolve("compare"));
+    }
+
+    [Fact]
+    public void A_configured_key_still_wins_over_the_cutover_default()
+    {
+        Assert.Equal(ProviderSelection.Analytical, ProductProviderSelection.Resolve("analytical"));
+        Assert.Equal(ProviderSelection.Compare, ProductProviderSelection.Resolve("COMPARE "));
+    }
+
+    [Fact]
+    public void An_unknown_configured_key_is_still_an_error_after_the_cutover()
+    {
+        var failure = Assert.Throws<ArgumentException>(() => ProductProviderSelection.Resolve("swisseph"));
+        Assert.Contains("Unknown astronomy provider key", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_default_provider_is_constructible_from_the_production_engine_type()
+    {
+        // The cutover is only real if a production type - not a test double - satisfies the engine port the SPICE
+        // selection needs. This is the defect AST-12 found: no type implemented IEphemerisEngine.
+        var adapter = new ProviderEngineAdapter(new StubAstronomyEngine());
+        Assert.IsAssignableFrom<IEphemerisEngine>(adapter);
+    }
+
     [Fact]
     public void The_analytical_key_registers_the_existing_implementation()
     {
@@ -404,6 +448,22 @@ public sealed class ProviderMigrationTests
         }
     }
 
+
+    private sealed class StubAstronomyEngine : IAstronomyEngine
+    {
+        public AstronomyResult GetPositions(JulianDayUt time, AstronomySettings settings) =>
+            GetPositions(time, settings, AstronomyCapabilities.SupportedBodies);
+
+        public AstronomyResult GetPositions(JulianDayUt time, AstronomySettings settings,
+            IReadOnlyCollection<CelestialBody> bodies) => new(time, settings,
+            bodies.Select(body => new BodyPosition(body,
+                new EclipticPoint(bodies.ToList().IndexOf(body) * 10.0 + 90.0, 0.0, null),
+                new EquatorialPoint(0.0, 0.0), 0.0, false)).ToArray(),
+            new AstronomyProvenance("stub", "stub", "stub", 0.0, NodeConvention.Mean, AyanamsaKind.Lahiri,
+                ZodiacConvention.Tropical));
+
+        public AstronomyCapabilityReport GetCapabilities() => AstronomyCapabilities.Report();
+    }
 
     private sealed class StubEngine(
         double sunLongitude = 10.0,
