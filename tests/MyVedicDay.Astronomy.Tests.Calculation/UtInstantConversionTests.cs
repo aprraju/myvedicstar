@@ -9,6 +9,7 @@ namespace MyVedicDay.Astronomy.Tests.Calculation;
 /// <see cref="TtInstant"/> exist so that passing one where the other is wanted does not compile, rather than producing
 /// a 31.99 arcsecond discrepancy that looks like an accuracy problem.
 /// </summary>
+[Collection("astronomy-tt-offsets")]
 public sealed class UtInstantConversionTests
 {
     /// <summary>The measured delta-T at J2000, in days.</summary>

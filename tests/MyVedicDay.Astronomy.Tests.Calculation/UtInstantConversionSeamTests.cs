@@ -15,6 +15,9 @@ namespace MyVedicDay.Astronomy.Tests.Calculation;
 /// missing one is not asserted to throw, because the state cannot be chosen per instance at all.
 /// </para>
 /// </summary>
+// Installs and restores the process-wide default conversion, so it is serialised with the other classes that do the
+// same (api#75). Otherwise a dispose here can restore a default another class has since replaced.
+[Collection("astronomy-tt-offsets")]
 public sealed class UtInstantConversionSeamTests
 {
     /// <summary>An uninstalled seam has no conversion, and asking it for one throws.</summary>
