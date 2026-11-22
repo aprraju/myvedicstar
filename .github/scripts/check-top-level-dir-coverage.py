@@ -10,6 +10,14 @@ not cover that path, so an uncompilable commit reached main.
 The rule is deliberately fail-closed: a directory is covered only if at least one workflow's
 paths: filter would actually match a file inside it. "Somebody remembered" is not coverage.
 
+Depth (api#125). A directory is covered only if the filter matches a file at EVERY depth, not just
+depth 1. The previous version probed a single synthetic path "<dir>/probe", which proves only depth 1:
+a filter of "astronomy/*" matches "astronomy/probe" but NOT "astronomy/a/b/probe.md", so a nested
+change would never trigger that workflow while this checker reported the directory covered. Depth 1
+is also the depth at which a directory's files need coverage LEAST - a real change almost always
+lands at depth 2 or deeper. Both a cheap fixed depth and an arbitrary depth are probed, so a filter
+that covers depth 1 and 2 but not 5 is still caught.
+
 Exit: 0 covered, 1 uncovered directories found, 2 the checker itself could not run.
 """
 import re
@@ -47,19 +55,90 @@ def path_filters(workflow_file: Path):
 
 
 def matches(pattern: str, candidate: str) -> bool:
-    """GitHub path-filter matching for the subset this repo uses: literal prefixes, /** and /* globs."""
+    """Path-filter matching, per GitHub's documented glob rules.
+
+    '*' matches any characters except '/'. '**' matches any characters INCLUDING '/', so it is the
+    only form that can span directories. '?' and '+' match zero-or-one and one-or-more of the
+    PRECEDING character, not of any character - a distinction this function gets wrong is exactly the
+    kind of plausible-looking approximation that makes a check lie (api#125).
+    """
     if pattern == candidate:
         return True
     if pattern.endswith("/**"):
+        # Documented: 'docs/**' covers every file under docs/, including the directory itself.
         prefix = pattern[:-3]
         return candidate == prefix or candidate.startswith(prefix + "/")
     if pattern.endswith("/*"):
         prefix = pattern[:-2]
         rest = candidate[len(prefix) + 1:] if candidate.startswith(prefix + "/") else None
         return rest is not None and "/" not in rest
-    # Any other glob: treat * as a single segment wildcard, which is all this repo relies on.
-    regex = "^" + re.escape(pattern).replace(r"\*", "[^/]+") + "$"
-    return re.fullmatch(regex, candidate) is not None
+    return re.fullmatch(_glob_to_regex(pattern), candidate) is not None
+
+
+def _glob_to_regex(pattern: str) -> str:
+    """Translate GitHub's glob dialect into a whole-path regex. Anchored: patterns match the whole path."""
+    out = ["^"]
+    i = 0
+    while i < len(pattern):
+        ch = pattern[i]
+        if ch == "*":
+            if pattern.startswith("**", i):
+                out.append(".*")
+                i += 2
+                continue
+            out.append("[^/]*")
+        elif ch == "?":
+            # Zero or one of the preceding character: 'jsx?' matches 'js' and 'jsx'.
+            out.append("?")
+        elif ch == "+":
+            out.append("+")
+        elif ch == "[":
+            end = pattern.find("]", i + 1)
+            if end == -1:
+                out.append(re.escape(ch))
+            else:
+                out.append(pattern[i:end + 1])
+                i = end + 1
+                continue
+        else:
+            out.append(re.escape(ch))
+        i += 1
+    out.append("$")
+    return "".join(out)
+
+
+# Depths probed inside a top-level directory, measured from the top-level directory itself.
+# 1 keeps the original depth-1 question; 2 is the shallowest depth a single-star filter fails at;
+# the arbitrary DEPTH_LIMIT catches a filter that covers shallow depths but not deep ones.
+PROBE_DEPTHS = (1, 2, 5)
+DEPTH_LIMIT = 12
+
+
+def probe_path(name: str, depth: int) -> str:
+    """A synthetic file at the given depth below a top-level directory: depth 1 is 'name/probe'.
+
+    The suffix is present at EVERY depth on purpose. Without it, a legitimate suffix filter such as
+    'docs/**.md' looks like it misses depth 1 ('docs/probe' has no .md), and the checker would report
+    a gap that does not exist. The probe must be a plausible file at each depth, not a bare name.
+    """
+    return "/".join([name] + ["probe"] * depth) + ".md"
+
+
+def first_uncovered_depth(name: str, covers) -> int | None:
+    """Lowest depth at which no paths: filter matches a file inside the directory, or None if covered."""
+    for depth in PROBE_DEPTHS:
+        probe = probe_path(name, depth)
+        if not any(matches(pattern, probe) for pattern in covers):
+            return depth
+
+    # Fixed depths can be satisfied by a filter tuned to them, so also prove there is no abrupt cliff:
+    # if the deepest probe matches via a /** style filter it holds for all deeper files, but a filter
+    # relying on a limited number of single-segment wildcards would match depth 5 and stop soon after.
+    for depth in range(max(PROBE_DEPTHS) + 1, DEPTH_LIMIT + 1):
+        probe = probe_path(name, depth)
+        if not any(matches(pattern, probe) for pattern in covers):
+            return depth
+    return None
 
 
 def main() -> int:
@@ -90,22 +169,24 @@ def main() -> int:
 
     uncovered = []
     for name in top_level:
-        # A directory is covered when a file directly inside it would trigger some workflow.
-        probe = f"{name}/probe"
-        if not any(matches(pattern, probe) for pattern in covers):
-            uncovered.append(name)
+        # A directory is covered only when a file at any depth inside it would trigger some workflow.
+        # Probing depth 1 alone is what let a single-star filter pass as coverage (api#125).
+        gap = first_uncovered_depth(name, covers)
+        if gap is not None:
+            uncovered.append((name, gap))
 
     if not uncovered:
-        print(f"Every top-level directory is covered by a workflow path filter ({len(top_level)} checked).")
+        print(f"Every top-level directory is covered by a workflow path filter at every depth "
+              f"({len(top_level)} checked, depths {', '.join(str(d) for d in PROBE_DEPTHS)}).")
         return 0
 
     print("::error::These top-level directories are not matched by ANY workflow paths: filter:")
-    for name in uncovered:
-        print(f"  - {name}/")
+    for name, depth in uncovered:
+        print(f"  - {name}/ (uncovered at depth {depth})")
     print("")
     print("Add the directory to the paths: filter of each workflow that must validate it, or add an")
     print("exemption here with a comment explaining why no workflow needs to run for it.")
-    print("Uncovered now: " + ", ".join(uncovered))
+    print("Uncovered now: " + ", ".join(name for name, _ in uncovered))
     return 1
 
 
