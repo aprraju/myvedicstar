@@ -107,7 +107,14 @@ public sealed class HorizonsFixtureGenerator
                 "The port returned no provenance for any row, so the artifact could not be re-fetched or trusted.");
         }
 
-        return new HorizonsFixture(coverage, provenance, rows);
+        var fixture = new HorizonsFixture(coverage, provenance, rows);
+
+        // The generator holds its own output to the artifact schema before returning it (AST-12a). This is the join
+        // between the two halves: a row the generator can build but the schema rejects is a generator bug, and it must
+        // surface here rather than as an unusable committed reference file.
+        HorizonsFixtureSchema.EnsureValid(fixture);
+
+        return fixture;
     }
 
     /// <summary>
