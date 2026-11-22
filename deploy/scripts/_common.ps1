@@ -29,6 +29,57 @@ function Invoke-Az {
     return $output
 }
 
+# Socket-level signatures only. An az error body (403, invalid secret reference, ARM validation) matches none of
+# these, so Invoke-AzRetrying throws on the first attempt instead of hiding a real misconfiguration behind retries.
+$script:AzTransportFailurePattern = 'Connection reset|ECONNRESET|connection was closed|Read timed out|ConnectTimeout|RemoteDisconnected|temporary failure in name resolution|forcibly closed by the remote host'
+
+function Get-AzRetryPolicy($Config) {
+    # Attempts and backoff come from the environment's deploy config, not a literal here: this is the one value an
+    # operator needs to tune during an ARM incident, and a hard-coded default would be invisible.
+    # An absent block FAILS rather than defaulting silently - a default of 1 would restore the bug this fixes, and a
+    # default of 3 would quietly disagree with the file an operator edited.
+    if ($null -eq $Config -or $null -eq $Config.PSObject.Properties['azRetry']) {
+        throw "Deployment config has no azRetry block. Add { maxAttempts, delaySeconds } beside rollout in deploy/environments/<env>.json."
+    }
+    $attempts = [int] $Config.azRetry.maxAttempts
+    $delay = [int] $Config.azRetry.delaySeconds
+    if ($attempts -lt 1) { throw "azRetry.maxAttempts must be at least 1 (got $attempts)." }
+    if ($delay -lt 0) { throw "azRetry.delaySeconds must not be negative (got $delay)." }
+    return [pscustomobject]@{ MaxAttempts = $attempts; DelaySeconds = $delay }
+}
+
+function Invoke-AzRetrying {
+    # Runs the Azure CLI, retrying ONLY provably transport-level failures. Used for idempotent calls whose own
+    # internal wait can outlive a dropped connection (api#161: az containerapp secret set). Never pass secret
+    # values as arguments.
+    param([Parameter(Mandatory)] $Config, [Parameter(ValueFromRemainingArguments = $true)] $Args)
+    $policy = Get-AzRetryPolicy $Config
+    for ($i = 1; $i -le $policy.MaxAttempts; $i++) {
+        $previous = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $output = & az @Args 2>&1
+            $code = $LASTEXITCODE
+            $text = ($output | Out-String)
+        }
+        finally { $ErrorActionPreference = $previous }
+
+        if ($code -eq 0) { return $output }
+
+        $command = ($Args | Select-Object -First 3) -join ' '
+        if ($text -notmatch $script:AzTransportFailurePattern) {
+            # A service answer. Never retried: a 403 or a bad secret reference must fail now, first attempt.
+            throw "Azure CLI command failed (exit code $code): az $command`n$text"
+        }
+        if ($i -eq $policy.MaxAttempts) {
+            # Says transport, says how many attempts: the operator must not read this as a deployment verdict.
+            throw "Azure CLI TRANSPORT failure after $i attempt(s) of $($policy.MaxAttempts) (outcome unknown, not a deployment verdict): az $command`n$text"
+        }
+        Write-Host "Transient transport failure on attempt $i/$($policy.MaxAttempts); retrying in $($policy.DelaySeconds)s: az $command"
+        Start-Sleep -Seconds $policy.DelaySeconds
+    }
+}
+
 function Test-AzSucceeds {
     # Runs the Azure CLI for its exit code only, discarding all output (for existence checks).
     $previous = $ErrorActionPreference

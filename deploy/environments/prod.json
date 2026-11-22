@@ -63,6 +63,11 @@
     "readyTimeoutMinutes": 10,
     "pollIntervalSeconds": 10
   },
+  "azRetry": {
+    "$comment": "Attempts and backoff for Azure CLI TRANSPORT failures (connection reset, timeout) only. A non-zero exit carrying an az error body is never retried - see deploy/scripts/_common.ps1 Invoke-AzRetrying.",
+    "maxAttempts": 3,
+    "delaySeconds": 5
+  },
   "smokeTest": {
     "enabled": true,
     "attempts": 12,
