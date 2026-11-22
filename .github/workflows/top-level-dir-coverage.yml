@@ -27,5 +27,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      # api#125: the checker only ever ran against the repo as it is, so a green run proved the
+      # current configuration was covered but never that a violation would be noticed. These cases
+      # pin the falsification - a single-star filter must be red - and must run BEFORE the real check,
+      # so a broken checker cannot report "every directory is covered".
+      - name: The coverage checker detects nested-only gaps
+        run: python3 .github/scripts/test_check-top-level-dir-coverage.py
+
       - name: Every top-level directory is covered by a workflow path filter
         run: python3 .github/scripts/check-top-level-dir-coverage.py
