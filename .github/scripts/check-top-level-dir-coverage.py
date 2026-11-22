@@ -20,11 +20,14 @@ that covers depth 1 and 2 but not 5 is still caught.
 
 Exit: 0 covered, 1 uncovered directories found, 2 the checker itself could not run.
 """
+import os
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+# The repository root. COVERAGE_CHECKER_ROOT overrides it so the tests can run this exact script against a
+# scratch repository - the same artefact CI runs, not a copy of its logic.
+ROOT = Path(os.environ.get("COVERAGE_CHECKER_ROOT") or Path(__file__).resolve().parents[2]).resolve()
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 # Directories that legitimately need no path filter of their own.
@@ -157,15 +160,23 @@ def main() -> int:
             filters.append((workflow.name, kind, pattern))
 
     covers = [pattern for name, kind, pattern in filters if kind == "paths"]
+    # It is legitimate for a repository to have workflows and no paths: filters yet. That is not "nothing to
+    # prove" - it is the strongest possible finding: NO directory is covered, so every one of them is listed and
+    # the run is red. Only the total absence of workflows is an error (see above).
     if not covers:
-        print("::error::No paths: filters found in any workflow, so this check cannot prove coverage.")
-        return 2
+        print("::warning::No paths: filters were found in any workflow; every top-level directory is uncovered.")
 
     top_level = sorted(
         directory.name
         for directory in ROOT.iterdir()
         if directory.is_dir() and not directory.name.startswith(".") and directory.name not in IGNORED
     )
+
+    if not top_level:
+        # A scan that found nothing scanned nothing. Reading green here would be a guard that passes by not
+        # running, which is the exact failure mode this file exists to remove.
+        print(f"::error::No top-level directories found under {ROOT}, so this check proved nothing.")
+        return 2
 
     uncovered = []
     for name in top_level:
