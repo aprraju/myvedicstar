@@ -1,0 +1,4 @@
+{
+  "//": "api#172. Test projects excused from being executed by a workflow. Each entry MUST carry a reason; the checker exits 2 on an entry missing one. Empty at introduction: every test project under tests/ is executed today. Add an entry only when a project genuinely must not run in CI, and say why - an exception with a weak reason is how this check stops being true.",
+  "exceptions": []
+}
