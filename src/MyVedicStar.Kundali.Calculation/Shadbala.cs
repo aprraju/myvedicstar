@@ -61,12 +61,26 @@ public static class Shadbala
     /// completeness becomes reachable, this table stops being visibly provisional and owner confirmation becomes
     /// required. See api#116 for the gate and #144 for the tolerance decision, which belongs to the same owner.</para>
     /// </remarks>
-    public static readonly ThresholdBasisState ThresholdBasis = new(
+    /// <remarks>
+    /// <para>
+    /// <b>Lazy on purpose.</b> A static field initializer runs in declaration order, so reading
+    /// <see cref="RequiredRupas"/> from it would see that field still null and throw a
+    /// <see cref="TypeInitializationException"/> on the first touch of this type - which broke every Shadbala test at
+    /// once instead of any of them clearly. A property defers the read until the table it depends on exists.
+    /// </para>
+    /// </remarks>
+    public static ThresholdBasisState ThresholdBasis => ThresholdBasisLazy.Value;
+
+    private static readonly Lazy<ThresholdBasisState> ThresholdBasisLazy = new(() => new ThresholdBasisState(
         Status: "owner-pending",
         IsOwnerConfirmed: false,
         OwnedBy: "api#116 (threshold basis) and #144 (tolerance decision)",
         Note: "The classical required-rupas values are unconfirmed by the owner. They are published and revisable, and "
-              + "they must not be presented as a settled comparison while this status holds.");
+              + "they must not be presented as a settled comparison while this status holds.",
+        UnconfirmedThresholds: RequiredRupas
+            .OrderBy(entry => entry.Key, StringComparer.Ordinal)
+            .Select(entry => new UnconfirmedThreshold(entry.Key, entry.Value, "api#116", "owner-pending"))
+            .ToArray()));
 
     /// <summary>Classical required rupas, used as the comparison threshold. Versioned with the rule set.</summary>
     /// <remarks>
@@ -173,7 +187,53 @@ public static class Shadbala
     /// is a real decision, paired with a <see cref="RulesVersion"/> change, never a maintenance edit.</param>
     /// <param name="OwnedBy">Which items own the decision, so a reader knows who to ask rather than assuming nobody.</param>
     /// <param name="Note">The sentence a consumer can display verbatim.</param>
-    public sealed record ThresholdBasisState(string Status, bool IsOwnerConfirmed, string OwnedBy, string Note);
+    /// <param name="UnconfirmedThresholds">The exact values that are unconfirmed, one entry per planet, so a failure
+    /// can name numbers rather than a policy. A bare "the table is unconfirmed" message tells a reader there is a
+    /// problem and not which number to ask about.</param>
+    public sealed record ThresholdBasisState(
+        string Status,
+        bool IsOwnerConfirmed,
+        string OwnedBy,
+        string Note,
+        IReadOnlyList<UnconfirmedThreshold> UnconfirmedThresholds)
+    {
+        /// <summary>One unconfirmed value, with the item that owns confirming it.</summary>
+        /// <remarks>
+        /// Ownership is per threshold rather than per table because a correction can settle Jupiter while leaving
+        /// Saturn open. Collapsing that into one table-level state would force the first confirmation to be a lie about
+        /// the other six.
+        /// </remarks>
+        public UnconfirmedThreshold For(string planet) =>
+            UnconfirmedThresholds.FirstOrDefault(entry =>
+                string.Equals(entry.Planet, planet, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"No threshold entry is recorded for '{planet}'.");
+
+        /// <summary>
+        /// The sentence used when this state blocks a change, naming each unconfirmed value and its owner.
+        /// </summary>
+        /// <remarks>
+        /// Built from <see cref="UnconfirmedThresholds"/> rather than written by hand, so the message cannot drift from
+        /// the data it describes. A hand-written message listing values goes stale on the first correction and is then
+        /// worse than none, because it points the reader at the wrong number with full confidence.
+        /// </remarks>
+        public string BlockingMessage(string rulesVersion) =>
+            $"Shadbala can now return a complete result while {rulesVersion} carries no owner confirmation. "
+            + $"Unconfirmed thresholds ({Status}), owned by {OwnedBy}: "
+            + string.Join("; ", UnconfirmedThresholds.Select(entry =>
+                $"{entry.Planet} = {entry.Rupas.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}"
+                + $" rupas [{entry.OwnedBy}]"))
+            + ". A complete ratio is no longer visibly provisional, so these values must be confirmed or corrected by "
+            + "the owner and the rules version must move with them. Do not resolve this by widening the assertion, "
+            + "deleting the completeness check, or flipping IsOwnerConfirmed without a recorded decision - each of "
+            + "those is the silent switch this gate exists to prevent.";
+    }
+
+    /// <summary>One unconfirmed threshold value and who owns confirming it.</summary>
+    /// <param name="Planet">The planet the value applies to.</param>
+    /// <param name="Rupas">The required rupas currently shipped.</param>
+    /// <param name="OwnedBy">The item that owns confirmation of this value.</param>
+    /// <param name="Status">State of this value, e.g. <c>owner-pending</c>.</param>
+    public sealed record UnconfirmedThreshold(string Planet, double Rupas, string OwnedBy, string Status);
 
     /// <summary>The Shadbala section as a whole.</summary>
     public sealed record Result(
