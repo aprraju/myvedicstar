@@ -52,6 +52,62 @@ public sealed class SpiceProvisioningTests
         var notYet = Assert.Throws<NotImplementedException>(() =>
             engine.GetTropicalLongitude(CelestialBody.Sun, JulianDayUt.J2000.Value));
         Assert.Contains("AST-04/AST-05", notYet.Message, StringComparison.Ordinal);
+
+        // api#173: and it must NOT be the SpiceUnavailableException refusal. This is the distinction the whole
+        // provisioned job rests on: on a runner where the toolkit is installed, "refused because the toolkit is
+        // missing" and "refused because the numerics are not written" are different facts, and only the second means
+        // provisioning worked. Without this line both branches produce a failing call and a green test, and the
+        // test cannot tell a working provisioning step from a missing one.
+        Assert.IsNotType<SpiceUnavailableException>(notYet);
+    }
+
+    /// <summary>
+    /// api#173: on a host that HAS the toolkit, say so explicitly, and name the version.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The refusal tests above pass on a provisioned host and on a bare one, so a CI job that installs
+    /// nothing can still be green. This test is the one that can only pass when the toolkit actually
+    /// loads: it asserts <see cref="SpiceAstronomyEngine.IsNativeToolkitAvailable"/> is true and that the
+    /// reported version is the pinned N0067. On a host without the toolkit it fails, which is the intent -
+    /// the spice-provisioning workflow provisions first and then runs this.
+    /// </para>
+    /// <para>
+    /// <b>Skip, rather than fail, on an unprovisioned host.</b> This test runs in
+    /// <c>myvedicday-ci.yml</c> too, where no toolkit is installed and must not be - that job is the
+    /// broad suite, not the provisioning proof. Failing there would make the default branch red for a
+    /// missing optional dependency and push people to delete the assertion. Skipping keeps the default
+    /// suite green and still fails loudly in the one job whose entire purpose is to provision; the
+    /// spice-provisioning workflow additionally asserts, from its own log, that this test reported
+    /// exactly one PASSED rather than a skip - so a silent skip cannot be read as proof there.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public void A_provisioned_host_loads_the_pinned_toolkit()
+    {
+        var engine = new SpiceAstronomyEngine(Configuration());
+
+        // Fails when the job that EXISTS to provision the toolkit did not provision it, and skips when
+        // the toolkit was never expected here. The environment variable is set by the spice-provisioning
+        // workflow after it installs the toolkit, so:
+        //   required + not loaded -> FAIL  (provisioning broke; this is the case worth going red for)
+        //   not required + not loaded -> SKIP (broad suite on a bare runner; not this test's subject)
+        //   loaded -> assert the pinned version, wherever it is.
+        var requiresProvisioning = Environment.GetEnvironmentVariable("MYVEDICSTAR_REQUIRE_SPICE") == "1";
+
+        if (!engine.IsNativeToolkitAvailable)
+        {
+            Assert.False(requiresProvisioning,
+                "MYVEDICSTAR_REQUIRE_SPICE=1 was set, so this runner was supposed to have the native SPICE "
+                + "toolkit, and it did not load. Provisioning failed; no SPICE number from this job is "
+                + "trustworthy. Check the provisioning step's log before anything downstream.");
+
+            Skip.If(true, "The native SPICE toolkit is not installed on this host and this job did not "
+                + "require it. The provisioned-execution proof lives in spice-provisioning.yml.");
+        }
+
+        // Toolkit loaded: this is the claim no other test in this repository makes.
+        engine.VerifyToolkitMatchesInventory("N0067");
     }
 
     [Fact]

@@ -117,15 +117,64 @@ public sealed class ShadbalaThresholdBasisTests
     {
         var result = Shadbala.Compute(Chart);
 
-        var incompleteResultsExist =
-            !result.IsComplete || result.Planets.Any(planet => !planet.IsComplete);
+        // ANY planet reporting itself complete is enough to make its ratio look authoritative, so the gate must fire
+        // on the per-planet flag as well as the section flag. Checking only Result.IsComplete left a hole: with the
+        // section flag flipped and planets still reporting incomplete, the gate stayed green. Found by mutation.
+        var completePlanets = result.Planets.Where(planet => planet.IsComplete)
+            .Select(planet => planet.Planet).ToArray();
+        var incompleteResultsExist = !result.IsComplete && completePlanets.Length == 0;
 
+        // The message is GENERATED from the recorded values (ThresholdBasis.BlockingMessage), so it names every
+        // unconfirmed threshold and its owner rather than describing a policy. A hand-written message goes stale on the
+        // first correction, at which point it points the reader at the wrong number.
         Assert.True(incompleteResultsExist || Shadbala.ThresholdBasis.IsOwnerConfirmed,
-            "Shadbala can now return a complete result while " + Shadbala.RulesVersion + " carries no owner " +
-            "confirmation. The ratio is no longer visibly provisional, so the unconfirmed required-rupas table is " +
-            "now a merge blocker: owner confirmation of the values is required, and the version string must move with " +
-            "it. See api#116 and the tolerance decision in #144. Do not resolve this by widening the assertion or by " +
-            "deleting the completeness check - that is the silent switch this test exists to prevent.");
+            Shadbala.ThresholdBasis.BlockingMessage(Shadbala.RulesVersion)
+            + $" Planets already reporting complete: {(completePlanets.Length == 0 ? "none" : string.Join(", ", completePlanets))}.");
+    }
+
+    [Fact]
+    public void The_gate_message_names_each_unconfirmed_value_and_its_owner()
+    {
+        var basis = Shadbala.ThresholdBasis;
+        var message = basis.BlockingMessage(Shadbala.RulesVersion);
+
+        // Every planet in the table must appear by name WITH its number. A message that only says "the table is
+        // unconfirmed" tells a reader there is a problem but not what to ask about, which is how the question stalls.
+        foreach (var threshold in basis.UnconfirmedThresholds)
+        {
+            Assert.Contains(threshold.Planet, message, StringComparison.Ordinal);
+            Assert.Contains(threshold.Rupas.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                message, StringComparison.Ordinal);
+            Assert.Contains(threshold.OwnedBy, message, StringComparison.Ordinal);
+            Assert.Equal("owner-pending", threshold.Status);
+        }
+
+        // #144 is named because the tolerance decision is the same owner's and a reader must not resolve one without
+        // the other in view.
+        Assert.Contains("#144", message, StringComparison.Ordinal);
+        Assert.Contains("api#116", message, StringComparison.Ordinal);
+
+        // And it must be buildable per planet, so a partial confirmation can be expressed rather than forcing an
+        // all-or-nothing flip of the table.
+        Assert.Equal(5.0, basis.For("Sun").Rupas);
+        Assert.Throws<InvalidOperationException>(() => basis.For("Rahu"));
+    }
+
+    [Fact]
+    public void The_gate_message_is_generated_from_the_recorded_values_not_written_by_hand()
+    {
+        var basis = Shadbala.ThresholdBasis;
+
+        // Cross-check against the numbers the engine actually publishes: if the message and the table could drift,
+        // the message would be a second source of truth for the same fact.
+        var result = Shadbala.Compute(Chart);
+        foreach (var planet in result.Planets)
+        {
+            var recorded = basis.For(planet.Planet);
+            Assert.Equal(planet.RequiredRupas, recorded.Rupas);
+        }
+
+        Assert.Equal(Shadbala.ScoredPlanets.Count, basis.UnconfirmedThresholds.Count);
     }
 
     [Fact]
