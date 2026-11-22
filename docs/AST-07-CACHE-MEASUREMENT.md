@@ -70,7 +70,7 @@ built in a copy with `rollForward: disable, 10.0.115`. Treated as a known enviro
 
 ### What is NOT measured here, and why
 
-**The engine call itself.** Real SPICE needs the native CSPICE toolkit and a mounted DE440/DE441 kernel. This host has
+**The engine call itself.** This host can measure **neither** provider: the analytical engine is not what the ratio is about (and now that the default is analytical since 850323d4, a reader might assume the declared 500 us is a Meeus figure - it is not a figure at all); real SPICE needs the native CSPICE toolkit and a mounted DE440/DE441 kernel. This host has
 neither (the provider's own `ProbeNativeLibrary` would return `false`), so any "engine milliseconds" produced here
 would be invented. The harness therefore takes the engine cost as a **declared setting** (`MVS_SETTLE_MS`, default
 0.5 ms, printed with the run and labelled "SETTING, not a measurement"). With that setting the hot-path arithmetic is:
@@ -121,5 +121,5 @@ pre-existing + 10 new).
 
 - No wiring of the cache into `SpiceAstronomyEngine` or `IEphemeris` yet: that changes call semantics and needs the
   AST-04/AST-05 numeric surface, which is still `NotImplementedException` in this branch.
-- Real engine timing requires a host with CSPICE + kernel; not available here.
+- Real engine timing requires a host with CSPICE + kernel. None exists yet: api#173 (owner decision: fetch CSPICE N0067 + DE440/DE441 from NAIF at build time) provisions the test, CI and deploy images, owned by api-developer8. Until that image runs a spice-selected calculation, the 500 us engine term stays a declared setting and **must not** be read as a measurement of either provider.
 - `global.json` SDK pin (10.0.400) does not match this host's 10.0.115; the branch leaves `global.json` untouched.
