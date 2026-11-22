@@ -148,8 +148,17 @@ public sealed class SpiceAstronomyEngine : IAstronomyEngine
     {
         try
         {
-            SpiceNative.unload_c(string.Empty);
-            return true;
+            // Probe with a call that CANNOT abort. The previous probe called unload_c("") - an empty kernel name - which
+            // CSPICE treats as a SPICE(EMPTYSTRING) error and, with the default error action, terminates the process.
+            // Measured: a correctly built libcspice.so made the test host crash on the very call meant to detect it.
+            // A availability probe must never be able to kill the host it is probing.
+            //
+            // tkvrsn_c("TOOLKIT") returns the toolkit version string and takes no state and no file name, so a missing
+            // library raises DllNotFoundException here instead of a native abort.
+            // Pointer, not string: see the marshalling note in SpiceNative. Reading it is enough to prove the library
+            // loaded and exported the symbol; nothing is freed because CSPICE owns the buffer.
+            var version = System.Runtime.InteropServices.Marshal.PtrToStringUTF8(SpiceNative.tkvrsn_c("TOOLKIT"));
+            return !string.IsNullOrEmpty(version);
         }
         catch (DllNotFoundException) { return false; }
         catch (EntryPointNotFoundException) { return false; }
