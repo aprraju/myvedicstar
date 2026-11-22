@@ -204,6 +204,14 @@ public sealed class CorpusAccuracyHarnessTests
         Assert.Equal(2665, byStatus[CorpusCaseStatus.NotComputable]);
         Assert.Equal(2000, byStatus[CorpusCaseStatus.NotALongitude]);
 
+        // api#74 slice 2 added a deterministic mean-reference set (astronomy/mean-reference-set.json) generated from
+        // Meeus identities by deploy/scripts/generate-mean-reference-set.py. It covers 6 instants, but the corpus's
+        // instants are dense arithmetic across 1900-2100, so they do not coincide: the corpus itself is still
+        // unscored. The reference GROWTH is measured by MeanReferenceSetTests, which scores 3 mean longitudes plus 4
+        // arguments at all 6 instants - and separately states that the Sun still misses the 1 arcsec target.
+        Assert.True(File.Exists(Path.Combine(HorizonsCorpusTests.FindSolutionRoot(), "astronomy",
+            "mean-reference-set.json")), "The generated mean-reference set must stay committed.");
+
         // And NOTHING is currently Scored or OutOfTolerance: not one of the 10,000 generated instants lands on a
         // committed reference epoch. That is the honest state of AST-09 today, stated as an assertion so it cannot be
         // quietly assumed otherwise - and the day a reference set does cover the corpus, this fails and someone
