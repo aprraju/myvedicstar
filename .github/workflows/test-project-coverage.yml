@@ -1,0 +1,40 @@
+name: Test project coverage
+
+# api#172: CI runs tests through four disjoint runners and the union is written down nowhere.
+# A test project can be moved, added, or dropped in a way that leaves it executed by nothing,
+# and no check would notice - the same failure mode as a required check that is skipped: it
+# reads green by not running.
+#
+# This workflow deliberately has NO paths: filter on pull_request, for the reason recorded in
+# top-level-dir-coverage.yml (api#90): a check that only runs when certain files change inherits
+# exactly the blind spot it exists to detect, and a check that reads green by not running is
+# worse than no check because it looks like coverage. The job inspects the repository's own
+# workflow files and solutions, so it needs no .NET SDK and no restore, and cannot fail because
+# restore broke.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-project-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-project-coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      # First, because a checker that has never been seen to fail is not evidence. This runs the
+      # real checker against throwaway repository shapes - covered, uncovered, solution-folder,
+      # direct .csproj, and unresolvable input - and asserts the exit code and the named project.
+      - name: The coverage checker fails when it should
+        run: python3 .github/scripts/test-check-test-project-coverage.py
+      - name: Every test project is executed by a workflow
+        run: python3 .github/scripts/check-test-project-coverage.py
