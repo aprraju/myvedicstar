@@ -1,0 +1,146 @@
+name: SPICE provisioning
+
+# api#173: prove a spice-selected calculation actually EXECUTES on a provisioned runner.
+#
+# Every other green run in this repository is green because Astronomy:Provider defaults to
+# analytical, and no CI job has ever installed the toolkit. A toolkit that was never loaded
+# cannot fail, so nothing here tested the provider the story is named after: the
+# SpiceProvisioningTests refusal branch passed on every run, and the "it computes" branch was
+# never taken anywhere.
+#
+# astronomy-package.yml already proves the OPPOSITE direction on a deliberately toolkit-free
+# image - the engine refuses by name instead of degrading. That job must keep its toolkit-free
+# image; this one supplies the toolkit and asserts the engine runs. Together they bracket the
+# behaviour: present => computes, absent => refuses, and neither direction is ever a silent
+# fallback to the analytical series.
+#
+# No paths: filter on pull_request, for the reason recorded in top-level-dir-coverage.yml: a
+# check that only runs when certain files change inherits the blind spot it exists to detect.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spice-provisioning-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provisioned-engine-executes:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # NOT contents alone: nuget.config authenticates to GitHub Packages even for feed-scoped
+      # packages, so a restore of MyVedicStar.* fails NU1301 403 without this. Same pair as
+      # astronomy-ci.yml:21-23; omitting it is what failed this job's first run.
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # The SAME pinned, checksum-verified script the deploy image uses. A copy of these rules in
+      # the workflow is how one of them quietly drifts to "latest"; the deploy path and the test
+      # path must not be able to disagree about which toolkit they prove.
+      - name: Provision CSPICE and kernels (pinned, checksum-verified)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /out
+          sudo bash deploy/scripts/provision-spice.sh /out
+          # Lay the artefacts out where SpiceConfiguration.Default looks for them, and where the
+          # loader looks for the library. Same paths as deploy/docker/Dockerfile.
+          sudo mkdir -p /var/spice
+          sudo cp /out/spice/libcspice.so /usr/lib/libcspice.so
+          for kernel in de440.bsp naif0012.tls pck00011.tpc; do
+            sudo cp "/out/spice/$kernel" "/var/spice/$kernel"
+          done
+          sudo ldconfig
+          echo "LD_LIBRARY_PATH=/usr/lib" >> "$GITHUB_ENV"
+
+      - name: Report the toolkit the runner actually has
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Named and printed so a later failure distinguishes "provisioning broke" from "the
+          # engine broke". A silent version here would make the assertion below unfalsifiable.
+          ls -l /usr/lib/libcspice.so /var/spice/
+          python3 - <<'PY' || true
+          import ctypes
+          lib = ctypes.CDLL("/usr/lib/libcspice.so")
+          PY
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet restore tests/MyVedicDay.Api.Tests.Integration/MyVedicDay.Api.Tests.Integration.csproj
+
+      # --filter is the point. Running the whole project would let the refusal branch pass on a
+      # provisioned host and look like success; the requirement is that the PROVISIONED branch is
+      # the one exercised, and that it says so.
+      - name: SPICE-selected calculation executes on a provisioned runner
+        shell: bash
+        # Tells the test that a missing toolkit here is a FAILURE, not a skip. Without it the test
+        # skips and this job is green while proving nothing - the exact defect it exists to remove.
+        env:
+          MYVEDICSTAR_REQUIRE_SPICE: "1"
+        run: |
+          set -euo pipefail
+          dotnet test tests/MyVedicDay.Api.Tests.Integration/MyVedicDay.Api.Tests.Integration.csproj \
+            --configuration Release \
+            --no-restore \
+            --filter "FullyQualifiedName~SpiceProvisioningTests" \
+            --logger "console;verbosity=detailed" | tee "$RUNNER_TEMP/spice.log"
+
+          # A_provisioned_host_loads_the_pinned_toolkit is the ONLY test in this project that cannot
+          # pass without the toolkit; the others pass on a bare host too. Run it alone and require it
+          # to report exactly one passed test, so an overall green cannot hide that provisioning never
+          # took effect - which is precisely how this suite stayed green while proving nothing.
+          dotnet test tests/MyVedicDay.Api.Tests.Integration/MyVedicDay.Api.Tests.Integration.csproj \
+            --configuration Release \
+            --no-build \
+            --filter "FullyQualifiedName~A_provisioned_host_loads_the_pinned_toolkit" \
+            --logger "console;verbosity=normal" | tee "$RUNNER_TEMP/spice-load.log"
+
+          # Must be PASSED, never SKIPPED. The test skips on a bare host by design, so a skip here
+          # would mean the toolkit did not load, and reading that as success is the whole bug.
+          if grep -q 'Skipped: +1' "$RUNNER_TEMP/spice-load.log"; then
+            echo "::error::the load test SKIPPED on a provisioned runner, so the toolkit did not load."
+            echo "::error::A skip is not proof. Provisioning did not take effect."
+            exit 1
+          fi
+          if ! grep -qE 'Passed: +1' "$RUNNER_TEMP/spice-load.log"; then
+            echo "::error::the pinned-toolkit load test did not pass on a provisioned runner."
+            echo "::error::Provisioning did not take effect; every SPICE number from this job is void."
+            exit 1
+          fi
+
+      - name: The toolkit is loaded by the provisioned runner, not merely present on disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          # "Present on disk" and "loads" are different claims, and only the second is what the image
+          # will see. tkvrsn_c is the same call SpiceNative uses as its availability probe, so this
+          # asserts the exact symbol the engine's probe depends on - if the library is the wrong
+          # architecture or missing the export, this fails here rather than as a confusing refusal
+          # three steps later.
+          python3 - <<'PY'
+          import ctypes
+          lib = ctypes.CDLL("/usr/lib/libcspice.so")
+          lib.tkvrsn_c.restype = ctypes.c_char_p
+          lib.tkvrsn_c.argtypes = [ctypes.c_char_p]
+          version = lib.tkvrsn_c(b"TOOLKIT").decode()
+          print(f"libcspice tkvrsn_c(TOOLKIT) = {version}")
+          if "N0067" not in version:
+              raise SystemExit(
+                  f"::error::expected the pinned N0067 toolkit, got {version!r}. "
+                  "A version other than the pinned one makes the FR-08 inventory claim unverifiable."
+              )
+          PY
