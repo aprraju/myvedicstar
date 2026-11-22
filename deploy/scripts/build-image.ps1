@@ -61,6 +61,13 @@ else {
         $dockerfile = Join-Path $publishDir 'Dockerfile'
         Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'deploy/docker/Dockerfile') -Destination $dockerfile
 
+        # api#173: the SPICE provisioning script is fetched by a build stage, and it arrives through a named build
+        # context rather than through the publish output. Keeping it out of $publishDir is deliberate: the publish
+        # directory is the .NET output, and dropping a shell script in it would blur what this image actually is.
+        $spiceScriptsDir = Join-Path $publishDir 'spice-scripts'
+        New-Item -ItemType Directory -Path $spiceScriptsDir -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'deploy/scripts/provision-spice.sh') -Destination $spiceScriptsDir
+
         Write-Host "Building $image in $RegistryName..."
         # Streamed to the host (not captured) so build logs appear live and never mix with the script's output.
         # --file is absolute: newer Azure CLI versions resolve a relative --file against the current directory,
@@ -70,6 +77,7 @@ else {
             --image $image `
             --file $dockerfile `
             --platform linux/amd64 `
+            --build-context "spice-scripts=$spiceScriptsDir" `
             $publishDir | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "Image build failed (exit code $LASTEXITCODE)."

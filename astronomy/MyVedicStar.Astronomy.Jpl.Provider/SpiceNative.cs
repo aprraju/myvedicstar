@@ -14,6 +14,17 @@ internal static partial class SpiceNative
 {
     internal const string LibraryName = "cspice";
 
+    /// <summary>Toolkit version string. CSPICE: <c>ConstSpiceChar *tkvrsn_c(ConstSpiceChar *item)</c>.</summary>
+    /// <remarks>
+    /// <para>Used as the availability probe: it reads no state, so it cannot abort the way an invalid unload does.</para>
+    /// <para><b>Returned as IntPtr, not string.</b> CSPICE returns a pointer to its own static buffer. Marshalling that
+    /// as <c>string</c> makes the runtime free a pointer it does not own - measured as a hard
+    /// <c>free(): invalid pointer</c> crash of the test host, which is the same class of defect as the aborting probe:
+    /// a probe that kills the process. The caller reads the buffer and copies it; nothing is freed.</para>
+    /// </remarks>
+    [LibraryImport(LibraryName)]
+    internal static partial IntPtr tkvrsn_c([MarshalAs(UnmanagedType.LPUTF8Str)] string item);
+
     /// <summary>Loads a kernel file. CSPICE: <c>void furnsh_c(ConstSpiceChar *file)</c>.</summary>
     [LibraryImport(LibraryName)]
     internal static partial void furnsh_c([MarshalAs(UnmanagedType.LPUTF8Str)] string file);
