@@ -165,7 +165,7 @@ if ($secretMappings.Count -gt 0) {
             "$($_.AppSecretName)=keyvaultref:$keyVaultUri/secrets/$($_.SecretName),identityref:$identityId"
         })
     Write-Host "Setting Key Vault references: $(($secretMappings | ForEach-Object { $_.AppSecretName }) -join ', ')"
-    Invoke-Az containerapp secret set --name $ContainerAppName --resource-group $ResourceGroup --secrets @secretArguments --output none
+    Invoke-AzRetrying -Config $config containerapp secret set --name $ContainerAppName --resource-group $ResourceGroup --secrets @secretArguments --output none
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
