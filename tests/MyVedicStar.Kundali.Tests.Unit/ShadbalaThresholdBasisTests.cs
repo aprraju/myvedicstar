@@ -3,25 +3,18 @@ namespace MyVedicStar.Kundali.Tests.Unit;
 using MyVedicStar.Kundali.Calculation;
 
 /// <summary>
-/// api#116. The Shadbala threshold table is unconfirmed by the owner, and this file makes that a loud failure at the
-/// exact moment the unconfirmed number starts looking authoritative.
+/// api#116. The Shadbala required-rupas table has been confirmed by the owner, and this file asserts the confirmed
+/// state while keeping the unconfirmed-state gate exercised rather than deleted.
 /// </summary>
 /// <remarks>
-/// <para><b>The defect this pins.</b> The required-rupas table ships as versioned config
-/// (<c>shadbala-classical-partial-1</c>) with no owner confirmation. That is survivable only while Shadbala is
-/// <c>complete: false</c> for every planet, because Kala and Chesta are withheld: a partial total falls below the
-/// threshold for reasons unrelated to the chart, and every result says so in four places. The day <c>complete</c> can
-/// be <c>true</c>, the ratio stops being visibly provisional and starts looking like a settled comparison - using a
-/// number nobody confirmed.</para>
-/// <para><b>Why the test is written to keep failing.</b> A test that merely asserts the current version string would go
-/// green today and stay green through the change that breaks the guarantee. So this file asserts the guarantee itself:
-/// <i>either</i> the results are incomplete <i>or</i> the threshold basis carries an owner confirmation. Today the
-/// first half holds. When Kala and Chesta land and completeness becomes reachable, the first half stops holding and the
-/// only way to keep the suite green is to record a real owner confirmation - which is the decision api#116 exists to
-/// force, not a formatting fix.</para>
-/// <para><b>What it deliberately does not do.</b> It does not assert that the numbers are correct. Nobody has confirmed
-/// them, and an assertion here would be this agent inventing the owner's decision. It pins the table as <i>unconfirmed
-/// data</i> and names the issues that own the decision.</para>
+/// <para><b>What changed on 2026-11-22.</b> The owner confirmed the seven values verbatim - Sun 5, Moon 6, Mars 5,
+/// Mercury 7, Jupiter 6.5, Venus 5.5, Saturn 5 - and the values did not change. What changed is the recorded decision
+/// and the rules version. These tests used to assert <c>owner-pending</c>; they now assert the confirmation, because a
+/// test that is relaxed to accommodate a new fact stops being evidence of anything.</para>
+/// <para><b>Why the gate is kept and not deleted.</b> The gate proves that an unconfirmed basis blocks a complete
+/// result. A confirmation is reversible - an owner can withdraw or correct a value - so deleting the gate would leave
+/// the next unconfirmed basis undetected. It is now driven by an explicit unconfirmed premise and by a synthetic
+/// unconfirmed state, so the branch stays meaningful instead of becoming vacuously green.</para>
 /// </remarks>
 public sealed class ShadbalaThresholdBasisTests
 {
@@ -38,150 +31,210 @@ public sealed class ShadbalaThresholdBasisTests
             ["Saturn"] = 330.0
         };
 
-    [Fact]
-    public void The_threshold_table_is_unconfirmed_and_the_rules_version_says_so()
-    {
-        // The version string is the only machine-readable statement that these numbers are provisional. If someone
-        // renames it to something that reads as settled - dropping the "partial", say - while the values are still
-        // unconfirmed, the provenance signal is gone even though nothing else changed.
-        Assert.Equal("shadbala-classical-partial-1", Shadbala.RulesVersion);
-        Assert.Contains("partial", Shadbala.RulesVersion, StringComparison.Ordinal);
-
-        // And the basis itself must be reachable as a stated fact rather than a comment, so a caller can display it.
-        Assert.Equal("owner-pending", Shadbala.ThresholdBasis.Status);
-        Assert.False(Shadbala.ThresholdBasis.IsOwnerConfirmed,
-            "The required-rupas table is asserted as owner-confirmed, but it is not: api#116 is open. If the owner " +
-            "has since confirmed it, that is a real decision - record the version bump and the confirmation, do not " +
-            "flip this bit.");
-        Assert.Contains("116", Shadbala.ThresholdBasis.OwnedBy);
-    }
+    /// <summary>The owner's confirmation, verbatim (api#116, 2026-11-22).</summary>
+    private static readonly (string Planet, double Rupas)[] OwnerConfirmedValues =
+    [
+        ("Sun", 5), ("Moon", 6), ("Mars", 5), ("Mercury", 7), ("Jupiter", 6.5), ("Venus", 5.5), ("Saturn", 5)
+    ];
 
     [Fact]
-    public void Every_published_threshold_is_pinned_at_its_current_unconfirmed_value()
-    {
-        // Pinned, not endorsed. Pinning is what makes a change to an unconfirmed number visible in review instead of
-        // arriving inside an unrelated diff. If the owner corrects a value, this list changes with the version string
-        // and an owner reference - that pairing is the point.
-        var expected = new Dictionary<string, double>(StringComparer.Ordinal)
-        {
-            ["Sun"] = 5.0,
-            ["Moon"] = 6.0,
-            ["Mars"] = 5.0,
-            ["Mercury"] = 7.0,
-            ["Jupiter"] = 6.5,
-            ["Venus"] = 5.5,
-            ["Saturn"] = 5.0
-        };
-
-        var result = Shadbala.Compute(Chart);
-        foreach (var planet in result.Planets)
-        {
-            Assert.True(expected.TryGetValue(planet.Planet, out var value),
-                $"{planet.Planet} publishes a threshold that is not in the pinned set.");
-            Assert.Equal(value, planet.RequiredRupas);
-        }
-
-        Assert.Equal(expected.Count, result.Planets.Count);
-    }
-
-    [Fact]
-    public void The_ratio_is_published_but_never_as_authoritative_while_the_basis_is_unconfirmed()
-    {
-        var result = Shadbala.Compute(Chart);
-
-        foreach (var planet in result.Planets)
-        {
-            // The ratio is published so a consumer charting progress has a number; withholding it would push callers
-            // to compute it themselves from a partial total - the same error, unlabelled. What must never happen is a
-            // ratio presented with no completeness signal.
-            Assert.NotNull(planet.RatioToThreshold);
-            Assert.False(planet.IsComplete);
-            Assert.NotEmpty(planet.ComponentsWithheld);
-        }
-
-        Assert.False(result.IsComplete);
-    }
-
-    /// <summary>
-    /// The blocker: this passes today only because completeness is unreachable, and must fail the day it is.
-    /// </summary>
-    /// <remarks>
-    /// This is a disjunction on purpose, and it is the whole point of the file. When Kala and Chesta are implemented,
-    /// <see cref="Shadbala.Result.IsComplete"/> becomes obtainable, this assertion stops being satisfied by the first
-    /// branch, and the suite goes red until <see cref="Shadbala.ThresholdBasis.IsOwnerConfirmed"/> is genuinely true.
-    /// A "complete" Shadbala compared against an unconfirmed table is a confirmed-looking answer built on a number
-    /// nobody approved, which is the failure api#116 was filed to prevent.
-    /// </remarks>
-    [Fact]
-    public void Completeness_is_impossible_or_the_threshold_basis_is_owner_confirmed()
-    {
-        var result = Shadbala.Compute(Chart);
-
-        // ANY planet reporting itself complete is enough to make its ratio look authoritative, so the gate must fire
-        // on the per-planet flag as well as the section flag. Checking only Result.IsComplete left a hole: with the
-        // section flag flipped and planets still reporting incomplete, the gate stayed green. Found by mutation.
-        var completePlanets = result.Planets.Where(planet => planet.IsComplete)
-            .Select(planet => planet.Planet).ToArray();
-        var incompleteResultsExist = !result.IsComplete && completePlanets.Length == 0;
-
-        // The message is GENERATED from the recorded values (ThresholdBasis.BlockingMessage), so it names every
-        // unconfirmed threshold and its owner rather than describing a policy. A hand-written message goes stale on the
-        // first correction, at which point it points the reader at the wrong number.
-        Assert.True(incompleteResultsExist || Shadbala.ThresholdBasis.IsOwnerConfirmed,
-            Shadbala.ThresholdBasis.BlockingMessage(Shadbala.RulesVersion)
-            + $" Planets already reporting complete: {(completePlanets.Length == 0 ? "none" : string.Join(", ", completePlanets))}.");
-    }
-
-    [Fact]
-    public void The_gate_message_names_each_unconfirmed_value_and_its_owner()
+    public void The_threshold_table_is_owner_confirmed_with_a_moved_rules_version()
     {
         var basis = Shadbala.ThresholdBasis;
-        var message = basis.BlockingMessage(Shadbala.RulesVersion);
 
-        // Every planet in the table must appear by name WITH its number. A message that only says "the table is
-        // unconfirmed" tells a reader there is a problem but not what to ask about, which is how the question stalls.
-        foreach (var threshold in basis.UnconfirmedThresholds)
+        // The three facts that used to be asserted the other way round. Each one is now an assertion about the
+        // confirmation rather than the absence of it, so this test can go red if the state regresses.
+        Assert.True(basis.IsOwnerConfirmed,
+            "The owner confirmed the required-rupas values on 2026-11-22 (api#116); the engine no longer records that.");
+        Assert.Equal("owner-confirmed", basis.Status);
+        Assert.DoesNotContain("owner-pending", basis.Status, StringComparison.Ordinal);
+
+        // The version moved with the decision. A confirmation is a real decision, so a persisted result naming the old
+        // version must remain distinguishable from one computed under a confirmed basis.
+        Assert.Equal("shadbala-classical-owner-confirmed-1", Shadbala.RulesVersion);
+        Assert.NotEqual("shadbala-classical-partial-1", Shadbala.RulesVersion);
+        Assert.Contains("owner-confirmed", Shadbala.RulesVersion, StringComparison.Ordinal);
+
+        // The note must name the deciding items and the date, so a reader is not left inferring who decided.
+        Assert.Contains("api#116", basis.OwnedBy);
+        Assert.Contains("2026-11-22", basis.Note);
+    }
+
+    [Fact]
+    public void Every_confirmed_threshold_matches_the_owners_list_exactly()
+    {
+        var basis = Shadbala.ThresholdBasis;
+        var result = Shadbala.Compute(Chart);
+
+        // Both surfaces are checked, because they are the same fact told twice: the recorded decision and the number
+        // the engine actually publishes. If they could diverge, the confirmation would be a statement about a table
+        // nobody uses.
+        foreach (var (planet, rupas) in OwnerConfirmedValues)
         {
-            Assert.Contains(threshold.Planet, message, StringComparison.Ordinal);
-            Assert.Contains(threshold.Rupas.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
-                message, StringComparison.Ordinal);
-            Assert.Contains(threshold.OwnedBy, message, StringComparison.Ordinal);
-            Assert.Equal("owner-pending", threshold.Status);
+            var decision = basis.For(planet);
+            Assert.Equal(rupas, decision.Rupas);
+            Assert.Equal("owner-confirmed", decision.Status);
+            Assert.Equal("2026-11-22", decision.DecidedOn);
+            Assert.Equal("api#116", decision.OwnedBy);
+
+            var published = result.Planets.Single(entry => entry.Planet == planet);
+            Assert.Equal(rupas, published.RequiredRupas);
         }
 
-        // #144 is named because the tolerance decision is the same owner's and a reader must not resolve one without
-        // the other in view.
-        Assert.Contains("#144", message, StringComparison.Ordinal);
-        Assert.Contains("api#116", message, StringComparison.Ordinal);
+        // No confirmed list may omit a scored planet, and none may invent one: a value absent from the decision record
+        // would be a threshold nobody confirmed being compared as though it had been.
+        Assert.Equal(Shadbala.ScoredPlanets.Count, basis.Thresholds.Count);
+        Assert.Equal(OwnerConfirmedValues.Length, basis.Thresholds.Count);
+    }
 
-        // And it must be buildable per planet, so a partial confirmation can be expressed rather than forcing an
-        // all-or-nothing flip of the table.
-        Assert.Equal(5.0, basis.For("Sun").Rupas);
+    [Fact]
+    public void The_decision_record_covers_every_threshold_rather_than_being_empty_when_confirmed()
+    {
+        var basis = Shadbala.ThresholdBasis;
+
+        // The tempting shape after confirmation is to empty the list. That would make "the engine ships this value and
+        // the owner confirmed it" and "the engine ships a value nobody has ever considered" indistinguishable - the
+        // exact absence-reads-as-a-pass failure. The list is therefore present and populated in the confirmed state.
+        Assert.NotEmpty(basis.Thresholds);
+        Assert.All(basis.Thresholds, decision =>
+        {
+            Assert.Equal("owner-confirmed", decision.Status);
+            Assert.NotNull(decision.DecidedOn);
+            Assert.False(string.IsNullOrWhiteSpace(decision.OwnedBy));
+        });
+
         Assert.Throws<InvalidOperationException>(() => basis.For("Rahu"));
     }
 
     [Fact]
-    public void The_gate_message_is_generated_from_the_recorded_values_not_written_by_hand()
+    public void The_thresholds_are_not_unconfirmed_and_nothing_claims_they_are()
     {
+        // The self-contradicting shape this guards: IsOwnerConfirmed true beside a list of entries still labelled
+        // unconfirmed. The type no longer has an UnconfirmedThreshold at all, and this asserts no decision claims that
+        // status while the basis says confirmed.
         var basis = Shadbala.ThresholdBasis;
 
-        // Cross-check against the numbers the engine actually publishes: if the message and the table could drift,
-        // the message would be a second source of truth for the same fact.
-        var result = Shadbala.Compute(Chart);
-        foreach (var planet in result.Planets)
-        {
-            var recorded = basis.For(planet.Planet);
-            Assert.Equal(planet.RequiredRupas, recorded.Rupas);
-        }
+        Assert.True(basis.IsOwnerConfirmed);
+        Assert.DoesNotContain(basis.Thresholds, decision => decision.Status == "owner-pending");
+        Assert.DoesNotContain("unconfirmed by the owner", basis.Note, StringComparison.OrdinalIgnoreCase);
+    }
 
-        Assert.Equal(Shadbala.ScoredPlanets.Count, basis.UnconfirmedThresholds.Count);
+    /// <summary>
+    /// The gate, retained: an unconfirmed basis must still block completeness, and a confirmed one must permit it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The gate was a disjunction over the live state. Both branches are now exercised <b>explicitly</b>, because with a
+    /// confirmed basis the disjunction is satisfied by its second branch and would never evaluate the first - a test
+    /// that can no longer fail on the thing it was written for.
+    /// </para>
+    /// <para>
+    /// <b>Premise 1 (the unconfirmed branch still works).</b> A synthetic unconfirmed state plus a complete result must
+    /// fail the gate. This is the same predicate the gate applies, evaluated against an unconfirmed basis.
+    /// </para>
+    /// <para>
+    /// <b>Premise 2 (the confirmed branch permits completeness).</b> A confirmed basis plus a complete result must pass,
+    /// which is the state the product is in now and is why the owner confirmation mattered.
+    /// </para>
+    /// <para>
+    /// <b>Why not retire the gate.</b> The confirmation is reversible; a withdrawn or corrected value returns the
+    /// product to an unconfirmed basis. Retiring the gate would mean nobody notices. It is kept and both branches are
+    /// asserted, which is stronger than the original disjunction because neither branch can silently stop working.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void An_unconfirmed_basis_blocks_completeness_and_a_confirmed_one_permits_it()
+    {
+        var live = Shadbala.ThresholdBasis;
+
+        // The gate predicate, stated once so both premises run through the same function rather than two paraphrases.
+        static bool GateHolds(Shadbala.ThresholdBasisState basis, bool anyCompletePlanet)
+            => !anyCompletePlanet || basis.IsOwnerConfirmed;
+
+        // Premise 1: unconfirmed + complete => must block.
+        var unconfirmed = live with
+        {
+            Status = Shadbala.DecisionStatus.OwnerPending,
+            IsOwnerConfirmed = false,
+            Thresholds = live.Thresholds
+                .Select(decision => decision with { Status = Shadbala.DecisionStatus.OwnerPending, DecidedOn = null })
+                .ToArray()
+        };
+
+        Assert.False(unconfirmed.IsOwnerConfirmed);
+        Assert.False(GateHolds(unconfirmed, anyCompletePlanet: true),
+            "An unconfirmed threshold basis permitted a complete result. That is the silent switch api#116 exists to "
+            + "prevent, and it must fail here even though the live basis is currently confirmed.");
+
+        // Premise 2: confirmed + complete => permitted.
+        Assert.True(live.IsOwnerConfirmed);
+        Assert.True(GateHolds(live, anyCompletePlanet: true));
+
+        // And the live state today still reports incompleteness for its own reasons, which is a different fact from
+        // the threshold basis and must not be confused with it.
+        var result = Shadbala.Compute(Chart);
+        Assert.False(result.IsComplete);
+        Assert.All(result.Planets, planet => Assert.False(planet.IsComplete));
     }
 
     [Fact]
-    public void The_withheld_components_are_what_makes_completeness_unreachable_today()
+    public void The_blocking_message_still_names_every_value_and_is_exercised_while_unreachable()
     {
-        // Names the mechanism rather than asserting a bare boolean: completeness is unreachable because Kala and
-        // Chesta are withheld, so implementing them is precisely the change that triggers the blocker above.
+        var live = Shadbala.ThresholdBasis;
+
+        // Build the message from an unconfirmed copy: with a confirmed basis no production path produces it, so a test
+        // that only read the live state would never exercise the message and it would rot silently until the day it was
+        // needed. Testing it here is what keeps it honest.
+        var unconfirmed = live with
+        {
+            Status = Shadbala.DecisionStatus.OwnerPending,
+            IsOwnerConfirmed = false,
+            Thresholds = live.Thresholds
+                .Select(decision => decision with { Status = Shadbala.DecisionStatus.OwnerPending, DecidedOn = null })
+                .ToArray()
+        };
+
+        var message = unconfirmed.BlockingMessage(Shadbala.RulesVersion);
+
+        // Not vacuous: the message must name every value. An empty list would make this loop pass without checking
+        // anything, so the count is asserted before the loop.
+        Assert.Equal(Shadbala.ScoredPlanets.Count, unconfirmed.Thresholds.Count);
+        foreach (var decision in unconfirmed.Thresholds)
+        {
+            Assert.Contains(decision.Planet, message, StringComparison.Ordinal);
+            Assert.Contains(decision.Rupas.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                message, StringComparison.Ordinal);
+            Assert.Contains(decision.OwnedBy, message, StringComparison.Ordinal);
+        }
+
+        // The tolerance decision is named because it is the same owner's and is NOT settled by this confirmation.
+        Assert.Contains("#144", message, StringComparison.Ordinal);
+        Assert.Contains("api#116", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_blocking_message_is_generated_from_the_recorded_values_not_written_by_hand()
+    {
+        var basis = Shadbala.ThresholdBasis;
+        var message = basis.BlockingMessage(Shadbala.RulesVersion);
+
+        // Cross-check against the numbers the engine publishes, so the message cannot become a second source of truth
+        // for the same fact.
+        var result = Shadbala.Compute(Chart);
+        foreach (var planet in result.Planets)
+        {
+            var decision = basis.For(planet.Planet);
+            Assert.Equal(planet.RequiredRupas, decision.Rupas);
+            Assert.Contains(decision.Rupas.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void The_withheld_components_are_unaffected_by_the_threshold_confirmation()
+    {
+        // The confirmation settles the THRESHOLD. It does not settle the component set, and Kala and Chesta stay
+        // withheld with reasons. Implemented when those land, not by this decision.
         Assert.Contains("Kala", Shadbala.WithheldComponents.Keys);
         Assert.Contains("Chesta", Shadbala.WithheldComponents.Keys);
         Assert.DoesNotContain("Kala", Shadbala.SupportedComponents);

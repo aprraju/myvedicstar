@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 using MyVedicStar.Kundali.Business;
+using MyVedicStar.Kundali.Calculation;
 using MyVedicStar.Kundali.Shared;
 using MyVedicStar.Shared.Exceptions;
 using MyVedicStar.VedicProfiles.Shared;
@@ -168,9 +169,9 @@ public sealed class KundaliRevisionCacheTests
         var provenance = KundaliProvenance();
 
         var key = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
-            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1"]);
+            ["foundation-0", "ashtakavarga-0", Shadbala.RulesVersion]);
         var changed = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
-            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-2"]);
+            ["foundation-0", "ashtakavarga-0", Shadbala.RulesVersion + "-next"]);
 
         Assert.NotEqual(key, changed);
     }
@@ -184,9 +185,9 @@ public sealed class KundaliRevisionCacheTests
         var provenance = KundaliProvenance();
 
         var key = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
-            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1", "yogas-classical-1"]);
+            ["foundation-0", "ashtakavarga-0", Shadbala.RulesVersion, "yogas-classical-1"]);
         var changed = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
-            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1", "yogas-classical-2"]);
+            ["foundation-0", "ashtakavarga-0", Shadbala.RulesVersion, "yogas-classical-2"]);
 
         Assert.NotEqual(key, changed);
     }
@@ -200,7 +201,7 @@ public sealed class KundaliRevisionCacheTests
         var provenance = KundaliProvenance();
 
         var withShadbala = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
-            ["foundation-0", "ashtakavarga-0", "shadbala-classical-partial-1"]);
+            ["foundation-0", "ashtakavarga-0", Shadbala.RulesVersion]);
         var withoutShadbala = KundaliCacheKeys.RevisionKey(accountId, profileId, 7, provenance,
             ["foundation-0", "ashtakavarga-0"]);
 

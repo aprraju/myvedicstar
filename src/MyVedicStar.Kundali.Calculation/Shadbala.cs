@@ -23,7 +23,23 @@ namespace MyVedicStar.Kundali.Calculation;
 public static class Shadbala
 {
     /// <summary>Identifies the exact rule set and threshold table used. Persisted with every result.</summary>
-    public const string RulesVersion = "shadbala-classical-partial-1";
+    /// <remarks>
+    /// <para>
+    /// <b>Moved for a decision, not for code</b> (api#116). <c>shadbala-classical-partial-1</c> described a table nobody
+    /// had confirmed. The owner has now confirmed these seven values verbatim, which is a real decision, so the version
+    /// moves with it: a persisted result naming the old version was computed under an unconfirmed basis and must remain
+    /// distinguishable from one computed under a confirmed basis.
+    /// </para>
+    /// <para>
+    /// <b>Why "owner-confirmed" and not just "-2".</b> A bare sequence number makes a reader diff the tables to learn
+    /// what changed and says nothing about why. The word is the fact that matters, and it survives being grepped from a
+    /// cached result months later. <c>partial</c> is dropped deliberately because it now describes the wrong thing: what
+    /// is partial is the <i>set of components</i> (Kala and Chesta stay withheld), not the threshold basis, and the
+    /// component-level partiality is already stated per planet by <c>PlanetStrength.IsComplete</c> and
+    /// <c>ComponentsWithheld</c>.
+    /// </para>
+    /// </remarks>
+    public const string RulesVersion = "shadbala-classical-owner-confirmed-1";
 
     /// <summary>The seven planets Shadbala scores. The nodes are not scored in the classical scheme.</summary>
     public static readonly IReadOnlyList<string> ScoredPlanets =
@@ -52,14 +68,14 @@ public static class Shadbala
     /// Where the required-rupas table stands, as data rather than a comment (api#116).
     /// </summary>
     /// <remarks>
-    /// <para><b>Unconfirmed is a fact about the table, not a caveat on the code.</b> The values below are published,
-    /// citable and revisable, and nobody has confirmed them. A caller that displays a ratio needs to be able to say so,
-    /// and a comment cannot be read at runtime - so the state lives here and the test suite asserts this state is
-    /// consistent with whether a complete result is reachable.</para>
-    /// <para><b>The blocker.</b> While <see cref="Result.IsComplete"/> is unreachable - every planet withholds Kala and
-    /// Chesta - a partial total understates strength, so an unconfirmed threshold cannot mislead anyone. The day
-    /// completeness becomes reachable, this table stops being visibly provisional and owner confirmation becomes
-    /// required. See api#116 for the gate and #144 for the tolerance decision, which belongs to the same owner.</para>
+    /// <para><b>The decision is a fact about the table, not a caveat on the code.</b> A caller that displays a ratio
+    /// needs to be able to say whether the basis behind it is settled, and a comment cannot be read at runtime - so the
+    /// state lives here and the suite asserts it.</para>
+    /// <para><b>History, kept because it explains the shape.</b> The values shipped unconfirmed while <see cref="Result.IsComplete"/>
+    /// was unreachable - every planet withholds Kala and Chesta, so a partial total understates strength and an
+    /// unconfirmed threshold could not mislead anyone. The owner has now confirmed the seven values verbatim
+    /// (<c>api#116</c>), so <see cref="IsOwnerConfirmed"/> is true and the blocker message is unreachable in production.
+    /// Confirming the THRESHOLD is not a decision about the tolerance in <c>#144</c>, which stays open and separate.</para>
     /// </remarks>
     /// <remarks>
     /// <para>
@@ -69,17 +85,27 @@ public static class Shadbala
     /// once instead of any of them clearly. A property defers the read until the table it depends on exists.
     /// </para>
     /// </remarks>
+    /// <summary>Status string recorded for a confirmed basis.</summary>
+    private const string ConfirmedStatus = DecisionStatus.Confirmed;
+
+    /// <summary>The date the owner confirmed the required-rupas values (api#116).</summary>
+    private const string ConfirmedOn = "2026-11-22";
+
     public static ThresholdBasisState ThresholdBasis => ThresholdBasisLazy.Value;
 
     private static readonly Lazy<ThresholdBasisState> ThresholdBasisLazy = new(() => new ThresholdBasisState(
-        Status: "owner-pending",
-        IsOwnerConfirmed: false,
+        Status: ConfirmedStatus,
+        IsOwnerConfirmed: true,
         OwnedBy: "api#116 (threshold basis) and #144 (tolerance decision)",
-        Note: "The classical required-rupas values are unconfirmed by the owner. They are published and revisable, and "
-              + "they must not be presented as a settled comparison while this status holds.",
-        UnconfirmedThresholds: RequiredRupas
+        Note: $"The classical required-rupas values were confirmed verbatim by the owner on {ConfirmedOn} "
+              + "(Sun 5, Moon 6, Mars 5, Mercury 7, Jupiter 6.5, Venus 5.5, Saturn 5). The values are unchanged by that "
+              + "confirmation; what changed is that they are now a settled decision rather than a provisional table. "
+              + "This is a statement about the THRESHOLD only - it says nothing about the tolerance in #144, and "
+              + "Shadbala remains partial in its components while Kala and Chesta are withheld.",
+        Thresholds: RequiredRupas
             .OrderBy(entry => entry.Key, StringComparer.Ordinal)
-            .Select(entry => new UnconfirmedThreshold(entry.Key, entry.Value, "api#116", "owner-pending"))
+            .Select(entry => new ThresholdDecision(entry.Key, entry.Value, DecisionStatus.Confirmed, ConfirmedOn,
+                "api#116"))
             .ToArray()));
 
     /// <summary>Classical required rupas, used as the comparison threshold. Versioned with the rule set.</summary>
@@ -187,39 +213,42 @@ public static class Shadbala
     /// is a real decision, paired with a <see cref="RulesVersion"/> change, never a maintenance edit.</param>
     /// <param name="OwnedBy">Which items own the decision, so a reader knows who to ask rather than assuming nobody.</param>
     /// <param name="Note">The sentence a consumer can display verbatim.</param>
-    /// <param name="UnconfirmedThresholds">The exact values that are unconfirmed, one entry per planet, so a failure
-    /// can name numbers rather than a policy. A bare "the table is unconfirmed" message tells a reader there is a
-    /// problem and not which number to ask about.</param>
+    /// <param name="Thresholds">The decision recorded for each threshold value, one entry per planet. Present even
+    /// when every value is confirmed, so the set of thresholds the engine ships and the set carrying a decision cannot
+    /// diverge - an empty list would make an unrecorded value indistinguishable from a recorded one.</param>
     public sealed record ThresholdBasisState(
         string Status,
         bool IsOwnerConfirmed,
         string OwnedBy,
         string Note,
-        IReadOnlyList<UnconfirmedThreshold> UnconfirmedThresholds)
+        IReadOnlyList<ThresholdDecision> Thresholds)
     {
-        /// <summary>One unconfirmed value, with the item that owns confirming it.</summary>
-        /// <remarks>
-        /// Ownership is per threshold rather than per table because a correction can settle Jupiter while leaving
-        /// Saturn open. Collapsing that into one table-level state would force the first confirmation to be a lie about
-        /// the other six.
-        /// </remarks>
-        public UnconfirmedThreshold For(string planet) =>
-            UnconfirmedThresholds.FirstOrDefault(entry =>
-                string.Equals(entry.Planet, planet, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"No threshold entry is recorded for '{planet}'.");
+        /// <summary>The decision recorded for one planet's threshold.</summary>
+        public ThresholdDecision For(string planet) =>
+            Thresholds.FirstOrDefault(entry => string.Equals(entry.Planet, planet, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"No threshold decision is recorded for '{planet}'.");
 
         /// <summary>
-        /// The sentence used when this state blocks a change, naming each unconfirmed value and its owner.
+        /// The sentence shown if this basis were presented as unconfirmed, naming each value and its owner.
         /// </summary>
         /// <remarks>
-        /// Built from <see cref="UnconfirmedThresholds"/> rather than written by hand, so the message cannot drift from
-        /// the data it describes. A hand-written message listing values goes stale on the first correction and is then
-        /// worse than none, because it points the reader at the wrong number with full confidence.
+        /// <para>
+        /// <b>This message is currently unreachable in production and that is deliberate.</b> The basis is confirmed, so
+        /// no code path calls this to block a change. It is kept, and unit-tested directly, because the confirmation is
+        /// reversible: if the owner later withdraws or corrects a value the blocker must be available again without
+        /// someone reconstructing the wording from memory. Left untested it would rot, which is why a test exercises it
+        /// against a synthetic unconfirmed state rather than leaving it to be discovered broken.
+        /// </para>
+        /// <para>
+        /// It is built from <see cref="Thresholds"/> rather than written by hand, so it cannot drift from the values it
+        /// describes. A hand-written message listing numbers goes stale on the first correction and is then worse than
+        /// none, because it points the reader at the wrong number with full confidence.
+        /// </para>
         /// </remarks>
         public string BlockingMessage(string rulesVersion) =>
             $"Shadbala can now return a complete result while {rulesVersion} carries no owner confirmation. "
             + $"Unconfirmed thresholds ({Status}), owned by {OwnedBy}: "
-            + string.Join("; ", UnconfirmedThresholds.Select(entry =>
+            + string.Join("; ", Thresholds.Select(entry =>
                 $"{entry.Planet} = {entry.Rupas.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}"
                 + $" rupas [{entry.OwnedBy}]"))
             + ". A complete ratio is no longer visibly provisional, so these values must be confirmed or corrected by "
@@ -228,12 +257,32 @@ public static class Shadbala
             + "those is the silent switch this gate exists to prevent.";
     }
 
-    /// <summary>One unconfirmed threshold value and who owns confirming it.</summary>
+    /// <summary>Decision state of one threshold value.</summary>
+    public static class DecisionStatus
+    {
+        /// <summary>Shipped, published, and not yet confirmed by the owner.</summary>
+        public const string OwnerPending = "owner-pending";
+
+        /// <summary>Confirmed verbatim by the owner on a recorded date.</summary>
+        public const string Confirmed = "owner-confirmed";
+    }
+
+    /// <summary>The recorded decision for one threshold value.</summary>
     /// <param name="Planet">The planet the value applies to.</param>
-    /// <param name="Rupas">The required rupas currently shipped.</param>
-    /// <param name="OwnedBy">The item that owns confirmation of this value.</param>
-    /// <param name="Status">State of this value, e.g. <c>owner-pending</c>.</param>
-    public sealed record UnconfirmedThreshold(string Planet, double Rupas, string OwnedBy, string Status);
+    /// <param name="Rupas">The required rupas the engine ships.</param>
+    /// <param name="Status">One of <see cref="DecisionStatus"/>.</param>
+    /// <param name="DecidedOn">The date the decision was recorded, ISO-8601, or null while pending.</param>
+    /// <param name="OwnedBy">The item that owns the decision.</param>
+    /// <remarks>
+    /// Per-value rather than one table-level flag: a correction settles one planet and can leave the rest open, and a
+    /// single bit would force the first confirmation to be a false statement about the other six.
+    /// </remarks>
+    public sealed record ThresholdDecision(
+        string Planet,
+        double Rupas,
+        string Status,
+        string? DecidedOn,
+        string OwnedBy);
 
     /// <summary>The Shadbala section as a whole.</summary>
     public sealed record Result(
