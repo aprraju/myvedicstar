@@ -21,6 +21,10 @@ var settleTicks = (long)(settleMs / 1000.0 * Stopwatch.Frequency);
 Console.WriteLine($"engine call (simulated) : {settleMs} ms SETTING, not a measurement");
 Console.WriteLine();
 
+// Falsification knob for the AC-1 gate: a non-zero value injects a measurable slowdown into key construction.
+RegressionComparison.SpinRounds = int.Parse(Environment.GetEnvironmentVariable("MVS_SPIN_ROUNDS") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+RegressionComparison.SpinProbe = int.Parse(Environment.GetEnvironmentVariable("MVS_SPIN_PROBE") ?? "1", System.Globalization.CultureInfo.InvariantCulture);
+
 Console.WriteLine("=== api#72 AST-07 cache measurement ===");
 Console.WriteLine($"machine           : {Environment.MachineName}");
 Console.WriteLine($"os                : {Environment.OSVersion}");
@@ -161,6 +165,120 @@ Console.WriteLine();
     sw.Stop();
     Console.WriteLine($"[invalidate] InvalidateBefore, 1024 entries : {sw.Elapsed.TotalMilliseconds * 1000,10:N1} us, removed={removed}");
     Console.WriteLine($"[invalidate] version after                 : {cache.Version}");
+}
+
+// ---------- 7. AC-1 (api#75): regression against a recorded baseline, not a recollection ----------
+// `dotnet run -- --record` writes the baseline file; a plain run compares against it and EXITS NONZERO when any
+// measured operation is slower by more than 10%. The exit code is the point: a regression is a red run with the
+// operation named, not a figure someone has to notice in a wall of output.
+{
+    // Checked in beside the harness, NOT under bin/: a baseline inside the build output is gitignored, so every CI run
+    // would compare against a file that does not exist (or worse, one baked at build time). Walking up from the build
+    // directory keeps the path correct for both `dotnet run` and a published binary.
+    var baselinePath = BaselinePath();
+    var record = args.Contains("--record", StringComparer.Ordinal);
+
+    Console.WriteLine();
+    Console.WriteLine("=== api#75 AST-10 AC-1 regression ===");
+    Console.WriteLine($"workload          : {RegressionComparison.WorkloadDescriptor()}");
+    Console.WriteLine($"host              : {Environment.MachineName} / {Environment.ProcessorCount} processors / runtime {Environment.Version}");
+    Console.WriteLine($"baseline          : {baselinePath}");
+
+    var (measured, trials) = RegressionComparison.Measure(settings);
+
+    // The spread is printed before any verdict: a 10% gate judged against a single number is a gate on noise.
+    foreach (var line in RegressionComparison.DescribeSpread(trials)) Console.WriteLine(line);
+    Console.WriteLine($"trials            : {RegressionComparison.Trials} per operation, median of trials reported");
+
+    if (record)
+    {
+        var baseline = new RegressionComparison.Baseline("astronomy-perf-baseline/v1",
+            RegressionComparison.WorkloadDescriptor(),
+            measured.ToDictionary(m => m.Operation, m => m.NanosecondsPerOp));
+        File.WriteAllText(baselinePath, System.Text.Json.JsonSerializer.Serialize(baseline,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine($"RECORDED          : {measured.Count} operations written");
+        foreach (var timing in measured)
+            Console.WriteLine($"  {timing.Operation,-16} {timing.NanosecondsPerOp,10:N1} ns/op");
+    }
+    else if (!File.Exists(baselinePath))
+    {
+        Console.WriteLine("ERROR no baseline recorded; run with --record to create one. A missing baseline is not a pass.");
+        Environment.Exit(2);
+    }
+    else
+    {
+        var baseline = System.Text.Json.JsonSerializer.Deserialize<RegressionComparison.Baseline>(
+            File.ReadAllText(baselinePath))!;
+
+        if (baseline.Workload != RegressionComparison.WorkloadDescriptor())
+        {
+            Console.WriteLine($"ERROR workload differs: baseline '{baseline.Workload}' vs now "
+                + $"'{RegressionComparison.WorkloadDescriptor()}'. Re-record when that change is intentional.");
+            Environment.Exit(2);
+        }
+
+        // Exit codes: 0 within tolerance, 1 REGRESSION, 3 INCONCLUSIVE (host too noisy to judge).
+        // 3 is distinct on purpose - a busy machine must neither fail a build for a regression that did not happen
+        // nor pass one, so a caller can tell "measured and fine" from "could not measure".
+        var regressed = new List<string>();
+        var inconclusive = new List<string>();
+
+        foreach (var timing in measured)
+        {
+            if (!baseline.Nanoseconds.TryGetValue(timing.Operation, out var before))
+            {
+                Console.WriteLine($"ERROR {timing.Operation}: no baseline figure.");
+                Environment.Exit(2);
+            }
+
+            var (verdict, delta, spread) = RegressionComparison.Judge(before, timing.NanosecondsPerOp,
+                trials[timing.Operation]);
+            var label = verdict switch
+            {
+                RegressionComparison.Verdict.Regressed => "REGRESSED",
+                RegressionComparison.Verdict.Inconclusive => "INCONCLSV",
+                _ => "ok"
+            };
+            Console.WriteLine(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{label,-9} {timing.Operation,-16} before {before,10:N1} ns  after {timing.NanosecondsPerOp,10:N1} ns  "
+                + $"delta {delta,7:+0.0%;-0.0%;0.0%}  spread {spread,6:P0}  (tolerance {RegressionComparison.Tolerance:P0})"));
+
+            if (verdict == RegressionComparison.Verdict.Regressed) regressed.Add(timing.Operation);
+            if (verdict == RegressionComparison.Verdict.Inconclusive) inconclusive.Add(timing.Operation);
+        }
+
+        if (regressed.Count > 0)
+        {
+            Console.WriteLine($"RESULT            : REGRESSION in {string.Join(", ", regressed)}");
+            Environment.Exit(1);
+        }
+        if (inconclusive.Count > 0)
+        {
+            Console.WriteLine($"RESULT            : INCONCLUSIVE for {string.Join(", ", inconclusive)} "
+                + "(host too noisy; re-run on a quiet machine)");
+            Environment.Exit(3);
+        }
+        Console.WriteLine("RESULT            : within tolerance");
+        Environment.Exit(0);
+    }
+}
+
+static string BaselinePath()
+{
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    while (directory is not null)
+    {
+        // The project directory is the ONE home for this file. A copy under bin/ is a leftover from an earlier run and
+        // must never be preferred: comparing against stale build output is how a regression gate quietly passes.
+        if (File.Exists(Path.Combine(directory.FullName, "MyVedicStar.Astronomy.CacheBench.csproj")))
+            return Path.Combine(directory.FullName, "astronomy-perf-baseline.json");
+        var candidate = Path.Combine(directory.FullName, "astronomy-perf-baseline.json");
+        if (File.Exists(candidate) && !Path.GetFullPath(candidate).Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            return candidate;
+        directory = directory.Parent;
+    }
+    return Path.Combine(AppContext.BaseDirectory, "astronomy-perf-baseline.json");
 }
 
 static double TicksToUs(long ticks) => ticks * 1e6 / Stopwatch.Frequency;
