@@ -80,6 +80,13 @@ def build_fixture(root: Path, solution_name: str, solution_text: str, project_na
     scripts = root / ".github" / "scripts"
     scripts.mkdir(parents=True)
     shutil.copy2(CHECKER, scripts / CHECKER.name)
+
+    # api#90 slice: the checker reads its exception list on every run, so a fixture without one cannot
+    # reach the decision it is testing - it fails as "cannot read the exceptions file" (exit 2) and the
+    # case's real question is never asked. Every fixture gets an empty, valid list.
+    (root / ".github" / "test-project-coverage-exceptions.json").write_text(
+        '{"exceptions": []}', encoding="utf-8")
+
     return scripts / CHECKER.name
 
 

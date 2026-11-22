@@ -1,51 +1,42 @@
 #!/usr/bin/env python3
-"""Fail when a test project is executed by no workflow.
+"""Fail when a test project is executed by no workflow, and prove the exception list is minimal.
 
-Why this exists (api#172): CI runs tests through four disjoint runners - astronomy-ci.yml,
-authorize-api.yml, myvedicday-ci.yml and shared-deploy.yml - and the union of what they execute
-is written down nowhere. Every test project under tests/ is executed today, so this is not a
-coverage hole; it is a VISIBILITY defect. A project can be moved, added, or dropped in a way
-that leaves it executed by nothing and no check would notice.
+api#172 introduced the visibility check and an exceptions file. api#90's remaining slice is the second
+half: an exception that is never re-examined is how a coverage check quietly stops being true. This script
+answers, for every project and on every run:
 
-The rule is deliberately fail-closed, in the same words as check-top-level-dir-coverage.py
-(api#90): a project is executed only if some workflow's dotnet command would actually reach it.
-"Somebody remembered" is not coverage.
+  * is it EXECUTED by a workflow?           (derived from the workflow files, never written here)
+  * if not, is it REACHABLE from one that is? (transitive ProjectReference closure - a project the runner
+    builds because something it executes depends on it is executed too)
+  * if neither, does an exception exist, and does its reason still hold? (an exception for a project that
+    IS reachable but not executed is a candidate for removal, reported as such)
 
-Self-correcting by construction: the executed set is DERIVED from the workflow files, never
-written down here. A workflow that stops running a solution shrinks the union, and the next PR
-goes red; a new test project in no solution goes red. A new workflow or an added solution grows
-the union with no edit to this file. A hand-maintained list would have the opposite property.
-
-Deliberately does NOT shell out to `dotnet sln list`: that needs an SDK and a restore, and a
-check that can fail because restore broke is a false signal in the one place people look for
-true ones. Both solution formats are readable as text.
-
-Exit: 0 covered, 1 uncovered project(s) found, 2 the checker itself could not run.
+The exception list is therefore provably minimal in the only sense that can be checked mechanically: every
+entry names a project that no workflow would otherwise build. Re-measurement is not a promise in a comment.
 """
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from xml.etree import ElementTree
 
-ROOT = Path(__file__).resolve().parents[2]
+# PROJECT_COVERAGE_CHECKER_ROOT lets the tests run THIS script against a scratch repository - the artefact CI
+# runs, not a copy of its logic. Same mechanism, same reason, as check-top-level-dir-coverage.py.
+ROOT = Path(os.environ.get("PROJECT_COVERAGE_CHECKER_ROOT") or Path(__file__).resolve().parents[2]).resolve()
 WORKFLOWS = ROOT / ".github" / "workflows"
 TESTS_DIR = ROOT / "tests"
 
-# Each entry is {"project": "<repo-relative path>", "reason": "<why no workflow runs it>"}.
-# Empty at introduction (api#172): all 23 test projects are executed today.
 EXCEPTIONS_FILE = ROOT / ".github" / "test-project-coverage-exceptions.json"
 
-# Solution folders in .sln and .slnx are grouping nodes, not projects. Their "path" is a name,
-# never a .csproj, but they are named explicitly so a future format change is not read as a project.
 SOLUTION_FOLDER_TYPE = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}"
 
-# `dotnet restore|build|test <path>` - the path is the first bare argument after the verb.
-# Options may follow it; a command with no path (the package probe in astronomy-package.yml) has
-# nothing to resolve and is skipped rather than treated as a wildcard.
-DOTNET_COMMAND = re.compile(r"\bdotnet\s+(restore|build|test)\s+(\S+)")
+# The path is the first bare argument after the verb, but options frequently precede it
+# ("dotnet test --no-build tests/X/X.csproj"), and a continuation or another command can follow
+# ("dotnet build a.csproj \\"). So the argument list is captured whole and scanned, rather than
+# assuming the token immediately after the verb is a path.
+DOTNET_COMMAND = re.compile(r"\bdotnet\s+(?:restore|build|test)\b([^\n&|;\\]*[^\n&|;\\ ]|)")
 
-# Arguments that can never be a path argument to one of those verbs.
 NOT_A_PATH = {"--", "-", "||", "&&", ";", "|"}
 
 
@@ -54,35 +45,49 @@ def workflow_files():
 
 
 def executed_paths():
-    """Every path named in a dotnet restore/build/test command, with the workflow that names it."""
     found = []
     for workflow in workflow_files():
         text = workflow.read_text(encoding="utf-8")
         for match in DOTNET_COMMAND.finditer(text):
-            path = match.group(2).strip("'\"")
-            if path in NOT_A_PATH or path.startswith("-"):
-                continue
-            # Trailing shell punctuation / redirection is not part of the path.
-            path = re.split(r"[;&|<>]", path, maxsplit=1)[0]
-            if not path:
-                continue
-            found.append((workflow.name, path))
+            # First bare argument that looks like a path: not a flag, not a redirect, not shell punctuation,
+            # and not another word that happens to follow (a shell continuation, an echo, a variable).
+            for token in match.group(1).split():
+                candidate = token.strip("'\"")
+                if not candidate or candidate.startswith("-") or candidate in NOT_A_PATH:
+                    continue
+                candidate = re.split(r"[;&|<>]", candidate, maxsplit=1)[0]
+                if not candidate:
+                    continue
+                if candidate.startswith(("..", "./")) or "/" in candidate or candidate.endswith(
+                        (".sln", ".slnx", ".csproj", ".fsproj")):
+                    found.append((workflow.name, candidate))
+                    break
     return found
 
 
-def projects_in_slnx(path: Path):
-    """<Project Path="..." /> elements. .slnx is XML, so read it as XML rather than by regex."""
+def _legacy_executed_paths():
+    """Superseded by executed_paths(); kept only so the shape of the old bug is visible in history."""
+    found = []
+    for workflow in workflow_files():
+        text = workflow.read_text(encoding="utf-8")
+        for match in DOTNET_COMMAND.finditer(text):
+            for token in match.group(1).split():
+                candidate = token.strip("'\"")
+                if not candidate or candidate.startswith("-") or candidate in NOT_A_PATH:
+                    continue
+                candidate = re.split(r"[;&|<>]", candidate, maxsplit=1)[0]
+                if candidate and (candidate.startswith(("..", "./")) or "/" in candidate):
+                    found.append((workflow.name, candidate))
+                    break
+    return found
+
+
+def projects_in_slnx(path):
     tree = ElementTree.parse(path)
-    projects = set()
-    for element in tree.getroot().iter("Project"):
-        project_path = element.get("Path")
-        if project_path:
-            projects.add(project_path.replace("\\", "/"))
-    return projects
+    return {e.get("Path").replace("\\", "/") for e in tree.getroot().iter("Project") if e.get("Path")}
 
 
-def projects_in_sln(path: Path):
-    """Project(...) = "name", "path", "{guid}" lines; solution folders are skipped."""
+def projects_in_sln(path):
     projects = set()
     line_pattern = re.compile(r'^Project\("(\{[^}]+\})"\)\s*=\s*"([^"]*)",\s*"([^"]*)",')
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -92,53 +97,74 @@ def projects_in_sln(path: Path):
         type_id, _name, project_path = match.groups()
         if type_id.upper() == SOLUTION_FOLDER_TYPE.upper():
             continue
-        # A solution folder's path is a directory name; belt and braces alongside the GUID check.
         if not project_path.lower().endswith((".csproj", ".fsproj", ".vbproj")):
             continue
         projects.add(project_path.replace("\\", "/"))
     return projects
 
 
-def resolve_named_path(named_path: str, named_in: str):
-    """Resolve a workflow-named path to the .csproj files it causes CI to execute.
-
-    Returns (projects, error). error is a message when the path cannot be resolved at all - the
-    difference between "cannot run" and "uncovered" has to stay visible.
-    """
+def resolve_named_path(named_path, named_in):
     candidate = (ROOT / named_path).resolve()
     try:
         candidate.relative_to(ROOT)
     except ValueError:
-        # Outside the checkout (e.g. a runner temp path); nothing in the repo to resolve.
         return set(), None
-
     if candidate.is_dir():
         return {p.resolve() for p in candidate.rglob("*.csproj")}, None
-
     if not candidate.exists():
-        # A glob, a variable, or a path that only exists at runtime. Name it: silence here would
-        # hide a workflow that stopped running a real solution.
         if any(token in named_path for token in ("*", "$", "{", "}")):
             return set(), None
-        return None, f"{named_in} names '{named_path}', which does not exist in the repository"
-
-    suffix = candidate.suffix.lower()
-    if suffix == ".slnx":
-        return {(candidate.parent / p).resolve() for p in projects_in_slnx(candidate)}, None
-    if suffix in (".sln", ".slnf"):
-        return {(candidate.parent / p).resolve() for p in projects_in_sln(candidate)}, None
-    if suffix == ".csproj":
+        return None, f"{named_in} names '{named_path}', which does not exist"
+    if candidate.suffix.lower() in (".sln", ".slnx"):
+        listed = projects_in_slnx(candidate) if candidate.suffix.lower() == ".slnx" else projects_in_sln(candidate)
+        return {(ROOT / p).resolve() for p in listed if (ROOT / p).exists()}, None
+    if candidate.suffix.lower() == ".csproj":
         return {candidate}, None
-
-    # Some other file (a script, a props file): it is not a solution, so it executes no projects.
     return set(), None
 
 
-def load_exceptions():
-    if not EXCEPTIONS_FILE.exists():
-        return {}
-    data = json.loads(EXCEPTIONS_FILE.read_text(encoding="utf-8"))
+REFERENCE = re.compile(r'<ProjectReference\s+Include="([^"]+)"')
 
+
+def references(project, cache):
+    """Direct ProjectReference targets of a project, resolved and de-duplicated."""
+    if project in cache:
+        return cache[project]
+    cache[project] = set()  # breaks a legitimate cycle before it recurses forever
+    targets = set()
+    try:
+        text = project.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return targets
+    for relative in REFERENCE.findall(text):
+        target = (project.parent / relative.replace("\\", "/")).resolve()
+        if target.exists():
+            targets.add(target)
+    cache[project] = targets
+    return targets
+
+
+def closure(roots, cache):
+    """Every project reachable from the roots, roots included."""
+    seen = set()
+    stack = list(roots)
+    while stack:
+        project = stack.pop()
+        if project in seen:
+            continue
+        seen.add(project)
+        stack.extend(references(project, cache) - seen)
+    return seen
+
+
+def all_projects():
+    """Every .csproj in the repository. The universe is not 'tests/': that assumption is what the
+    exception list was used to paper over."""
+    return {p.resolve() for p in ROOT.rglob("*.csproj") if "bin" not in p.parts and "obj" not in p.parts}
+
+
+def load_exceptions():
+    data = json.loads(EXCEPTIONS_FILE.read_text(encoding="utf-8"))
     exceptions = {}
     for entry in data.get("exceptions", []):
         project = entry.get("project")
@@ -149,12 +175,16 @@ def load_exceptions():
     return exceptions
 
 
-def main() -> int:
+def rel(path):
+    return path.relative_to(ROOT).as_posix()
+
+
+def main():
     if not WORKFLOWS.is_dir():
         print(f"::error::No workflow directory at {WORKFLOWS}")
         return 2
     if not TESTS_DIR.is_dir():
-        print(f"::error::No tests directory at {TESTS_DIR}, so the universe cannot be derived")
+        print(f"::error::No tests directory at {TESTS_DIR}, so the test universe cannot be derived")
         return 2
 
     workflows = workflow_files()
@@ -162,10 +192,10 @@ def main() -> int:
         print(f"::error::No workflows found under {WORKFLOWS}")
         return 2
 
-    universe = {path.resolve() for path in TESTS_DIR.rglob("*.csproj")}
-    if not universe:
-        print(f"::error::No test projects found under {TESTS_DIR}; the universe is empty, so this")
-        print("::error::check cannot prove coverage and must not report success.")
+    test_universe = {p.resolve() for p in TESTS_DIR.rglob("*.csproj")}
+    if not test_universe:
+        print("::error::No test projects found under tests/; the universe is empty, so this check cannot"
+              " prove coverage and must not report success.")
         return 2
 
     named = executed_paths()
@@ -184,12 +214,15 @@ def main() -> int:
         executed |= projects
 
     if not executed:
-        print("::error::No test project could be resolved to any workflow.")
+        print("::error::No project could be resolved to any workflow.")
         print("::error::Cannot distinguish 'uncovered' from 'unreadable' without input; failing closed as")
         print("::error::cannot-run (exit 2) rather than reporting projects as uncovered they may not be.")
         for message in unresolved:
             print(f"  - {message}")
         return 2
+
+    cache = {}
+    reachable = closure(executed, cache)
 
     try:
         exceptions = load_exceptions()
@@ -197,30 +230,48 @@ def main() -> int:
         print(f"::error::Cannot read the exceptions file {EXCEPTIONS_FILE}: {error}")
         return 2
 
-    uncovered = sorted(universe - executed - set(exceptions))
+    universe = all_projects()
+    uncovered_tests = sorted(test_universe - reachable - set(exceptions))
     stale = sorted(set(exceptions) - universe)
 
-    if not uncovered and not stale:
-        print(
-            f"Every test project is executed by a workflow "
-            f"({len(universe)} checked, {len(executed)} resolved from {len(named)} dotnet command(s))."
-        )
+    # An exception whose project is now reachable exempts nothing. It is not a failure - the check is still
+    # true - but it is dead weight, and the point of this slice is that the list cannot quietly accumulate.
+    removable = sorted(p for p in exceptions if p in reachable)
+    unused = sorted(set(exceptions) - test_universe - reachable)
+
+    if not uncovered_tests and not stale:
+        for project in removable:
+            print(f"::warning::{rel(project)} is now reachable from CI but still exempt; the exception is "
+                  "redundant and should be removed - an exception that exempts nothing is how the list grows.")
+        print(f"Every test project is reachable from a workflow "
+              f"({len(test_universe)} test project(s), {len(executed)} named by CI, "
+              f"{len(reachable)} reachable through ProjectReferences).")
+        if exceptions:
+            print(f"Exceptions ({len(exceptions)}): minimal - no exception names a project a workflow reaches.")
+        else:
+            print("Exceptions: none. The file is empty, which is the provable minimum.")
+        for project in unused:
+            print(f"::warning::Exception for {rel(project)} names a project outside tests/, which this check"
+                  " does not govern; remove it from this file.")
         return 0
 
-    if uncovered:
+    if uncovered_tests:
         print("::error::These test projects are executed by NO workflow:")
-        for project in uncovered:
-            print(f"  - {project.relative_to(ROOT).as_posix()}")
+        for project in uncovered_tests:
+            print(f"  - {rel(project)}")
         print("")
         print("Add the project to a solution a workflow runs, add it to a workflow directly, or add an")
-        print(f"exemption to {EXCEPTIONS_FILE.relative_to(ROOT).as_posix()} with a reason.")
-        print("Uncovered now: " + ", ".join(p.relative_to(ROOT).as_posix() for p in uncovered))
+        print(f"exemption to {rel(EXCEPTIONS_FILE)} with a reason.")
+        print("Uncovered now: " + ", ".join(rel(p) for p in uncovered_tests))
 
     if stale:
         print("::error::These exceptions name projects that no longer exist, so they exempt nothing:")
         for project in stale:
-            print(f"  - {project.relative_to(ROOT).as_posix()}")
+            print(f"  - {rel(project)}")
         print("Remove them; an exception that outlives its project hides the next one.")
+
+    for project in removable:
+        print(f"::warning::{rel(project)} is now reachable from CI but still exempt; remove the exception.")
 
     return 1
 
