@@ -34,5 +34,11 @@ jobs:
       - name: The coverage checker detects nested-only gaps
         run: python3 .github/scripts/test_check-top-level-dir-coverage.py
 
+      # api#90: the guard's own guard. These tests run the SAME script CI runs, against scratch repositories, and
+      # assert the red case first: a new top-level directory with no matching paths: filter fails the run and names
+      # itself. A check whose failure path is untested is a check that might only ever be green.
+      - name: The coverage guard fails when it should
+        run: python3 .github/scripts/tests/test_top_level_dir_coverage.py
+
       - name: Every top-level directory is covered by a workflow path filter
         run: python3 .github/scripts/check-top-level-dir-coverage.py
