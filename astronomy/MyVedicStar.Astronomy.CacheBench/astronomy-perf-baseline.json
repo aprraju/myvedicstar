@@ -1,0 +1,9 @@
+{
+  "Schema": "astronomy-perf-baseline/v1",
+  "Workload": "measuredOps=100000;warmupOps=20000;keySamples=4001;buildSamples=2001;bodies=12",
+  "Nanoseconds": {
+    "cache.hit": 100.533,
+    "key.construct": 2521,
+    "result.build": 1092
+  }
+}
