@@ -48,11 +48,36 @@ public static class Shadbala
             ["Chesta"] = KundaliCalculationReasons.NotImplemented
         };
 
+    /// <summary>
+    /// Where the required-rupas table stands, as data rather than a comment (api#116).
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Unconfirmed is a fact about the table, not a caveat on the code.</b> The values below are published,
+    /// citable and revisable, and nobody has confirmed them. A caller that displays a ratio needs to be able to say so,
+    /// and a comment cannot be read at runtime - so the state lives here and the test suite asserts this state is
+    /// consistent with whether a complete result is reachable.</para>
+    /// <para><b>The blocker.</b> While <see cref="Result.IsComplete"/> is unreachable - every planet withholds Kala and
+    /// Chesta - a partial total understates strength, so an unconfirmed threshold cannot mislead anyone. The day
+    /// completeness becomes reachable, this table stops being visibly provisional and owner confirmation becomes
+    /// required. See api#116 for the gate and #144 for the tolerance decision, which belongs to the same owner.</para>
+    /// </remarks>
+    public static readonly ThresholdBasisState ThresholdBasis = new(
+        Status: "owner-pending",
+        IsOwnerConfirmed: false,
+        OwnedBy: "api#116 (threshold basis) and #144 (tolerance decision)",
+        Note: "The classical required-rupas values are unconfirmed by the owner. They are published and revisable, and "
+              + "they must not be presented as a settled comparison while this status holds.");
+
     /// <summary>Classical required rupas, used as the comparison threshold. Versioned with the rule set.</summary>
     /// <remarks>
     /// These are the classical minimum rupas a planet needs to be considered strong. They are recorded here as engine
     /// config rather than in the API layer so that a future revision of the table is visible as a rules-version change
     /// instead of a silent redefinition of the same number.
+    /// <para>
+    /// <b>Not owner-confirmed.</b> See <see cref="ThresholdBasis"/>. Pinned by
+    /// <c>ShadbalaThresholdBasisTests</c> so a correction to these numbers cannot arrive unnoticed inside an unrelated
+    /// diff.
+    /// </para>
     /// </remarks>
     private static readonly Dictionary<string, double> RequiredRupas = new(StringComparer.Ordinal)
     {
@@ -139,6 +164,16 @@ public static class Shadbala
                 .Select(component => component.Component)
                 .ToArray();
     }
+
+    /// <summary>
+    /// Whether the comparison threshold itself is settled (api#116).
+    /// </summary>
+    /// <param name="Status">Short machine-readable state, e.g. <c>owner-pending</c>.</param>
+    /// <param name="IsOwnerConfirmed">True only when a named owner has confirmed or corrected the values. Flipping this
+    /// is a real decision, paired with a <see cref="RulesVersion"/> change, never a maintenance edit.</param>
+    /// <param name="OwnedBy">Which items own the decision, so a reader knows who to ask rather than assuming nobody.</param>
+    /// <param name="Note">The sentence a consumer can display verbatim.</param>
+    public sealed record ThresholdBasisState(string Status, bool IsOwnerConfirmed, string OwnedBy, string Note);
 
     /// <summary>The Shadbala section as a whole.</summary>
     public sealed record Result(
