@@ -36,5 +36,9 @@ jobs:
       # direct .csproj, and unresolvable input - and asserts the exit code and the named project.
       - name: The coverage checker fails when it should
         run: python3 .github/scripts/test-check-test-project-coverage.py
+      # api#90: the exception list is only minimal if something re-measures it. These tests prove a project
+      # reached through a ProjectReference needs no exception, and that a redundant entry is named on every run.
+      - name: The exception list is minimal, not merely present
+        run: python3 .github/scripts/tests/test_test_project_coverage.py
       - name: Every test project is executed by a workflow
         run: python3 .github/scripts/check-test-project-coverage.py
