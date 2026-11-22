@@ -34,6 +34,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      # NOT contents alone: nuget.config authenticates to GitHub Packages even for feed-scoped
+      # packages, so a restore of MyVedicStar.* fails NU1301 403 without this. Same pair as
+      # astronomy-ci.yml:21-23; omitting it is what failed this job's first run.
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
