@@ -19,6 +19,10 @@ nobody has signed them off.
 Pinned by `ShadbalaThresholdBasisTests.Every_published_threshold_is_pinned_at_its_current_unconfirmed_value`, so a
 change to any of them is a visible diff rather than a silent redefinition.
 
+Each value carries **its own** ownership rather than one table-level flag, because a correction may settle one planet
+and leave the other six open — a single bit would force the first confirmation to be a false statement about the rest,
+and would make a partial correction impossible to express.
+
 ## Why this is safe today, and what changes when it is not
 
 Shadbala reports `complete: false` for every planet: Kala needs the birth moment's diurnal division and Chesta needs a
