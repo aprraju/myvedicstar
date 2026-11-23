@@ -37,8 +37,11 @@ public static class InterpretationSection
     /// <param name="promptVersion">The prompt version that produced the text; part of provenance.</param>
     /// <param name="modelProvenance">Provider/model that produced the text, or a value naming why no model ran.</param>
     /// <param name="verdicts">The verdicts produced this run, by domain.</param>
-    /// <param name="fallbackReason">The reason to record for a domain with no verdict at all. Defaults to
-    /// <c>input-missing</c> because "no verdict was produced" is a statement about our inputs, not about the chart.</param>
+    /// <param name="missingDomainReasons">The reason to record per domain that has no verdict. A map, not one string:
+    /// "why is this domain missing" is answerable per domain (one may be disabled, another may lack inputs), and a single
+    /// value would have to be the lowest common denominator and would misreport every case it does not fit. A domain
+    /// absent from this map is recorded as <c>input-missing</c>, which is the honest default: no verdict was produced
+    /// because our inputs were insufficient, unless the caller says otherwise.</param>
     /// <param name="unsupported">Section-level notes, for example a section-wide capability gap. Per-domain reasons remain
     /// authoritative; this list is additive and never a substitute.</param>
     public static KundaliInterpretationsSection Compose(
@@ -47,14 +50,13 @@ public static class InterpretationSection
         string promptVersion,
         string modelProvenance,
         IReadOnlyDictionary<string, InterpretationVerdict> verdicts,
-        string fallbackReason = KundaliInterpretationReasons.InputMissing,
+        IReadOnlyDictionary<string, string>? missingDomainReasons = null,
         IReadOnlyList<KundaliUnsupportedField>? unsupported = null)
     {
         ArgumentNullException.ThrowIfNull(verdicts);
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
         ArgumentException.ThrowIfNullOrWhiteSpace(promptVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelProvenance);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fallbackReason);
 
         var entries = new List<KundaliInterpretationEntry>(KundaliInterpretationDomains.All.Count);
         foreach (var domain in KundaliInterpretationDomains.All)
@@ -72,12 +74,18 @@ public static class InterpretationSection
                 continue;
             }
 
+            var reason = missingDomainReasons is not null
+                && missingDomainReasons.TryGetValue(domain, out var supplied)
+                && !string.IsNullOrWhiteSpace(supplied)
+                    ? supplied
+                    : KundaliInterpretationReasons.InputMissing;
+
             entries.Add(new KundaliInterpretationEntry(
                 domain,
                 KundaliInterpretationStatuses.NotEvaluated,
                 Text: null,
                 Factors: [],
-                Reason: fallbackReason,
+                Reason: reason,
                 UnknownFactorReferences: []));
         }
 

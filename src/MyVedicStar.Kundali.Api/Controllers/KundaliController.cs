@@ -138,6 +138,15 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
         Ok(KundaliRemediesResponse.From(await facade.GetRemediesAsync(User, profileId, token)));
 
 
+    /// <summary>KUN-14 evidence-based interpretations for one domain (api#54). The response enumerates every domain in
+    /// the closed set with its own status and reason, so a withheld domain is visible rather than absent. An unknown
+    /// domain is a 400, never a silent fallback to another one; a foreign profile id is a 404.</summary>
+    [HttpGet("{profileId:guid}/sections/interpretations"), ProducesResponseType<KundaliInterpretationsResponse>(200)]
+    public async Task<ActionResult<KundaliInterpretationsResponse>> Interpretations(Guid profileId,
+        [FromQuery] string? domain, CancellationToken token) =>
+        Ok(KundaliInterpretationsResponse.From(await facade.GetInterpretationsAsync(User, profileId,
+            domain ?? string.Empty, token)));
+
     /// <summary>Starts a generation. Idempotent per profile, input snapshot and settings, so repeated clicks enqueue
     /// once. Returns 202 with the running revision.</summary>
     [HttpPost("{profileId:guid}/generations"), ResponseCache(NoStore = true, Location = ResponseCacheLocation.None),

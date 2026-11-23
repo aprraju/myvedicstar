@@ -102,6 +102,21 @@ public interface IKundaliFacade
     /// <summary>KUN-16 remedies (api#128). Only evaluated findings receive a remedy.</summary>
     Task<KundaliRemediesSection> GetRemediesAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token);
 
+    /// <summary>
+    /// KUN-14: evidence-based interpretations for one domain, or an explicit refusal (api#54).
+    /// </summary>
+    /// <param name="domain">The requested domain. A closed set; an unknown domain is rejected in Business, not in the
+    /// controller, so the rule has one home.</param>
+    /// <remarks>
+    /// <para><b>The section always enumerates every domain.</b> The requested domain is the one that gets a full
+    /// interpretation attempt; the others are reported with their own status and reason rather than omitted, because a
+    /// caller reading a single-domain response would otherwise be unable to tell a withheld domain from an absent one.</para>
+    /// <para><b>Never a whole-Kundali error.</b> A narration failure is a status on this section; the calculation
+    /// sections of the same profile remain available.</para>
+    /// </remarks>
+    Task<KundaliInterpretationsSection> GetInterpretationsAsync(ClaimsPrincipal user, Guid profileId, string domain,
+        CancellationToken token);
+
     KundaliCapabilityReport GetCapabilities();
 
     /// <summary>KUN-17: request a report for the named sections. Returns the created report in `queued` state; the
