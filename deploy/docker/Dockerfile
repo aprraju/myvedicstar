@@ -17,14 +17,16 @@ ARG DOTNET_VERSION=10.0
 # that image is the toolkit-free consumer proof, and giving it a toolkit would make the D1 refusal test pass while
 # proving nothing.
 #
-# It needs a shell and curl; the runtime stage below is chiseled and has neither, and the script arrives through the
-# named build context "spice-scripts" so this file stays a consumer of the publish output.
+# It needs a shell and curl; the runtime stage below is chiseled and has neither. The script arrives in the ORDINARY
+# build context, under spice-scripts/ (api#193): it was a named build context until 'az acr build' rejected
+# --build-context outright, because named contexts are a docker buildx feature the CLI does not forward. The
+# directory keeps it out of the publish output proper, so this file still reads as a consumer of that output.
 FROM ubuntu:24.04 AS spice-fetch
 RUN apt-get update \\
     && apt-get install --yes --no-install-recommends curl ca-certificates ncompress \\
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /provision
-COPY --from=spice-scripts provision-spice.sh /provision/provision-spice.sh
+COPY spice-scripts/provision-spice.sh /provision/provision-spice.sh
 # Fails loudly on a checksum mismatch or a missing libcspice.so; never falls back to whatever the network returned.
 RUN bash /provision/provision-spice.sh /out
 
