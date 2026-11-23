@@ -1,72 +1,78 @@
 # FR-06 provider migration - cutover record (AST-12, #77)
 
-## Status: composition complete, default flip DEFERRED to AST-05 (#70)
+## Status: preconditions pinned; composition complete; default flip DEFERRED
 
-The SPICE provider is registered, reachable, wired into both product hosts, and covered by tests. The **absent-key
-default remains `analytical`** and does not flip in this story. That is a ruling, not an oversight, and the reason is
-below.
+The SPICE provider is registered, reachable, wired into both product hosts, and pinned by a named test. The
+**absent-key default remains `analytical`**. This file states what has been **proven**, with the run or file that
+proves it, and what has **not**.
 
-## Why the default does not flip here
+## 1. The guarantee that must not break: a toolkit-free host serves every request
 
-Selecting `spice` requires the **native NAIF CSPICE toolkit** plus the DE440/DE441 kernels. Neither exists in the
-test host, the CI image, or the deployment image: `cspice` appears nowhere under `.github/` or `deploy/`. Making
-`spice` the absent-key default therefore turns every Panchang, Festivals and Muhurta request into a dependency on an
-unprovisioned native library - an accuracy migration converted into an outage.
+`ProductProviderSelection.DefaultKey` is `ProviderSelectionParser.AnalyticalKey`
+(`src/MyVedicDay.Astronomy.Calculation/ProductProviderSelection.cs:29`; resolution at line 43 treats absent, empty
+and whitespace-only configuration alike).
 
-Measured, not assumed: with the default flipped, `MyVedicDay.Api.Tests.Integration` went to **40 failed / 130 passed /
-171**. All 40 share one exception:
+This was prose until now. It is a named test as of #77 preconditions:
+`tests/MyVedicDay.Api.Tests.Integration/Configuration/ProviderCutoverGuardTests.cs` asserts (a) an absent key, an
+empty key and an explicit `analytical` key all resolve to `ProviderSelection.Analytical`; and (b) a host composed with
+no `Astronomy:Provider` and no `Astronomy:Spice` section, on a machine where `SpiceAstronomyEngine.IsNativeToolkitAvailable`
+is **false**, still returns `200` for `/health/live` and for `/api/v1/panchang/today`, with the DI-resolved
+`IEphemeris` being a non-SPICE implementation.
 
-```
-SpiceUnavailableException: The native SPICE toolkit ('cspice') could not be loaded.
-  at SpiceAstronomyEngine.EnsureAvailable
-  at SpiceAstronomyEngine.GetPositions
-  at ProviderEngineAdapter.GetEquatorial
-  at AstronomyEngineEphemerisAdapter.GetSunEquatorial
-  at SunEventCalculator.Refine -> CalculateSunset
-  at PanchangCalculator.CalculateSunEvents -> FestivalCalculator.CalculateDays
-```
+That test refuses to pass vacuously: on a host that mounts CSPICE it fails with a message saying the distinction cannot
+be observed there (`ProviderCutoverGuardTests.cs:55-57`), so a provisioned runner cannot turn a non-observation
+into a green.
 
-A competing hypothesis - that the equatorial path was the cause - was tested in code by deriving equatorial
-coordinates from the validated ecliptic surface. Failures stayed at 40, so the hypothesis was wrong and those edits
-were reverted. The blocker is provisioning, upstream of any calculation route.
+**Why it matters, measured:** with the default flipped and no toolkit present, `MyVedicDay.Api.Tests.Integration`
+went to **40 failed / 130 passed / 171**, all 40 sharing one `SpiceUnavailableException` at
+`SpiceAstronomyEngine.EnsureAvailable`. That is the outage the deferred flip avoids.
 
-## What this story does deliver
+## 2. What HAS been proven about provisioning
+
+| Claim | Evidence |
+| --- | --- |
+| The native toolkit is built from pinned sources and its version is read back from the library | `.github/workflows/spice-provisioning.yml:56,69,72,136-140` |
+| The deployment-image provisioning script pins toolkit URL and SHA-256 | `deploy/scripts/provision-spice.sh:29,73-74` |
+| The deploy Dockerfile runs that script at build time | `deploy/docker/Dockerfile:29,32` |
+| A provisioned run of the astronomy package workflow completed successfully | GitHub Actions run **45078530912** (`MyVedicStar Astronomy Package`, event `pull_request`, head `3f212b5`, branch `feat/issue74-ast09-reference-growth`, 2026-11-22T22:35Z): jobs *"Image builds and the engine refuses without a toolkit"* and *"Package builds, publishes, and runs outside the build tree"* both **success** |
+| The engine distinguishes "toolkit missing" from "numerics not written" | `tests/MyVedicDay.Api.Tests.Integration/Api/SpiceProvisioningTests.cs` |
+
+The statement in earlier revisions of this file - that `cspice` "appears nowhere under `.github/` or `deploy/`" - was
+true when the flip was deferred and is **now false**. Toolkit installation landed in #184/#187; the greps above are the
+current state.
+
+## 3. What has NOT been proven
+
+1. **The deployment image still does not build.** `az acr build` rejects `--build-context`, tracked as **api#193**
+   (`Deploy image build fails on main: az acr build rejects --build-context`, open). The provisioning script is wired
+   into `deploy/docker/Dockerfile` but no image containing the toolkit has been produced and inspected. **A provisioned
+   CI runner is not a provisioned deployment image**, and this file does not claim otherwise.
+2. **No post-flip request path has been executed against a provisioned host.** The guard test above asserts the
+   *unflipped* state; the SPICE path is exercised only up to the named `NotImplementedException` (AST-04/AST-05) that
+   `SpiceProvisioningTests` asserts.
+3. **SPICE body numerics are incomplete** (AST-04/AST-05): `GetTropicalLongitude` throws a typed
+   `NotImplementedException` naming those stories rather than returning a substitute value.
+4. **Equatorial/parallax on SPICE refuses rather than approximates** (AST-05): the validated surface publishes ecliptic
+   coordinates only, so the adapter raises rather than returning a zero - a zero would move moonrise/moonset with no
+   evidence trail.
+
+## 4. Why the default does not flip here
+
+Flipping `ProductProviderSelection.DefaultKey` to `spice` today would point every Panchang, Festivals and Muhurta
+request at an engine that (a) throws `SpiceUnavailableException` on any host without the toolkit and (b) throws
+`NotImplementedException` for body numerics on any host with it. Those are the same failure, from both sides. The flip
+belongs to the story that lands the numerics, with AC-1/AC-3 evidence from #75 attached.
+
+## 5. What this story delivers
 
 | Change | Where |
 | --- | --- |
-| Absent-key default declared once, in one place | `ProductProviderSelection` |
-| Both product hosts read that default and supply the SPICE engine factory | `PanchangBusinessServiceCollectionExtensions`, `MyVedicStarApiModule` |
-| SPICE engine construction from configuration (`Astronomy:Spice`) | `SpiceProviderComposition` |
+| Absent-key default declared once | `ProductProviderSelection` |
+| Both product hosts read that default and supply the SPICE engine factory | `PanchangBusinessServiceCollectionExtensions:71-79`, `MyVedicStarApiModule:53-62` |
+| SPICE engine construction from configuration | `SpiceProviderComposition` |
 | `IEphemerisEngine` satisfied by a production type | `ProviderEngineAdapter` over `SpiceAstronomyEngine` |
-| `SpiceAstronomyEngine.GetTropicalLongitude` via the FR-02 surface | provider assembly |
-| Tests pinning the default, the opt-in keys and the port satisfaction | `ProviderMigrationTests` |
+| **The unchanged guarantee pinned by a named test** | `ProviderCutoverGuardTests` (this change) |
+| Opt-in and rollback remain configuration-only | `Astronomy:Provider` = `analytical` (default), `spice`, `compare` |
 
-**No consumer project was edited.** Panchang element, sun/moon event, lunisolar calendar and Kundali consumers all
-resolve `IEphemeris` through DI.
-
-## Opt-in and rollback (story AC-2)
-
-`Astronomy:Provider` accepts `analytical` (default), `spice` and `compare` (both, emitting parity deltas). A host
-that mounts the toolkit and kernels sets `spice`; a host that does not gets `analytical` without any code change.
-An unknown key still fails at composition rather than degrading.
-
-## Deferred, named
-
-1. **Default flip to `spice`** - blocked on CSPICE + kernel provisioning (its own issue), then AST-05 (#70).
-2. **Equatorial/parallax on the SPICE provider** - the validated surface publishes ecliptic coordinates only and no
-   lunar parallax; the adapter refuses rather than returning a zero, because a zero moves moonrise/moonset with no
-   evidence trail (D1). Closes with the AST-05 equatorial surface.
-3. **SPICE body numerics** - still `NotImplementedException` (AST-04/AST-05). Opting into `spice` today therefore fails
-   loudly on first calculation rather than silently reverting to the analytical series.
-4. **No production deployment or promotion** is performed by this change.
-
-## Known count discrepancy
-
-Local runs report **40** failures with the default flipped; the CI rollup reported **41**. One test differs between the
-two environments and has not been isolated. This is recorded rather than rounded, because a count that moved by one is
-an unexplained difference, not a rounding artifact.
-
-## Provisioning follow-up
-
-The CSPICE/kernel provisioning need is filed as #173 and linked from here so the deferral above has an owner rather
-than a hope. #77 and AST-05 (#70) both depend on it before the default can flip.
+No consumer project was edited; Panchang element, sun/moon event, lunisolar calendar and Kundali resolve `IEphemeris`
+through DI.
