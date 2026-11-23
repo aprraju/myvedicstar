@@ -15,6 +15,26 @@ on:
       - 'docs/**'
       - '.github/**'
   workflow_dispatch:
+    inputs:
+      verify_image_build:
+        description: 'Build the deploy image without deploying. Does not run deploy-prod and does not touch Azure deploy state.'
+        type: boolean
+        default: false
+  # Opt-in only: the label runs the image build against THIS pull request. Off by default, so an ordinary
+  # PR never consumes prod-environment credentials or registry time, and the main-only gate below is untouched.
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '*sln*'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - 'nuget.config'
+      - '.editorconfig'
+      - 'deploy/**'
+      - 'docs/**'
+      - '.github/**'
 permissions:
   contents: read
 concurrency:
@@ -52,6 +72,8 @@ jobs:
         run: |
           ./tests/deployment/DeploymentContract.Tests.ps1
           ./tests/deployment/MigrationContract.Tests.ps1
+          # Api#193: fail if the image-build gate stops being observable, or if deploy-prod loses its guard.
+          ./tests/deployment/ImageBuildObservability.Tests.ps1
       - name: Verify combined publish
         run: dotnet publish src/MyVedicStar.API/MyVedicStar.API.csproj --configuration Release --no-restore --output combined-publish -p:UseAppHost=false
       - name: Smoke test published host
@@ -64,7 +86,15 @@ jobs:
           path: host-test-results/*.trx
   build-image:
     needs: [validate-day, validate-star, validate-host]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # Never weakened for real deploys: a push to main still builds here, exactly as before.
+    # The two added arms are OPT-IN verification paths - they build the image against a pull request so the
+    # build is provable before merge, and neither reaches deploy-prod (guarded below).
+    # Api#193: this job used to run only on main, so every PR rollup showed it SKIPPED and a broken image
+    # build was first discovered on main. See verify-image-build for the self-describing skip.
+    if: >-
+      github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+      || github.event_name == 'workflow_dispatch' && inputs.verify_image_build
+      || github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, vars.IMAGE_BUILD_LABEL || 'verify-image-build')
     runs-on: ubuntu-latest
     environment: prod
     permissions:
@@ -143,8 +173,68 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./deploy/scripts/build-migrator.ps1
+  # Api#193: a skipped job is not a passed job. build-image cannot report "did not run" in a way a reviewer
+  # can tell apart from "not applicable", because a skipped job's conclusion is `skipped` and its run list
+  # entry is indistinguishable from one that was never required. GitHub has already converted `skipped` to
+  # passing in #193's rollup twice.
+  #
+  # Mechanism: this job ALWAYS runs (no `if:` that could skip it), and its NAME carries the outcome -
+  # "image build SKIPPED (not requested)" vs "image build REQUIRED". GitHub check names are rendered in the
+  # PR rollup next to their status, so the distinguishing information survives into the only surface a
+  # reviewer actually reads, instead of living in a log they would have to open. The step output repeats it
+  # and the job summary records the reason.
+  #
+  # Deliberately NOT relying on: a required status check (cannot express "required only when it should run"),
+  # or `continue-on-error` (that turns a real failure into a pass - the exact defect being fixed).
+  verify-image-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Decide whether the deploy image build was requested
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          INPUT_VERIFY: ${{ inputs.verify_image_build }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          LABEL_NAME: ${{ vars.IMAGE_BUILD_LABEL || 'verify-image-build' }}
+        run: |
+          $onMain = $env:REF -eq 'refs/heads/main' -and $env:EVENT_NAME -ne 'pull_request'
+          $labels = @($env:PR_LABELS -split ',' | Where-Object { $_ })
+          $inputRequested = $env:INPUT_VERIFY -eq 'true'
+          $labelRequested = $labels -contains $env:LABEL_NAME
+          if ($onMain) {
+            $reason = 'push to main: the build runs as part of the deploy path'
+            $state = 'REQUIRED'
+          } elseif ($inputRequested) {
+            $reason = "workflow_dispatch with verify_image_build=true"
+            $state = 'REQUIRED'
+          } elseif ($labelRequested) {
+            $reason = "pull request labelled '$($env:LABEL_NAME)'"
+            $state = 'REQUIRED'
+          } else {
+            $reason = "not on main, verify_image_build not set, and the pull request is not labelled '$($env:LABEL_NAME)'"
+            $state = 'SKIPPED (not requested)'
+          }
+          Write-Host "Deploy image build: $state"
+          Write-Host "Reason: $reason"
+          "image-build-state=$state" >> $env:GITHUB_OUTPUT
+          "### Deploy image build: **$state**`n`n$reason" >> $env:GITHUB_STEP_SUMMARY
+          # Fails loudly rather than silently if a reviewer asked for the build and it will not happen.
+          if ($inputRequested -and -not $onMain) {
+            Write-Host '::notice::verify_image_build=true was set; build-image will run against this ref.'
+          }
+
   deploy-prod:
-    needs: build-image
+    needs: [build-image, verify-image-build]
+    # Unchanged in effect and now stated explicitly: a real deploy only ever follows a build on main.
+    if: >-
+      always()
+      && needs.build-image.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment:
       name: prod
