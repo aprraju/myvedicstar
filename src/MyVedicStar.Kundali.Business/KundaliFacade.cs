@@ -10,6 +10,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     KundaliValidator validator, KundaliEngineVersions versions, IKundaliAstronomyMetadataReader metadataReader,
     IKundaliCalculationEngine calculationEngine, IKundaliDivisionalMapper divisionalMapper,
     IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
+    IKundaliAshtakootaRules ashtakootaRules,
     IKundaliShadbalaRules shadbalaRules,
     IKundaliYogaRules yogaRules,
     TimeProvider clock,
@@ -723,6 +724,178 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
     private static void AddUnsupported(List<KundaliUnsupportedField> target, string path, string reason) =>
         target.Add(new KundaliUnsupportedField(path, reason));
+
+    /// <summary>
+    /// KUN-15: compares two owned profiles with Ashtakoota.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Order independence is proved, not assumed.</b> <paramref name="profileIdA"/> and
+    /// <paramref name="profileIdB"/> are sorted ordinally into a canonical pair BEFORE anything is computed, so A-to-B
+    /// and B-to-A produce the same pairKey, the same stored row and the same scores. Sorting at the edge is what makes
+    /// the cache identity a function of the pair rather than of the request.</para>
+    /// <para><b>Ownership is read per side.</b> Each profile is read as the authenticated principal, so a foreign id
+    /// fails identically to a missing one. Neither id is trusted from the path, and no owner id is accepted from the
+    /// client.</para>
+    /// <para><b>The threshold is absent.</b> This returns a score and never a verdict. See
+    /// <see cref="KundaliAshtakootaComparison"/> - the shape has no field a "match" judgement could occupy, which is a
+    /// stronger guarantee than an unwritten convention.</para>
+    /// </remarks>
+    public async Task<KundaliAshtakootaComparison> CompareAsync(ClaimsPrincipal user, Guid profileIdA,
+        Guid profileIdB, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (profileIdA == profileIdB)
+            throw new ValidationException(KundaliComparisonErrorCodes.SameProfile);
+
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+
+        // Canonical order first: everything downstream - pairKey, storage, the response's A/B labelling - depends on
+        // this, so it happens before a single profile read.
+        var (firstId, secondId) = profileIdA.CompareTo(profileIdB) <= 0
+            ? (profileIdA, profileIdB)
+            : (profileIdB, profileIdA);
+
+        var first = await ReadOwnedSnapshotAsync(user, firstId, token);
+        var second = await ReadOwnedSnapshotAsync(user, secondId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var pairKey = PairKey(firstId, secondId);
+
+        var cached = await repository.GetComparisonAsync(accountId, pairKey, first.ProfileRevision,
+            second.ProfileRevision, AshtakootaRulesVersion, token);
+        if (cached is not null)
+            return Deserialize(cached.PayloadJson);
+
+        var sideA = MoonSideOf(first, metadata.Ayanamsa);
+        var sideB = MoonSideOf(second, metadata.Ayanamsa);
+        var assessment = ashtakootaRules.Assess(sideA, sideB);
+
+        var categories = assessment.Categories
+            .Select(category => new KundaliAshtakootaCategory(category.Code, DisplayName(category.Code),
+                category.Maximum, category.Score, category.Reason, category.Side, category.Note))
+            .ToArray();
+
+        var scoredMaximum = assessment.Categories.Where(category => category.IsScored)
+            .Sum(category => category.Maximum);
+
+        var comparison = new KundaliAshtakootaComparison(
+            pairKey,
+            new KundaliComparisonSide(firstId, first.ProfileRevision),
+            new KundaliComparisonSide(secondId, second.ProfileRevision),
+            categories,
+            assessment.ScoredTotal,
+            // Never null, and 0 when nothing was scored: a caller that receives 0 can tell "nothing scored" from
+            // "36 points available and none earned" by looking at Certainty, rather than by inferring from absence.
+            scoredMaximum,
+            AshtakootaShape.MaximumTotal,
+            assessment.Certainty,
+            ManglikFor(first, second, metadata.Ayanamsa),
+            AshtakootaRulesVersion);
+
+        await repository.StoreComparisonAsync(accountId, new KundaliStoredComparison(pairKey, firstId, secondId,
+            first.ProfileRevision, second.ProfileRevision, AshtakootaRulesVersion, Serialize(comparison)), token);
+
+        return comparison;
+    }
+
+    /// <summary>The Ashtakoota rule version, taken from the engine so the stored identity tracks the tables.</summary>
+    private string AshtakootaRulesVersion => ashtakootaRules.RulesVersion;
+
+    /// <summary>Order-independent pair identity: both ids sorted ordinally and joined.</summary>
+    private static string PairKey(Guid first, Guid second) =>
+        string.Join(':', first.ToString("D"), second.ToString("D"));
+
+    /// <summary>
+    /// The Moon's sign and nakshatra for one side, or an unavailable side carrying the reason.
+    /// </summary>
+    /// <remarks>
+    /// The engine withholds a Moon position when the birth time is not exactly known, and Ashtakoota cannot invent one.
+    /// That absence is propagated with its own reason instead of being converted into index 0, which would silently be
+    /// Aries and Ashwini - a real-looking score for a Moon nobody measured.
+    /// </remarks>
+    private AshtakootaSide MoonSideOf(KundaliInputSnapshot snapshot, string ayanamsa)
+    {
+        if (snapshot.BirthTimeMode != BirthTimeMode.Known || snapshot.BirthTime is null)
+            return AshtakootaSide.Unavailable(AshtakootaReasons.BirthTimeUnknown);
+
+        try
+        {
+            var calculation = calculationEngine.Calculate(new KundaliEngineInput(snapshot.DateOfBirth,
+                snapshot.BirthTimeMode, snapshot.BirthTime, snapshot.Latitude, snapshot.Longitude,
+                snapshot.TimezoneId, ayanamsa));
+
+            if (calculation.SiderealMoonLongitude is not { } moon)
+                return AshtakootaSide.Unavailable(AshtakootaReasons.MoonPositionUnavailable);
+
+            var signIndex = (int)(moon / 30.0) % 12;
+            var nakshatraIndex = (int)(moon / (360.0 / 27.0)) % 27;
+            return AshtakootaSide.Of(signIndex, nakshatraIndex);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // A calculation failure for one side must not fail the comparison: the other seven categories that do not
+            // depend on that side's Moon are still answerable, and a partial comparison with a reason is more useful
+            // than a 500. The reason is recorded per category by the engine.
+            return AshtakootaSide.Unavailable(AshtakootaReasons.MoonPositionUnavailable);
+        }
+    }
+
+    /// <summary>
+    /// The Manglik comparison for the two profiles.
+    /// </summary>
+    /// <remarks>
+    /// Reported per side with a status, never as a combined verdict. Manglik is an assessment of each chart; whether two
+    /// Mangliks "cancel" is an interpretation the owner has not approved as API output, so no such field exists here.
+    /// </remarks>
+    private KundaliManglikComparison ManglikFor(KundaliInputSnapshot first, KundaliInputSnapshot second,
+        string ayanamsa) =>
+        new(ManglikStatusOf(first, ayanamsa), ManglikStatusOf(second, ayanamsa),
+            "Manglik status is reported per profile. No combined compatibility verdict is inferred from it.");
+
+    private string ManglikStatusOf(KundaliInputSnapshot snapshot, string ayanamsa)
+    {
+        if (snapshot.BirthTimeMode != BirthTimeMode.Known || snapshot.BirthTime is null)
+            return "indeterminate";
+
+        try
+        {
+            var calculation = calculationEngine.Calculate(new KundaliEngineInput(snapshot.DateOfBirth,
+                snapshot.BirthTimeMode, snapshot.BirthTime, snapshot.Latitude, snapshot.Longitude,
+                snapshot.TimezoneId, ayanamsa));
+            // The engine reports Manglik as an assessment with a status; an unvalidated reference is not "not manglik".
+            // Literal rather than a shared constant: Business does not reference the calculation project (the
+            // dependency runs inward), and importing one constant to reference a string is not worth a project edge.
+            return calculation.Gaps.Any(gap => gap.Reason == "unvalidated-reference")
+                ? "indeterminate"
+                : "known";
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return "indeterminate";
+        }
+    }
+
+    /// <summary>Display name for a koota code. Falls back to the code so a new koota is never rendered blank.</summary>
+    private static string DisplayName(string code) => code switch
+    {
+        "GrahaMaitri" => "Graha Maitri",
+        _ => code
+    };
+
+    private static string Serialize(KundaliAshtakootaComparison comparison) =>
+        System.Text.Json.JsonSerializer.Serialize(comparison,
+            new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
+
+    private static KundaliAshtakootaComparison Deserialize(string payload) =>
+        System.Text.Json.JsonSerializer.Deserialize<KundaliAshtakootaComparison>(payload,
+            new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            }) ?? throw new InvalidOperationException("A stored comparison payload was empty or invalid.");
 
     private async Task<KundaliProfileDisplay> ReadOwnedDisplayAsync(ClaimsPrincipal user, Guid profileId,
         CancellationToken token)
