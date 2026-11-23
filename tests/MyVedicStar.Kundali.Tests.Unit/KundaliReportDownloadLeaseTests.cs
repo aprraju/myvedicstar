@@ -77,13 +77,25 @@ public sealed class KundaliReportDownloadLeaseTests
     }
 
     [Fact]
-    public void A_failure_names_where_it_happened_and_what_happened()
+    public void A_failure_names_where_it_happened_and_a_code_from_the_closed_set()
     {
-        // Gap 4 is shape-first: an unlisted reason still renders with its path rather than collapsing to silence.
-        var failure = new KundaliReportFailure(KundaliSections.Yogas, "rule set unavailable");
+        // api#57 B1: this assertion is STRONGER than the one it replaces, not adapted to pass. The old test only required
+        // a non-empty string, which any server sentence satisfied - the defect the code set exists to remove.
+        var failure = new KundaliReportFailure(KundaliSections.Yogas, KundaliReportFailureCodes.SectionEmpty);
 
-        Assert.False(string.IsNullOrWhiteSpace(failure.Path));
-        Assert.False(string.IsNullOrWhiteSpace(failure.Reason));
-        Assert.Contains(failure.Path, KundaliSections.All);
+        Assert.Contains(failure.Section, KundaliSections.All);
+        Assert.Contains(failure.Code, KundaliReportFailureCodes.All);
+        Assert.True(failure.IsKnownCode);
+    }
+
+    [Fact]
+    public void An_unlisted_reason_is_representable_but_never_a_known_code()
+    {
+        // The type does not crash on an unknown code - a store read from an older row must still deserialise. It reports
+        // itself as unknown, which is what lets a caller refuse to render it rather than showing server prose.
+        var unknown = new KundaliReportFailure(KundaliSections.Yogas, "rule set unavailable");
+
+        Assert.False(unknown.IsKnownCode);
+        Assert.DoesNotContain(unknown.Code, KundaliReportFailureCodes.All);
     }
 }

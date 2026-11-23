@@ -13,6 +13,22 @@ public static class KundaliErrors
     public const string EngineUnavailable = "The calculation engine is temporarily unavailable. Try again.";
     public const string InvalidGenerationRequest = "The generation request is invalid.";
 
+    /// <summary>KUN-17: a report request named a section this contract does not define. The message names the section id
+    /// so a caller can correct it, and it never echoes free text the caller supplied as a code.</summary>
+    public const string UnknownReportSection = "The report request names a section that is not defined.";
+
+    /// <summary>KUN-17: the section is defined but this variant does not render it - a distinct fact from "unknown", and
+    /// refused rather than silently dropped, because a short report that quietly omits a requested section is a
+    /// document the caller cannot trust.</summary>
+    public const string UnsupportedReportSection = "The report variant does not render the requested section.";
+
+    /// <summary>KUN-17: no sections were requested. An empty selection is a caller error, never "everything".</summary>
+    public const string EmptyReportSelection = "The report request must name at least one section.";
+
+    /// <summary>KUN-17: the report does not exist, is not owned by the caller, or its profile was deleted. One message
+    /// for all three so existence is not leaked to a caller who does not own the report.</summary>
+    public const string ReportNotFound = "The report was not found.";
+
     /// <summary>The profile was edited while a result was being produced; the result was discarded rather than shown
     /// against inputs it no longer describes (KUN-22).</summary>
     public const string ProfileChanged = "The profile changed while the Kundali was being prepared. Reload to see current results.";
