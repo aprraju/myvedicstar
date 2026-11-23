@@ -69,6 +69,10 @@ $$;
 --    grant after migrations therefore makes the app role's DML rights converge, whatever order the server was
 --    provisioned in. KUN-13's KundaliAlertPreferences table depends on this: without it the alerts endpoints return
 --    500 with a permission error, which is exactly the failure the vedic-profiles outage produced. KUN-15's
+--    KundaliInterpretations table (KUN-14, api#54) depends on it for the same reason: it is created by a later
+--    migration in myvedicstarkundali, and the interpretations read path queries it directly. An endpoint that
+--    returns 500 with a permission error after a clean deploy is this omission, and every test still passes.
+--
 --    KundaliAshtakootaComparisons table depends on it for the same reason: it is created by a later migration in
 --    myvedicstarkundali, and the GET comparisons route reads and writes it on every request.
 DO $$

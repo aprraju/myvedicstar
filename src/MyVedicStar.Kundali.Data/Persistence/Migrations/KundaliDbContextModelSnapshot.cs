@@ -233,6 +233,80 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                     b.ToTable("KundaliInputSnapshots", "myvedicstarkundali");
                 });
 
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliInterpretationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("InterpretationDomain");
+
+                    b.Property<string>("FactorsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Text")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UnknownFactorReferencesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ProfileId", "RevisionId", "Locale")
+                        .HasDatabaseName("IX_KundaliInterpretations_ProfileRevisionLocale");
+
+                    b.HasIndex("UserId", "ProfileId", "SourceRevision", "Locale", "Domain")
+                        .IsUnique()
+                        .HasDatabaseName("UX_KundaliInterpretations_ProfileRevisionLocaleDomain");
+
+                    b.ToTable("KundaliInterpretations", "myvedicstarkundali", t =>
+                        {
+                            t.HasCheckConstraint("CK_KundaliInterpretations_Domain", "\"InterpretationDomain\" IN ('career', 'marriage', 'wellbeing', 'finance', 'education')");
+
+                            t.HasCheckConstraint("CK_KundaliInterpretations_Reason", "((\"Status\" = 'ready' AND \"Reason\" IS NULL) OR (\"Status\" <> 'ready' AND \"Reason\" IS NOT NULL))");
+
+                            t.HasCheckConstraint("CK_KundaliInterpretations_SourceRevision", "\"SourceRevision\" > 0");
+
+                            t.HasCheckConstraint("CK_KundaliInterpretations_Status", "\"Status\" IN ('ready', 'withheld', 'not-evaluated')");
+
+                            t.HasCheckConstraint("CK_KundaliInterpretations_Text", "((\"Status\" = 'ready' AND \"Text\" IS NOT NULL) OR (\"Status\" <> 'ready' AND \"Text\" IS NULL))");
+                        });
+                });
+
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliPreferenceEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -453,6 +527,15 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                 });
 
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliInputSnapshotEntity", b =>
+                {
+                    b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliInterpretationEntity", b =>
                 {
                     b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
                         .WithMany()

@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/MyVedicStar.Kundali.Business/MyVedicStar.Kundali.Business.csproj" />
     <ProjectReference Include="../../src/MyVedicStar.Kundali.Calculation/MyVedicStar.Kundali.Calculation.csproj" />
+    <ProjectReference Include="../../src/MyVedicStar.Kundali.Data/MyVedicStar.Kundali.Data.csproj" />
   </ItemGroup>
 </Project>

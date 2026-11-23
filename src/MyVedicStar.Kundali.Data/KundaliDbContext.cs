@@ -156,6 +156,67 @@ internal sealed class KundaliAshtakootaComparisonEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
 }
 
+
+/// <summary>
+/// One interpretation domain stored for one (profile, source revision, locale) generation (KUN-14, api#54).
+/// </summary>
+/// <remarks>
+/// <para><b>Why a row per domain and not one JSON document.</b> The section contract enumerates the five domains
+/// precisely so that "not evaluated" and "withheld" stay separable from "absent". A single serialised blob can hold that
+/// distinction but cannot be queried for it, and the question this story has to answer - *was marriage withheld or never
+/// attempted?* - is a row question. One row per domain, with <c>Status</c> and <c>Reason</c> as real columns, makes the
+/// distinction a fact about the schema rather than about a parser.</para>
+/// <para><b>Status is stored as text, never as an enum ordinal.</b> The wire contract deliberately exposes text
+/// (<c>ready</c>, <c>withheld</c>, <c>not-evaluated</c>) so an unrecognised value cannot be promoted into the rendered
+/// set by a cast. Persisting the same text means the database cannot invent a state the contract does not define, and a
+/// constraint below refuses any value outside the closed set.</para>
+/// <para><b>Nothing here is derived from the payload at read time.</b> Text, reason, factors and the unknown-factor
+/// report are all stored, so a stored response cannot change meaning because a rule, prompt or catalogue moved.
+/// </para>
+/// </remarks>
+internal sealed class KundaliInterpretationEntity
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public Guid ProfileId { get; set; }
+
+    /// <summary>The Kundali result revision these interpretations were generated for.</summary>
+    public Guid RevisionId { get; set; }
+
+    /// <summary>The profile revision the facts came from, copied so an obsolete row never needs a join to prove it.
+    /// </summary>
+    public long SourceRevision { get; set; }
+
+    /// <summary>One of <see cref="MyVedicStar.Kundali.Shared.KundaliInterpretationDomains"/>. Column name is
+    /// <c>InterpretationDomain</c> because <c>Domain</c> is a reserved word in SQL and would need quoting forever.
+    /// </summary>
+    public string Domain { get; set; } = "";
+
+    /// <summary>The locale the prose is written in. Part of the identity: the same revision can be interpreted in more
+    /// than one language, and neither is a correction of the other.</summary>
+    public string Locale { get; set; } = "";
+
+    /// <summary>One of <see cref="MyVedicStar.Kundali.Shared.KundaliInterpretationStatuses"/>, verbatim.</summary>
+    public string Status { get; set; } = "";
+
+    /// <summary>Why the domain is not ready. Null exactly when <see cref="Status"/> is <c>ready</c>, enforced by a
+    /// check constraint so the invariant lives in the schema as well as in the contract.</summary>
+    public string? Reason { get; set; }
+
+    /// <summary>The interpretation prose, or null when the domain is not ready. Never a placeholder: a domain that is
+    /// not ready says why in <see cref="Reason"/> instead of producing text that looks like content.</summary>
+    public string? Text { get; set; }
+
+    /// <summary>The factors the prose was allowed to cite, serialised. Stored because the entry contract publishes them
+    /// to the client: recomputing them later would let a stored response silently lose its evidence.</summary>
+    public string FactorsJson { get; set; } = "[]";
+
+    /// <summary>Factors the model cited that do not exist in the input, serialised. Reported rather than dropped: this
+    /// is the quality signal that a prompt is inviting invention.</summary>
+    public string UnknownFactorReferencesJson { get; set; } = "[]";
+
+    public DateTimeOffset CreatedAtUtc { get; set; }
+}
 internal sealed class AccountReference { public Guid Id { get; set; } }
 
 /// <summary>
@@ -190,6 +251,7 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
     public DbSet<KundaliProfileInvalidationEntity> ProfileInvalidations => Set<KundaliProfileInvalidationEntity>();
     public DbSet<KundaliAlertPreferenceEntity> AlertPreferences => Set<KundaliAlertPreferenceEntity>();
     public DbSet<KundaliAshtakootaComparisonEntity> Comparisons => Set<KundaliAshtakootaComparisonEntity>();
+    public DbSet<KundaliInterpretationEntity> Interpretations => Set<KundaliInterpretationEntity>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -336,6 +398,48 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
             // and one wins the insert; neither can create a second row that would later disagree.
             b.HasIndex(x => new { x.UserId, x.PairKey, x.RevisionA, x.RevisionB, x.RulesVersion }).IsUnique()
                 .HasDatabaseName("UX_KundaliAshtakootaComparisons_Identity");
+        });
+        model.Entity<KundaliInterpretationEntity>(b =>
+        {
+            b.ToTable("KundaliInterpretations", table =>
+            {
+                // The closed sets, enforced by the database. A status or reason the contract does not define cannot be
+                // stored, so a reader can never meet a state the wire format cannot express.
+                table.HasCheckConstraint("CK_KundaliInterpretations_Status",
+                    "\"Status\" IN ('ready', 'withheld', 'not-evaluated')");
+                table.HasCheckConstraint("CK_KundaliInterpretations_Domain",
+                    "\"InterpretationDomain\" IN ('career', 'marriage', 'wellbeing', 'finance', 'education')");
+                table.HasCheckConstraint("CK_KundaliInterpretations_SourceRevision",
+                    "\"SourceRevision\" > 0");
+                // The invariant the contract states in prose: a not-ready domain explains itself, a ready one does not
+                // carry a stale explanation. Enforced here because persistence is where the distinction can come back
+                // wrong without anyone editing the contract.
+                table.HasCheckConstraint("CK_KundaliInterpretations_Reason",
+                    "((\"Status\" = 'ready' AND \"Reason\" IS NULL) OR (\"Status\" <> 'ready' AND \"Reason\" IS NOT NULL))");
+                // Ready means there is text; not-ready means there is none. Without this, a withheld row could carry an
+                // empty string that a lax reader renders as content.
+                table.HasCheckConstraint("CK_KundaliInterpretations_Text",
+                    "((\"Status\" = 'ready' AND \"Text\" IS NOT NULL) OR (\"Status\" <> 'ready' AND \"Text\" IS NULL))");
+            });
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedNever();
+            b.Property(x => x.Domain).HasColumnName("InterpretationDomain").HasMaxLength(32).IsRequired();
+            b.Property(x => x.Locale).HasMaxLength(16).IsRequired();
+            b.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            b.Property(x => x.Reason).HasMaxLength(64);
+            b.Property(x => x.FactorsJson).IsRequired();
+            b.Property(x => x.UnknownFactorReferencesJson).IsRequired();
+            b.HasOne<AccountReference>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+            // One row per domain per (profile, revision, locale). A second write for the same identity is a duplicate,
+            // not a correction: the unique index means a re-run cannot silently produce two rows that disagree, which
+            // is the list-level version of losing "withheld".
+            b.HasIndex(x => new { x.UserId, x.ProfileId, x.SourceRevision, x.Locale, x.Domain }).IsUnique()
+                .HasDatabaseName("UX_KundaliInterpretations_ProfileRevisionLocaleDomain");
+
+            // The read path is "everything for this profile at this revision and locale", so it gets its own index.
+            b.HasIndex(x => new { x.UserId, x.ProfileId, x.RevisionId, x.Locale })
+                .HasDatabaseName("IX_KundaliInterpretations_ProfileRevisionLocale");
         });
     }
 }
