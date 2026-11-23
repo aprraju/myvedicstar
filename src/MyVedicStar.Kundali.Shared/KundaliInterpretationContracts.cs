@@ -120,6 +120,11 @@ public static class KundaliInterpretationReasons
 
     /// <summary>The domain needs a chart frame the engine does not publish yet.</summary>
     public const string CapabilityGap = "capability-gap";
+
+    /// <summary>A domain in the closed set that this request did not ask about. Reported so the enumerable list never
+    /// implies an assessment of a domain nobody requested; distinct from every withheld reason, which is a statement
+    /// about work that did happen.</summary>
+    public const string NotRequested = "not-requested";
 }
 
 /// <summary>

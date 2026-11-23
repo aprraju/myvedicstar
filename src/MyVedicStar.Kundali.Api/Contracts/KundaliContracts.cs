@@ -94,6 +94,54 @@ public sealed record KundaliPreferencesResponse(string ChartStyle, long Revision
 /// <summary>Replace payload carries the revision required for optimistic concurrency.</summary>
 public sealed record SaveKundaliPreferencesRequest(string ChartStyle, long Revision);
 
+/// <summary>KUN-14 interpretations response (api#54). Mirrors the shared section one field per field so the wire shape
+/// cannot drift from the business contract.</summary>
+public sealed record KundaliInterpretationsResponse(
+    long SourceRevision,
+    string PromptVersion,
+    string ModelProvenance,
+    string Locale,
+    string InterpretationLabel,
+    IReadOnlyList<KundaliInterpretationResponse> Sections,
+    IReadOnlyList<KundaliUnsupportedResponse> Unsupported)
+{
+    public static KundaliInterpretationsResponse From(MyVedicStar.Kundali.Shared.KundaliInterpretationsSection value) =>
+        new(value.SourceRevision, value.PromptVersion, value.ModelProvenance, value.Locale, value.InterpretationLabel,
+            value.Sections.Select(KundaliInterpretationResponse.From).ToArray(),
+            value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
+}
+
+/// <summary>One domain: its status, its reason, and the factors the text rests on. <c>text</c> is null unless
+/// <c>status</c> is <c>ready</c>.</summary>
+public sealed record KundaliInterpretationResponse(
+    string Domain,
+    string Status,
+    string? Text,
+    IReadOnlyList<KundaliInterpretationFactorResponse> Factors,
+    string? Reason,
+    IReadOnlyList<string> UnknownFactorReferences)
+{
+    public static KundaliInterpretationResponse From(MyVedicStar.Kundali.Shared.KundaliInterpretationEntry value) =>
+        new(value.Domain, value.Status, value.Text,
+            value.Factors.Select(KundaliInterpretationFactorResponse.From).ToArray(),
+            value.Reason,
+            value.UnknownFactorReferences.ToArray());
+}
+
+/// <summary>One citable fact, by stable id.</summary>
+public sealed record KundaliInterpretationFactorResponse(string Id, string Description)
+{
+    public static KundaliInterpretationFactorResponse From(MyVedicStar.Kundali.Shared.KundaliInterpretationFactor value) =>
+        new(value.Id, value.Description);
+}
+
+/// <summary>KUN-14 varshaphal: the only shape the engine supports, which is not-available.</summary>
+public sealed record KundaliVarshaphalResponse(bool Available, string Reason)
+{
+    public static KundaliVarshaphalResponse From(MyVedicStar.Kundali.Shared.KundaliVarshaphalSection value) =>
+        new(value.Available, value.Reason);
+}
+
 /// <summary>The published capability boundary (ADR-0016 section 3), returned as data.</summary>
 public sealed record KundaliCapabilitiesResponse(
     int[] SupportedDivisionalCharts,

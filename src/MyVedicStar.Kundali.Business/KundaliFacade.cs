@@ -12,6 +12,7 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     IKundaliDignityRules dignityRules, IKundaliAshtakavargaRules ashtakavargaRules,
     IKundaliShadbalaRules shadbalaRules,
     IKundaliYogaRules yogaRules,
+    IKundaliInterpretationNarrator interpreter,
     TimeProvider clock,
     IKundaliResultCache cache) : IKundaliFacade
 {
@@ -262,6 +263,58 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
 
         // An unrecognised sign name is a contract defect, not data: the engine and the shared vocabulary must agree.
         throw new ArgumentOutOfRangeException(nameof(sign), sign, "Unrecognised sign name from the calculation engine.");
+    }
+
+    /// <summary>
+    /// KUN-14 interpretations for one domain (api#54). Every domain in the closed set is returned with its own status
+    /// and reason: the requested one is narrated, the rest carry their own reason for not being narrated in this
+    /// response. A refusal to narrate never removes the domain from the payload.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Only published positions become factors.</b> A graha the engine withheld contributes nothing, so a domain
+    /// with no factors is reported <c>not-evaluated</c> with <c>input-missing</c> - "we did not have the inputs" - rather
+    /// than being narrated from a partial chart or withheld as if the product had declined.</para>
+    /// <para><b>Not-requested is not withheld.</b> A domain that was not asked for in this call is reported with the
+    /// <c>not-requested</c> reason under <c>not-evaluated</c>, because saying "withheld" about a domain nobody asked for
+    /// would invent an assessment that never happened.</para>
+    /// </remarks>
+    public async Task<KundaliInterpretationsSection> GetInterpretationsAsync(ClaimsPrincipal user, Guid profileId,
+        string domain, CancellationToken token)
+    {
+        if (!KundaliInterpretationDomains.IsKnown(domain))
+            throw new ValidationException(KundaliErrors.InvalidInterpretationDomain);
+
+        var display = await ReadOwnedDisplayAsync(user, profileId, token);
+        var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
+        var metadata = await metadataReader.GetAsync(user, token);
+
+        var engine = calculationEngine.Calculate(new KundaliEngineInput(
+            display.BirthDate, display.BirthTimeMode, display.BirthTime, display.Latitude, display.Longitude,
+            display.TimezoneId, metadata.Ayanamsa));
+
+        var published = (engine.GrahaPositions ?? [])
+            .Where(position => position.SiderealLongitude.HasValue && position.Sign is not null)
+            .Select(position => (position.Graha, position.Sign))
+            .ToArray();
+
+        var factors = InterpretationFactors.For(domain, published);
+
+        var verdict = factors.Count == 0
+            ? InterpretationRule.NotEvaluated(domain, KundaliInterpretationReasons.InputMissing)
+            : await interpreter.NarrateAsync(domain, "en", snapshot.ProfileRevision, factors, token);
+
+        var verdicts = new Dictionary<string, InterpretationVerdict>(StringComparer.Ordinal) { [domain] = verdict };
+        var missing = KundaliInterpretationDomains.All
+            .Where(other => !verdicts.ContainsKey(other))
+            .ToDictionary(other => other, _ => KundaliInterpretationReasons.NotRequested, StringComparer.Ordinal);
+
+        return InterpretationSection.Compose(
+            snapshot.ProfileRevision,
+            "en",
+            interpreter.PromptVersion,
+            interpreter.Fingerprint,
+            verdicts,
+            missing);
     }
 
     public KundaliCapabilityReport GetCapabilities() => KundaliCapabilities.Report();

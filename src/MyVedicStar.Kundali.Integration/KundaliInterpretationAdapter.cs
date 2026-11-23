@@ -38,7 +38,7 @@ public sealed record InterpretationOutcome(InterpretationVerdict? Verdict, strin
 /// If they are empty the adapter reports <c>not-evaluated</c> with <c>input-missing</c> rather than asking the model to
 /// describe a chart it was not given.</para>
 /// </remarks>
-public sealed class KundaliInterpretationAdapter
+public sealed class KundaliInterpretationAdapter : IKundaliInterpretationNarrator
 {
     /// <summary>Prompt version this build sends. Stamped onto the section so stored text is attributable.</summary>
     public const string PromptVersion = "kundali-interpretation-2026-11-a";
@@ -66,6 +66,22 @@ public sealed class KundaliInterpretationAdapter
 
     /// <summary>The provider/model fingerprint, reported as model provenance.</summary>
     public string Fingerprint => _ai.Fingerprint;
+
+    /// <summary>
+    /// Port implementation used by the facade (api#54). Thin: it builds the request from the factors the facade already
+    /// selected, and returns the guardrailed verdict. Kept separate from <see cref="InterpretAsync"/> so the port can be
+    /// faked in business tests without the AI assembly.
+    /// </summary>
+    public Task<InterpretationVerdict> NarrateAsync(string domain, string locale, long sourceRevision,
+        IReadOnlyList<KundaliInterpretationFactor> factors, CancellationToken token) =>
+        InterpretAsync(new InterpretationRequest(sourceRevision, locale, domain, factors), token)
+            .ContinueWith(task =>
+            {
+                var outcome = task.GetAwaiter().GetResult();
+                return outcome.Verdict
+                    ?? InterpretationRule.NotEvaluated(domain,
+                        outcome.SkippedReason ?? KundaliInterpretationReasons.InputMissing);
+            }, token, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
     /// <summary>
     /// Narrates one domain. Returns <c>not-evaluated</c> when the provider is disabled or when there are no factors to
