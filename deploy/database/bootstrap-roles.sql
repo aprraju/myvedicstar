@@ -62,6 +62,23 @@ BEGIN
 END
 $$;
 
+-- 3b. KUN-17 (api#57): KundaliReports.
+--     Named explicitly, not left to the loop above. GRANT ... ON ALL TABLES only covers tables that exist when it
+--     runs, and the loop's ALTER DEFAULT PRIVILEGES only covers tables a LATER migration creates. The alerts table
+--     proved that insufficient in the vedic-profiles outage: every test was green and the endpoint returned 500 on a
+--     permission error at runtime. An explicit grant that names the table cannot be missed by reading this script.
+DO $
+DECLARE
+  app_role text := current_setting('bootstrap.app_role');
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'myvedicstarkundali')
+     AND EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'myvedicstarkundali' AND table_name = 'KundaliReports') THEN
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON myvedicstarkundali.%I TO %I', 'KundaliReports', app_role);
+  END IF;
+END
+$;
+
 -- 4. Schema-qualified DML re-grant for tables that exist BEFORE this script runs.
 --    The loop above also sets ALTER DEFAULT PRIVILEGES, which covers every table a later migration creates. That is
 --    insufficient in one case: a role that already existed was not covered by a default privilege set before the
