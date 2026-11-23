@@ -2,7 +2,12 @@ name: Shared VedicStar Deployment
 on:
   push:
     branches: [main]
+  # Opt-in only: the label runs the image build against THIS pull request. Off by default, so an ordinary
+  # PR never consumes prod-environment credentials or registry time, and the main-only gate below is untouched.
+  # `labeled` is required or adding the label could never start a run; the other three types are the
+  # defaults, kept explicit because stating `types:` replaces them.
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -20,21 +25,6 @@ on:
         description: 'Build the deploy image without deploying. Does not run deploy-prod and does not touch Azure deploy state.'
         type: boolean
         default: false
-  # Opt-in only: the label runs the image build against THIS pull request. Off by default, so an ordinary
-  # PR never consumes prod-environment credentials or registry time, and the main-only gate below is untouched.
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - '*sln*'
-      - 'Directory.Build.props'
-      - 'global.json'
-      - 'nuget.config'
-      - '.editorconfig'
-      - 'deploy/**'
-      - 'docs/**'
-      - '.github/**'
 permissions:
   contents: read
 concurrency:

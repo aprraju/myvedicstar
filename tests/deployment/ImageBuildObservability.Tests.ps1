@@ -27,6 +27,17 @@ function Assert-NotContains([string] $Haystack, [string] $Needle, [string] $Beca
     if ($Haystack.Contains($Needle)) { throw "$Because (unexpected: $Needle)" }
 }
 
+# --- No duplicate top-level trigger keys ----------------------------------------------------------------
+# YAML takes the LAST of a duplicated key and discards the earlier one, silently. The first version of this
+# change added a second `pull_request:` block and thereby deleted the original trigger's conditions: the
+# workflow still parsed, but its pull_request configuration was not the one anyone had written. A syntax check
+# cannot catch that, so it is asserted here.
+$triggerSection = $workflow.Substring(0, $workflow.IndexOf('permissions:'))
+foreach ($key in @('push:', 'pull_request:', 'workflow_dispatch:')) {
+    $occurrences = ([regex]::Matches($triggerSection, "(?m)^  $([regex]::Escape($key))\s*$")).Count
+    if ($occurrences -gt 1) { throw "shared-deploy.yml declares '$key' $occurrences times; YAML keeps only the last and silently drops the rest" }
+}
+
 $buildImage = Get-JobBlock 'build-image' $workflow
 $deployProd = Get-JobBlock 'deploy-prod' $workflow
 $verifyJob = Get-JobBlock 'verify-image-build' $workflow
