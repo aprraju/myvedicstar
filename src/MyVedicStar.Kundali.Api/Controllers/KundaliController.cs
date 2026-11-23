@@ -49,6 +49,24 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
 
 
 
+    /// <summary>
+    /// KUN-15: compares two owned profiles with Ashtakoota. Deliberately OUTSIDE the `sections` family: a comparison
+    /// is about a pair, not about one profile's section, and nesting it under a profile id would imply the result
+    /// belongs to whichever profile happened to be named first.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Scores only, no verdict.</b> The response reports each koota, the total and a certainty. It carries no
+    /// pass/fail field because the minimum acceptable-match threshold is an owner decision that is still open; nothing
+    /// here invents one to fill the gap.</para>
+    /// <para>Same profile twice is a 400. A profile the caller does not own is a 404, identical to a missing one, so
+    /// this endpoint cannot be used to probe for another account's profiles.</para>
+    /// </remarks>
+    [HttpGet("comparisons/{profileA:guid}/{profileB:guid}"), ProducesResponseType<KundaliAshtakootaComparisonResponse>(200)]
+    public async Task<ActionResult<KundaliAshtakootaComparisonResponse>> Compare(Guid profileA, Guid profileB,
+        CancellationToken token) =>
+        Ok(KundaliAshtakootaComparisonResponse.From(
+            await facade.CompareAsync(User, profileA, profileB, token)));
+
     /// <summary>KUN-07 divisional chart. Only the divisions whose mapping rule is implemented are served; an unknown
     /// one is a 400 rather than a nearest-approximation. Placements cover the bodies the engine can produce - sun and
     /// moon - and the rest are absent with a precision status that says so, never silently blank.</summary>
