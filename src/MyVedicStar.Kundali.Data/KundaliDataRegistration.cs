@@ -15,6 +15,9 @@ public static class KundaliDataRegistration
             DatabaseConfiguration.ConfigureDomainDatabase(builder, provider, KundaliDbContext.Schema));
         services.AddScoped<IKundaliRepository, KundaliRepository>();
         services.AddScoped<IKundaliAlertRepository, KundaliAlertRepository>();
+        // KUN-17 (api#57): report persistence. Registered here, next to the repository it shares a DbContext with, so a
+        // host that composes the Data layer gets a real store rather than the business layer's refusing fallback.
+        services.AddScoped<IKundaliReportStore, KundaliReportStore>();
         return services;
     }
 }
