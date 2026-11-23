@@ -49,7 +49,17 @@ jobs:
         run: |
           set -euo pipefail
           sudo mkdir -p /out
-          sudo bash deploy/scripts/provision-spice.sh /out
+          # Capture the version the SCRIPT provisioned rather than restating it here. A hardcoded version in this
+          # step's own assertion is a second copy of the pin, and it would keep asserting the old one after the
+          # script moved - the two paths would then disagree while both looking green.
+          sudo bash deploy/scripts/provision-spice.sh /out | tee "$RUNNER_TEMP/provision.log"
+          PROVISIONED_VERSION="$(sed -n 's/^provision-spice: toolkit=\([^ ]*\).*/\1/p' "$RUNNER_TEMP/provision.log")"
+          if [ -z "$PROVISIONED_VERSION" ]; then
+            echo "::error::provision-spice.sh did not report the toolkit version it provisioned."
+            exit 1
+          fi
+          echo "SPICE_PROVISIONED_VERSION=$PROVISIONED_VERSION" >> "$GITHUB_ENV"
+          echo "Provisioned toolkit: $PROVISIONED_VERSION"
           # Lay the artefacts out where SpiceConfiguration.Default looks for them, and where the
           # loader looks for the library. Same paths as deploy/docker/Dockerfile.
           sudo mkdir -p /var/spice
@@ -136,11 +146,17 @@ jobs:
           lib = ctypes.CDLL("/usr/lib/libcspice.so")
           lib.tkvrsn_c.restype = ctypes.c_char_p
           lib.tkvrsn_c.argtypes = [ctypes.c_char_p]
+          import os
           version = lib.tkvrsn_c(b"TOOLKIT").decode()
           print(f"libcspice tkvrsn_c(TOOLKIT) = {version}")
-          if "N0067" not in version:
+          # Compared against what the SCRIPT said it provisioned, not a literal in this file. The two paths agree by
+          # construction because neither states the version - the script is the only place it exists.
+          expected = os.environ.get("SPICE_PROVISIONED_VERSION", "")
+          if not expected:
+              raise SystemExit("::error::SPICE_PROVISIONED_VERSION is not set; the provisioning step did not report it.")
+          if expected not in version:
               raise SystemExit(
-                  f"::error::expected the pinned N0067 toolkit, got {version!r}. "
-                  "A version other than the pinned one makes the FR-08 inventory claim unverifiable."
+                  f"::error::the loaded library reports {version!r} but the script provisioned {expected!r}. "
+                  "The runtime and the provisioned artefact disagree, which makes every FR-08 claim unverifiable."
               )
           PY

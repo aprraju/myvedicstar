@@ -94,6 +94,10 @@ main() {
     i=$((i + 1))
   done
 
+  # The version is printed in a machine-readable form so the CONSUMERS do not have to state it. A workflow that
+  # hardcodes "N0067" in its own assertion keeps a second copy of the pin, and that copy is the one that goes stale
+  # when this file changes. Callers capture this line instead (api#173).
+  echo "provision-spice: toolkit=${SPICE_VERSION} released=${SPICE_RELEASED}"
   echo "provision-spice: ${dest}/spice now holds libcspice.so and ${#KERNELS[@]} kernels"
   ls -l "${dest}/spice"
 }
