@@ -359,11 +359,21 @@ public sealed class KundaliInterpretationsFacadeTests
         var section = await facade.GetInterpretationsAsync(User(), ProfileId, domain: null, CancellationToken.None);
 
         Assert.Null(narrator.LastDomain);
-        Assert.Equal(KundaliInterpretationDomains.All.Count, section.Sections.Count);
+
+        // Enumerated individually, by name, not merely counted: a count alone would pass if the set silently changed
+        // membership, and this is the test that has to go red if the unfiltered route regresses to a 400.
+        Assert.Equal(
+            KundaliInterpretationDomains.All.Order(StringComparer.Ordinal),
+            section.Sections.Select(entry => entry.Domain).Order(StringComparer.Ordinal));
+
+        // Each carries its OWN status and reason: no entry may be ready (nothing was narrated), and no entry may be
+        // missing a reason, which is what "a withheld interpretation is enumerated, never omitted" reduces to here.
         Assert.All(section.Sections, entry =>
         {
             Assert.Equal(KundaliInterpretationStatuses.NotEvaluated, entry.Status);
             Assert.Equal(KundaliInterpretationReasons.NotRequested, entry.Reason);
+            Assert.False(string.IsNullOrWhiteSpace(entry.Reason));
+            Assert.Null(entry.Text);
         });
     }
 
