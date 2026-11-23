@@ -406,7 +406,6 @@ internal sealed class UnconfiguredAlertRepository : IKundaliAlertRepository
         CancellationToken token) => throw new InvalidOperationException(Message);
 }
 
-EAD
 /// <summary>The narrator used when composition supplies no AI provider: it narrates nothing and says why.</summary>
 internal sealed class UnconfiguredInterpretationNarrator : IKundaliInterpretationNarrator
 {
@@ -419,6 +418,7 @@ internal sealed class UnconfiguredInterpretationNarrator : IKundaliInterpretatio
     public Task<InterpretationVerdict> NarrateAsync(string domain, string locale, long sourceRevision,
         IReadOnlyList<KundaliInterpretationFactor> factors, CancellationToken token) =>
         Task.FromResult(InterpretationRule.NotEvaluated(domain, KundaliInterpretationReasons.AiDisabled));
+}
 
 /// <summary>KUN-17 (api#57) fallback store. Every operation throws, so a host without the Data layer fails loudly at the
 /// report route rather than creating a record nothing will ever settle.</summary>
