@@ -26,6 +26,7 @@ public static class KundaliBusinessRegistration
         services.TryAddScoped<IKundaliDivisionalMapper, UnconfiguredDivisionalMapper>();
         services.TryAddScoped<IKundaliDignityRules, UnconfiguredDignityRules>();
         services.TryAddScoped<IKundaliAshtakavargaRules, UnconfiguredAshtakavargaRules>();
+        services.TryAddScoped<IKundaliAshtakootaRules, UnconfiguredAshtakootaRules>();
         services.TryAddScoped<IKundaliShadbalaRules, UnconfiguredShadbalaRules>();
         services.TryAddScoped<IKundaliYogaRules, UnconfiguredYogaRules>();
 
@@ -95,6 +96,73 @@ public interface IKundaliAshtakavargaRules
 
     /// <summary>Sarvashtakavarga: twelve sign totals derived from the bhinnas.</summary>
     IReadOnlyList<int> Sarva(IReadOnlyDictionary<string, int[]> bhinnaByPlanet);
+}
+
+/// <summary>
+/// Ashtakoota scoring as a port (KUN-15). The eight-koota tables and arithmetic live in the calculation project;
+/// Business consumes the abstraction so the layering holds.
+/// </summary>
+/// <remarks>
+/// The port deliberately exposes NO threshold and NO verdict method. The minimum acceptable-match score is an owner
+/// decision that is still open, and a port method for it would invite someone to implement one locally, which is
+/// precisely the client-constant failure the KUN-15 decision forbids.
+/// </remarks>
+public interface IKundaliAshtakootaRules
+{
+    /// <summary>Identifies the exact koota tables in use. Part of the comparison's cache identity.</summary>
+    string RulesVersion { get; }
+
+    /// <summary>Assesses two lunar sides. Returns scores and reasons; never a pass/fail judgement.</summary>
+    AshtakootaAssessment Assess(AshtakootaSide sideA, AshtakootaSide sideB);
+}
+
+/// <summary>One side's Moon inputs, as the engine consumes them.</summary>
+/// <param name="SignIndex">Zero-based Moon sign, 0 = Aries.</param>
+/// <param name="NakshatraIndex">Zero-based nakshatra, 0 = Ashwini.</param>
+/// <param name="Available">False when the Moon is undefined; every other field is then meaningless.</param>
+/// <param name="UnavailableReason">A reason code when <paramref name="Available"/> is false.</param>
+public sealed record AshtakootaSide(int SignIndex, int NakshatraIndex, bool Available, string? UnavailableReason)
+{
+    public static AshtakootaSide Unavailable(string reason) => new(0, 0, false, reason);
+
+    public static AshtakootaSide Of(int signIndex, int nakshatraIndex) => new(signIndex, nakshatraIndex, true, null);
+}
+
+/// <summary>One category result across the port boundary.</summary>
+public sealed record AshtakootaCategoryResult(string Code, int Maximum, int? Score, string? Reason, string? Side,
+    string Note)
+{
+    public bool IsScored => Score.HasValue;
+}
+
+/// <summary>The port-level assessment. No threshold field exists, by design.</summary>
+public sealed record AshtakootaAssessment(
+    string RulesVersion,
+    IReadOnlyList<AshtakootaCategoryResult> Categories,
+    int ScoredTotal,
+    string Certainty);
+
+/// <summary>Reason codes a koota category can carry. Mirrored from the calculation project so Business can name them.</summary>
+public static class AshtakootaReasons
+{
+    public const string BirthTimeUnknown = "BirthTimeUnknown";
+    public const string MoonPositionUnavailable = "MoonPositionUnavailable";
+}
+
+/// <summary>Certainty values, closed set.</summary>
+public static class AshtakootaCertainty
+{
+    public const string Complete = "complete";
+    public const string Partial = "partial";
+}
+
+/// <summary>The eight koota codes and the overall maximum, so Business can size a response without the tables.</summary>
+public static class AshtakootaShape
+{
+    public const int MaximumTotal = 36;
+
+    public static readonly IReadOnlyList<string> Codes =
+        ["Varna", "Vashya", "Tara", "Yoni", "GrahaMaitri", "Gana", "Bhakoot", "Nadi"];
 }
 
 /// <summary>
@@ -232,6 +300,17 @@ internal sealed class UnconfiguredDivisionalMapper : IKundaliDivisionalMapper
 
 /// <summary>Fallback used when composition has not supplied the real rules. Reports no dignity states and refuses
 /// to classify, so a missing registration surfaces as unsupported rather than as a silently wrong dignity.</summary>
+
+/// <summary>Fallback when composition has not supplied the real koota rules. Refuses rather than scoring.</summary>
+internal sealed class UnconfiguredAshtakootaRules : IKundaliAshtakootaRules
+{
+    /// <summary>Throws for the same reason the scoring call does: the version reaches the cache identity first, so a
+    /// placeholder string here would create a stored comparison under rules that do not exist.</summary>
+    public string RulesVersion => throw new InvalidOperationException("No Ashtakoota rules are registered.");
+
+    public AshtakootaAssessment Assess(AshtakootaSide sideA, AshtakootaSide sideB) =>
+        throw new InvalidOperationException("No Ashtakoota rules are registered.");
+}
 
 /// <summary>Fallback used when composition has not supplied the real rules. Refuses to score rather than returning
 /// zeroes, which would look like a valid empty chart.</summary>

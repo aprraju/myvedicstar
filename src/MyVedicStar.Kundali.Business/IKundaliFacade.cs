@@ -120,6 +120,20 @@ public interface IKundaliFacade
 
     KundaliCapabilityReport GetCapabilities();
 
+    /// <summary>
+    /// KUN-15: the Ashtakoota comparison of two owned profiles.
+    /// </summary>
+    /// <remarks>
+    /// <para>Both profiles must belong to the authenticated principal. A foreign or unknown profile id is a 404,
+    /// indistinguishable between the two, so this endpoint cannot become an ownership oracle. Naming the same profile
+    /// twice is a 400.</para>
+    /// <para><b>No verdict is returned.</b> The minimum acceptable-match threshold is an owner decision that is still
+    /// open. The response reports scores, a scored maximum and a certainty; it contains no field that could express
+    /// "good match", and no threshold is invented here to fill one.</para>
+    /// </remarks>
+    Task<KundaliAshtakootaComparison> CompareAsync(ClaimsPrincipal user, Guid profileIdA, Guid profileIdB,
+        CancellationToken token);
+
     /// <summary>KUN-17: request a report for the named sections. Returns the created report in `queued` state; the
     /// caller polls <see cref="GetReportAsync"/>. A report binds the source revision at request time.</summary>
     Task<KundaliReport> RequestReportAsync(

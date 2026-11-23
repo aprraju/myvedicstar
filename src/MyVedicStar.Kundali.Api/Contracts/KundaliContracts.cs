@@ -323,6 +323,69 @@ public sealed record KundaliAshtakavargaResponse(
         value.Unsupported.Select(KundaliUnsupportedResponse.From).ToArray());
 }
 
+/// <summary>
+/// KUN-15 comparison response. Mirrors the shared contract with no reshaping, so the UI receives exactly what the
+/// business layer decided - in particular the scored/indeterminate discriminator, which a DTO rewrite could silently
+/// flatten into a nullable number.
+/// </summary>
+/// <remarks>
+/// There is no threshold, verdict or "match" field. That is a contract decision, not an omission: the owner has left
+/// the minimum acceptable-match score open, so the API reports a score and declines to judge it.
+/// </remarks>
+public sealed record KundaliAshtakootaComparisonResponse(
+    string PairKey,
+    KundaliComparisonSideResponse ProfileA,
+    KundaliComparisonSideResponse ProfileB,
+    IReadOnlyList<KundaliAshtakootaCategoryResponse> Categories,
+    int Total,
+    int ScoredMaximum,
+    int Maximum,
+    string Certainty,
+    KundaliManglikComparisonResponse Manglik,
+    string RulesVersion)
+{
+    public static KundaliAshtakootaComparisonResponse From(
+        MyVedicStar.Kundali.Shared.KundaliAshtakootaComparison value) => new(
+        value.PairKey,
+        KundaliComparisonSideResponse.From(value.ProfileA),
+        KundaliComparisonSideResponse.From(value.ProfileB),
+        value.Categories.Select(KundaliAshtakootaCategoryResponse.From).ToArray(),
+        value.Total,
+        value.ScoredMaximum,
+        value.Maximum,
+        value.Certainty,
+        KundaliManglikComparisonResponse.From(value.Manglik),
+        value.RulesVersion);
+}
+
+public sealed record KundaliComparisonSideResponse(Guid ProfileId, long Revision)
+{
+    public static KundaliComparisonSideResponse From(MyVedicStar.Kundali.Shared.KundaliComparisonSide value) =>
+        new(value.ProfileId, value.Revision);
+}
+
+/// <summary>One koota. <c>Score</c> null means indeterminate and <c>Reason</c> then says why; both are never set.</summary>
+public sealed record KundaliAshtakootaCategoryResponse(
+    string Code,
+    string Name,
+    int Maximum,
+    int? Score,
+    string? Reason,
+    string? Side,
+    string Note)
+{
+    public static KundaliAshtakootaCategoryResponse From(
+        MyVedicStar.Kundali.Shared.KundaliAshtakootaCategory value) =>
+        new(value.Code, value.Name, value.Maximum, value.Score, value.Reason, value.Side, value.Note);
+}
+
+public sealed record KundaliManglikComparisonResponse(string StatusA, string StatusB, string Note)
+{
+    public static KundaliManglikComparisonResponse From(
+        MyVedicStar.Kundali.Shared.KundaliManglikComparison value) =>
+        new(value.StatusA, value.StatusB, value.Note);
+}
+
 public sealed record KundaliAshtakavargaTotalsResponse(
     IReadOnlyDictionary<string, int> PerPlanet,
     int GrandTotal)

@@ -115,6 +115,47 @@ internal sealed class KundaliAlertPreferenceEntity
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
+/// <summary>
+/// One stored Ashtakoota comparison between two profiles of the same account (KUN-15).
+/// </summary>
+/// <remarks>
+/// <para><b>The primary key is the cache identity, not a surrogate.</b> A comparison is a pure function of
+/// (pairKey, revisionA, revisionB, rulesVersion), so that tuple is the key. A surrogate id would allow two rows for
+/// one identity, which is a second answer to the same question waiting to disagree with the first.</para>
+/// <para><b><c>PairKey</c> is order-independent</b> - the two profile ids sorted ordinally and joined - so A-to-B and
+/// B-to-A are one row. The stored <c>ProfileAId</c>/<c>ProfileBId</c> are in that sorted order too, so the row reads the
+/// same way regardless of which direction was requested.</para>
+/// <para><b>No TTL column.</b> Freshness is a property of the identity: the row is replaced when a revision or the rule
+/// version moves, never because time passed. <c>CreatedAtUtc</c> exists for audit, not for expiry.</para>
+/// <para>Both revisions are stored because a single "revision" field could not express that the PLUS sides disagree
+/// about which snapshot was compared.</para>
+/// </remarks>
+internal sealed class KundaliAshtakootaComparisonEntity
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+
+    /// <summary>Order-independent key: both profile ids sorted ordinally and joined.</summary>
+    public string PairKey { get; set; } = "";
+
+    /// <summary>Lower sorting profile id; the pair's canonical first side.</summary>
+    public Guid ProfileAId { get; set; }
+
+    /// <summary>Higher sorting profile id; the pair's canonical second side.</summary>
+    public Guid ProfileBId { get; set; }
+
+    public long RevisionA { get; set; }
+    public long RevisionB { get; set; }
+
+    /// <summary>The Ashtakoota rule table version. Part of the identity: a table change invalidates the row.</summary>
+    public string RulesVersion { get; set; } = "";
+
+    /// <summary>The computed comparison, serialised. Read back and never recomputed from the row's columns.</summary>
+    public string PayloadJson { get; set; } = "";
+
+    public DateTimeOffset CreatedAtUtc { get; set; }
+}
+
 internal sealed class AccountReference { public Guid Id { get; set; } }
 
 /// <summary>
@@ -148,6 +189,7 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
     public DbSet<KundaliPreferenceEntity> Preferences => Set<KundaliPreferenceEntity>();
     public DbSet<KundaliProfileInvalidationEntity> ProfileInvalidations => Set<KundaliProfileInvalidationEntity>();
     public DbSet<KundaliAlertPreferenceEntity> AlertPreferences => Set<KundaliAlertPreferenceEntity>();
+    public DbSet<KundaliAshtakootaComparisonEntity> Comparisons => Set<KundaliAshtakootaComparisonEntity>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -267,6 +309,33 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
             // race that two concurrent requests would win together.
             b.HasIndex(x => new { x.UserId, x.ProfileId, x.EventType }).IsUnique()
                 .HasDatabaseName("UX_KundaliAlertPreferences_UserProfileEvent");
+        });
+
+        model.Entity<KundaliAshtakootaComparisonEntity>(b =>
+        {
+            b.ToTable("KundaliAshtakootaComparisons", table =>
+            {
+                table.HasCheckConstraint("CK_KundaliAshtakootaComparisons_Revisions",
+                    "\"RevisionA\" >= 0 AND \"RevisionB\" >= 0");
+                // The two sides must be distinct profiles: a self-comparison is a 400 at the edge and must never be a
+                // storable row, or a later read could serve it as a legitimate result.
+                table.HasCheckConstraint("CK_KundaliAshtakootaComparisons_DistinctProfiles",
+                    "\"ProfileAId\" <> \"ProfileBId\"");
+                // And the pair is stored in sorted order, so the same pair cannot occupy two rows.
+                table.HasCheckConstraint("CK_KundaliAshtakootaComparisons_SortedPair",
+                    "\"ProfileAId\" < \"ProfileBId\"");
+            });
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedNever();
+            b.Property(x => x.PairKey).HasMaxLength(80).IsRequired();
+            b.Property(x => x.RulesVersion).HasMaxLength(64).IsRequired();
+            b.Property(x => x.PayloadJson).IsRequired();
+            b.HasOne<AccountReference>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+            // The cache identity, enforced by the database. A concurrent pair of requests computes the same answer twice
+            // and one wins the insert; neither can create a second row that would later disagree.
+            b.HasIndex(x => new { x.UserId, x.PairKey, x.RevisionA, x.RevisionB, x.RulesVersion }).IsUnique()
+                .HasDatabaseName("UX_KundaliAshtakootaComparisons_Identity");
         });
     }
 }
