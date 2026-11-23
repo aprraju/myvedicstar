@@ -1,0 +1,81 @@
+name: kundali-integration
+
+# api#57: the Kundali persistence tests are [SkippableFact] guarded on MYVEDICSTAR_TEST_POSTGRES, which makes them
+# green-by-absence wherever that variable is unset - including a developer machine and, until this file, every CI run.
+# A skipped test reads as a pass, and the store's owner-scoping guarantee is exactly the kind of property that must not
+# be assumed. This job provides the disposable PostgreSQL those tests ask for, so they EXECUTE and a skip is visible as
+# a skip in the log rather than as silence.
+on:
+  pull_request:
+    paths:
+      - 'src/MyVedicStar.Kundali.Data/**'
+      - 'src/MyVedicStar.Kundali.Business/**'
+      - 'src/MyVedicStar.Kundali.Shared/**'
+      - 'tests/MyVedicStar.Kundali.Tests.Integration/**'
+      - 'deploy/database/**'
+      - '.github/workflows/kundali-integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/MyVedicStar.Kundali.Data/**'
+      - 'tests/MyVedicStar.Kundali.Tests.Integration/**'
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      # The same value authorize-api.yml uses, so the two jobs cannot drift into testing different databases.
+      MYVEDICSTAR_TEST_POSTGRES: 'Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres'
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read by nuget.config for GitHub Packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore packages
+        run: dotnet restore tests/MyVedicStar.Kundali.Tests.Integration/MyVedicStar.Kundali.Tests.Integration.csproj
+
+      - name: Test (Kundali persistence)
+        id: test
+        run: >-
+          dotnet test tests/MyVedicStar.Kundali.Tests.Integration/MyVedicStar.Kundali.Tests.Integration.csproj
+          --configuration Release --logger trx --results-directory TestResults
+
+      # An honest fail-closed check: if the variable were ever removed, every test would silently skip and this job
+      # would go green while proving nothing. This step refuses that outcome explicitly.
+      - name: Assert the persistence tests actually ran
+        if: steps.test.outcome == 'success'
+        run: |
+          SKIPPED=$(grep -rhoE 'Skipped[: ]+[0-9]+' TestResults/*.trx 2>/dev/null | grep -oE '[0-9]+' | head -1)
+          echo "skipped=${SKIPPED:-unknown}"
+          if [ "${SKIPPED:-0}" -gt 0 ] 2>/dev/null; then
+            echo "::error title=Persistence tests skipped::${SKIPPED} test(s) skipped. MYVEDICSTAR_TEST_POSTGRES is set, so a skip means the fixture could not connect - the store is unproven, not passing."
+            exit 1
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kundali-integration-results
+          path: TestResults/
