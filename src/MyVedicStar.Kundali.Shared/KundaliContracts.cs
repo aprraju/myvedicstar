@@ -173,6 +173,16 @@ public static class KundaliReportSections
     ];
 
     /// <summary>Every section any variant can render. The union, so a client can present one catalogue.</summary>
+    /// <remarks>
+    /// <para>
+    /// The union is asserted to be exactly <see cref="Detailed"/>, not merely equal to it today. <see cref="Short"/> is a
+    /// strict subset, so `AnyVariant` must contain every short id and nothing short-only - and a short report must never
+    /// render a section the detailed variant omits, which is the direction that would break the subset relation and
+    /// which <c>Assert.All(Short, id =&gt; Assert.Contains(id, Detailed))</c> in
+    /// `KundaliReportSectionsTests` pins. Stated here because the relation is the reason a plain union is correct rather
+    /// than accidental.
+    /// </para>
+    /// </remarks>
     public static readonly IReadOnlyList<string> AnyVariant =
         Detailed.Concat(Short).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal).ToArray();
 

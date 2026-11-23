@@ -85,4 +85,27 @@ public sealed class KundaliReportRequestValidatorTests
         Assert.All(KundaliReportSections.Short,
             section => Assert.Contains(section, KundaliReportSections.Detailed));
     }
+
+    [Fact]
+    public void The_any_variant_catalogue_is_exactly_the_detailed_set()
+    {
+        // Short is a strict subset of Detailed, so the union of the two IS Detailed. Asserting that identity rather than
+        // "it contains everything" is what pins the subset relation from the other side: if a section were ever added
+        // to Short alone, AnyVariant would gain an id Detailed lacks and this fails - which is the direction the plain
+        // subset assertion above cannot see, because it only checks Short's members against Detailed, not the reverse.
+        Assert.Equal(
+            KundaliReportSections.Detailed.Order(StringComparer.Ordinal),
+            KundaliReportSections.AnyVariant);
+
+        // And the relation stated directly, so the reason the identity holds is asserted rather than inferred.
+        Assert.All(KundaliReportSections.Short,
+            section => Assert.Contains(section, KundaliReportSections.Detailed));
+
+        // A defined id must be accepted by at least one variant, or IsDefined promises something nothing can render.
+        Assert.All(KundaliReportSections.AnyVariant, section =>
+            Assert.True(
+                KundaliReportSections.For(KundaliReportVariants.Short).Contains(section)
+                || KundaliReportSections.For(KundaliReportVariants.Detailed).Contains(section),
+                $"'{section}' is in AnyVariant but no variant renders it, so IsDefined would accept an unrenderable id."));
+    }
 }
