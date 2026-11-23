@@ -61,12 +61,26 @@ else {
         $dockerfile = Join-Path $publishDir 'Dockerfile'
         Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'deploy/docker/Dockerfile') -Destination $dockerfile
 
-        # api#173: the SPICE provisioning script is fetched by a build stage, and it arrives through a named build
-        # context rather than through the publish output. Keeping it out of $publishDir is deliberate: the publish
-        # directory is the .NET output, and dropping a shell script in it would blur what this image actually is.
+        # api#173 / api#193: the SPICE provisioning script is fetched by a build stage. It used to arrive through a
+        # NAMED build context (--build-context "spice-scripts=..."), which 'az acr build' does not implement: named
+        # contexts are a docker buildx feature and the CLI forwards only a subset of them. Main's first real image
+        # build failed with "unrecognized arguments: --build-context" (run 45082874489).
+        #
+        # It now travels in the ordinary build context, in a dedicated subdirectory so the publish output stays the
+        # .NET output and does not read as having sprouted a shell script. The trade is real and was made knowingly:
+        # the Dockerfile's COPY path below must match this directory name, so the two files carry one piece of
+        # shared knowledge. The alternative - upgrading az and pinning it - moves the same knowledge into a version
+        # assertion that nothing in this repository currently proves.
         $spiceScriptsDir = Join-Path $publishDir 'spice-scripts'
         New-Item -ItemType Directory -Path $spiceScriptsDir -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'deploy/scripts/provision-spice.sh') -Destination $spiceScriptsDir
+
+        # Fail here rather than in the middle of a remote build: an absent script is a packaging bug, and discovering
+        # it as a Dockerfile COPY failure 40 seconds into a remote build tells a worse story than this line does.
+        $stagedScript = Join-Path $spiceScriptsDir 'provision-spice.sh'
+        if (-not (Test-Path -LiteralPath $stagedScript)) {
+            throw "SPICE provisioning script was not staged at '$stagedScript'; the image cannot be built."
+        }
 
         Write-Host "Building $image in $RegistryName..."
         # Streamed to the host (not captured) so build logs appear live and never mix with the script's output.
@@ -77,7 +91,6 @@ else {
             --image $image `
             --file $dockerfile `
             --platform linux/amd64 `
-            --build-context "spice-scripts=$spiceScriptsDir" `
             $publishDir | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "Image build failed (exit code $LASTEXITCODE)."

@@ -88,6 +88,54 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./deploy/scripts/build-image.ps1
+
+      # api#193 acceptance: the image build must be shown to CONTAIN the toolkit, not merely to finish.
+      # This asserts inside the built artefact, so a Dockerfile that quietly stopped copying the library
+      # (or a provisioning stage that silently produced nothing) fails here rather than in production at
+      # the first request that needs a position.
+      - name: The built image contains the SPICE toolkit and its kernels
+        shell: bash
+        env:
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # The repository name comes from deploy/scripts/_common.ps1:14 ($script:ImageRepository = 'myvedicstar-api')
+          # and build-image.ps1:39 builds "$($ImageRepository):$ImageTag". "myvedicstar-combined" appears in this
+          # repository only as the temp publish-directory prefix (build-image.ps1:46) and is not an image that exists,
+          # so asserting on it would fail for the wrong reason - a pull of a name nothing ever built.
+          image="${REGISTRY_NAME}.azurecr.io/myvedicstar-api:${IMAGE_TAG}"
+          az acr login --name "$REGISTRY_NAME"
+          docker pull "$image"
+
+          # The runtime stage is CHISELED and has NO SHELL, so 'docker run ls' and 'sh -c test -f'
+          # cannot work here - they would fail for a reason unrelated to the toolkit and would look
+          # like a missing library. Read the image filesystem directly instead, which needs no shell
+          # and no entrypoint override.
+          container=$(docker create "$image")
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+
+          # One pass over the filesystem listing rather than one export per file: the export is the
+          # expensive part, and a per-file loop also hides which files were actually present.
+          listing="$RUNNER_TEMP/image-files.txt"
+          docker export "$container" | tar -tf - > "$listing"
+
+          required=(usr/lib/libcspice.so var/spice/de440.bsp var/spice/naif0012.tls var/spice/pck00011.tpc)
+          missing=()
+          for path in "${required[@]}"; do
+            grep -qx "$path" "$listing" || missing+=("$path")
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::the built image is missing the SPICE toolkit or kernels:"
+            printf '  - /%s\n' "${missing[@]}"
+            echo "::error::api#193 requires the shipped image to carry the pinned toolkit, not just to build."
+            echo "::error::File count in image: $(wc -l < "$listing")"
+            exit 1
+          fi
+
+          echo "Image $image contains libcspice.so and the three pinned kernels."
+
       - name: Build migration image
         shell: pwsh
         env:
