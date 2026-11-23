@@ -30,6 +30,11 @@ public static class KundaliBusinessRegistration
         services.TryAddScoped<IKundaliShadbalaRules, UnconfiguredShadbalaRules>();
         services.TryAddScoped<IKundaliYogaRules, UnconfiguredYogaRules>();
 
+        // api#54 (KUN-14): the provider-backed narrator is supplied by composition. The default narrates nothing and
+        // reports ai-disabled, rather than returning invented prose: a host without a model must still serve every other
+        // section, and a silent empty interpretation would be indistinguishable from a withheld one.
+        services.TryAddScoped<IKundaliInterpretationNarrator, UnconfiguredInterpretationNarrator>();
+
         // Composition supplies the real alert store. The default refuses rather than answering "no consents", because
         // an empty list from a missing store is indistinguishable from a reader who opted out - and would silently
         // disable email they asked for.
@@ -393,4 +398,18 @@ internal sealed class UnconfiguredAlertRepository : IKundaliAlertRepository
 
     public Task<IReadOnlyList<KundaliAlertPreference>> GetForDeliveryAsync(Guid accountId, Guid profileId,
         CancellationToken token) => throw new InvalidOperationException(Message);
+}
+
+/// <summary>The narrator used when composition supplies no AI provider: it narrates nothing and says why.</summary>
+internal sealed class UnconfiguredInterpretationNarrator : IKundaliInterpretationNarrator
+{
+    public bool IsEnabled => false;
+
+    public string Fingerprint => "none";
+
+    public string PromptVersion => "kundali-interpretation-unconfigured";
+
+    public Task<InterpretationVerdict> NarrateAsync(string domain, string locale, long sourceRevision,
+        IReadOnlyList<KundaliInterpretationFactor> factors, CancellationToken token) =>
+        Task.FromResult(InterpretationRule.NotEvaluated(domain, KundaliInterpretationReasons.AiDisabled));
 }

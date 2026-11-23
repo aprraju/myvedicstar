@@ -25,6 +25,10 @@ public static class KundaliErrors
 
     /// <summary>KUN-13: the requested timezone is not a resolvable IANA zone.</summary>
     public const string InvalidTimezone = "The timezone is invalid or unsupported.";
+
+    /// <summary>KUN-14: the requested interpretation domain is not one of the closed set.</summary>
+    public const string InvalidInterpretationDomain =
+        "The interpretation domain is not one this service produces.";
 }
 
 /// <summary>Map centrally to HTTP 409; carries no persistence detail and no personal input.</summary>
