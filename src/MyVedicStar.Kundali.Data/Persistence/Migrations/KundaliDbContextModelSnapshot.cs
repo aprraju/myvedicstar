@@ -310,6 +310,74 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliReportEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentReference")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("FailuresJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Sections")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<long>("SourceRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Variant")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ProfileId", "RequestedAtUtc")
+                        .HasDatabaseName("IX_KundaliReports_UserProfileRequested");
+
+                    b.HasIndex("UserId", "ProfileId", "SourceRevision")
+                        .IsUnique()
+                        .HasDatabaseName("UX_KundaliReports_UserProfileRevision");
+
+                    b.ToTable("KundaliReports", "myvedicstarkundali", t =>
+                        {
+                            t.HasCheckConstraint("CK_KundaliReports_CompletedAt", "(\"Status\" IN ('ready', 'failed') AND \"CompletedAtUtc\" IS NOT NULL) OR (\"Status\" NOT IN ('ready', 'failed') AND \"CompletedAtUtc\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_KundaliReports_SourceRevision", "\"SourceRevision\" > 0");
+
+                            t.HasCheckConstraint("CK_KundaliReports_Status", "\"Status\" IN ('queued', 'running', 'ready', 'failed')");
+
+                            t.HasCheckConstraint("CK_KundaliReports_Variant", "\"Variant\" IN ('short', 'detailed')");
+                        });
+                });
+
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliResultRevisionEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -471,6 +539,15 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                 });
 
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliProfileInvalidationEntity", b =>
+                {
+                    b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliReportEntity", b =>
                 {
                     b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
                         .WithMany()

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyVedicStar.Kundali.Data.Persistence.Migrations
 {
     [DbContext(typeof(KundaliDbContext))]
-    [Migration("20261123185651_AddKundaliReports")]
+    [Migration("20261123210917_AddKundaliReports")]
     partial class AddKundaliReports
     {
         /// <inheritdoc />
@@ -118,6 +118,59 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                     b.ToTable("KundaliAlertPreferences", "myvedicstarkundali", t =>
                         {
                             t.HasCheckConstraint("CK_KundaliAlertPreferences_Channel", "\"Channel\" IN ('email')");
+                        });
+                });
+
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliAshtakootaComparisonEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PairKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProfileAId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProfileBId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("RevisionA")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("RevisionB")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RulesVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "PairKey", "RevisionA", "RevisionB", "RulesVersion")
+                        .IsUnique()
+                        .HasDatabaseName("UX_KundaliAshtakootaComparisons_Identity");
+
+                    b.ToTable("KundaliAshtakootaComparisons", "myvedicstarkundali", t =>
+                        {
+                            t.HasCheckConstraint("CK_KundaliAshtakootaComparisons_DistinctProfiles", "\"ProfileAId\" <> \"ProfileBId\"");
+
+                            t.HasCheckConstraint("CK_KundaliAshtakootaComparisons_Revisions", "\"RevisionA\" >= 0 AND \"RevisionB\" >= 0");
+
+                            t.HasCheckConstraint("CK_KundaliAshtakootaComparisons_SortedPair", "\"ProfileAId\" < \"ProfileBId\"");
                         });
                 });
 
@@ -453,6 +506,15 @@ namespace MyVedicStar.Kundali.Data.Persistence.Migrations
                 });
 
             modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliAlertPreferenceEntity", b =>
+                {
+                    b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MyVedicStar.Kundali.Data.KundaliAshtakootaComparisonEntity", b =>
                 {
                     b.HasOne("MyVedicStar.Kundali.Data.AccountReference", null)
                         .WithMany()

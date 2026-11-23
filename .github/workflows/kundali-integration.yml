@@ -61,17 +61,34 @@ jobs:
           dotnet test tests/MyVedicStar.Kundali.Tests.Integration/MyVedicStar.Kundali.Tests.Integration.csproj
           --configuration Release --logger trx --results-directory TestResults
 
-      # An honest fail-closed check: if the variable were ever removed, every test would silently skip and this job
-      # would go green while proving nothing. This step refuses that outcome explicitly.
-      - name: Assert the persistence tests actually ran
+      # Fail-closed, and reading the counter that actually exists. The TRX <Counters> element carries
+      # total/executed/notExecuted; an earlier version grepped for "Skipped: N" and silently produced
+      # "skipped=unknown", so the guard passed while proving nothing - the same mode this job exists to prevent.
+      - name: Assert the persistence tests actually executed
         if: steps.test.outcome == 'success'
         run: |
-          SKIPPED=$(grep -rhoE 'Skipped[: ]+[0-9]+' TestResults/*.trx 2>/dev/null | grep -oE '[0-9]+' | head -1)
-          echo "skipped=${SKIPPED:-unknown}"
-          if [ "${SKIPPED:-0}" -gt 0 ] 2>/dev/null; then
-            echo "::error title=Persistence tests skipped::${SKIPPED} test(s) skipped. MYVEDICSTAR_TEST_POSTGRES is set, so a skip means the fixture could not connect - the store is unproven, not passing."
-            exit 1
-          fi
+          python3 - <<'PY'
+          import glob, re, sys
+          files = glob.glob('TestResults/*.trx')
+          if not files:
+              sys.exit('No TRX result file was produced; the run cannot be verified.')
+          totals = {'total': 0, 'executed': 0, 'notExecuted': 0}
+          for path in files:
+              text = open(path, encoding='utf-8').read()
+              m = re.search(r'<Counters ([^/>]*)/>', text)
+              if not m:
+                  sys.exit(f'No <Counters> element in {path}; cannot verify.')
+              attrs = dict(re.findall(r'(\w+)="(\d+)"', m.group(1)))
+              for key in totals:
+                  totals[key] += int(attrs.get(key, 0))
+          print(f"total={totals['total']} executed={totals['executed']} notExecuted={totals['notExecuted']}")
+          if totals['executed'] == 0:
+              sys.exit('Zero tests executed. A green job here would prove nothing.')
+          if totals['notExecuted'] > 0:
+              sys.exit(f"{totals['notExecuted']} test(s) were not executed. MYVEDICSTAR_TEST_POSTGRES is set, so a "
+                       "skip means the fixture could not connect: the store is unproven, not passing.")
+          print('All persistence tests executed.')
+          PY
 
       - name: Upload results
         if: always()

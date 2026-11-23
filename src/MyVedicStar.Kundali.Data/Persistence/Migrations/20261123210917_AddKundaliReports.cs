@@ -5,26 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace MyVedicStar.Kundali.Data.Persistence.Migrations
 {
-    /// <summary>
-    /// KUN-17 (api#57): the report table and its two indexes, and nothing else.
-    /// </summary>
-    /// <remarks>
-    /// <para>Generated with <c>dotnet ef migrations add</c> and then reduced to the statements this change actually
-    /// needs, following the convention <c>AddKundaliAlertPreferences</c> already records. The generator also emitted
-    /// 42 unrelated statements because the checked-in <c>KundaliDbContextModelSnapshot</c> on main is behind its own
-    /// migrations - it never recorded <c>AshtakavargaJson</c> from #110, carried default <c>IX_..._UserId</c> index
-    /// names that <c>InitialKundali</c> had already replaced, and held hand-written check-constraint bodies whose
-    /// quoting does not match the model.</para>
-    /// <para>Replaying that churn here would have been actively unsafe rather than untidy: it included
-    /// <c>DropColumn("AshtakavargaJson")</c> on <c>KundaliResultRevisions</c>, which would discard every stored
-    /// Ashtakavarga payload on a database where <c>InitialKundali</c> created the column - data loss disguised as a
-    /// snapshot sync. The other 41 statements were drop-then-re-add pairs on five tables this migration does not own,
-    /// several of which re-added a constraint with DOUBLED inner quotes, i.e. a different predicate, so a constraint
-    /// would have silently stopped enforcing what it appears to enforce.</para>
-    /// <para>The designer file next to this one IS the untouched generator output, so EF's target model remains
-    /// authoritative and this migration cannot be recorded as applied against a model it did not create. The stale
-    /// snapshot on main is therefore still stale, deliberately and visibly, and remains a separate defect.</para>
-    /// </remarks>
+    /// <inheritdoc />
     public partial class AddKundaliReports : Migration
     {
         /// <inheritdoc />
