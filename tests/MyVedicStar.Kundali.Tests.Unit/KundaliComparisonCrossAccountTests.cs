@@ -344,15 +344,18 @@ public sealed class KundaliComparisonCrossAccountTests : IDisposable
     }
 
     // ------------------------------------------------------------------------------------------------------------------
-    // 5. Reachability: the endpoint exists and refuses exactly as this suite says it does.
+    // 5. Facade contract only. Be clear about what this does NOT prove: route registration is asserted elsewhere, in
+    // MyVedicStar.Host.Tests.Integration/KundaliComparisonRouteTests.cs, which reads the composed EndpointDataSource
+    // and goes red when the controller's route attribute is removed. Do not read this file as evidence that an HTTP
+    // request reaches the comparison; that proof lives there.
     // ------------------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task The_comparison_operation_is_reachable_and_obeys_the_rules()
+    public async Task The_comparison_operation_exists_on_the_facade_contract_the_controller_binds_to()
     {
-        // If the route were never registered, every test above would still pass against a facade the HTTP layer cannot
-        // reach. This asserts the operation exists on the facade contract the controller binds to, and then that
-        // walking it once produces a comparison rather than a not-implemented path.
+        // Exactly one CompareAsync with the comparison return type, and walking it once produces a comparison rather
+        // than a not-implemented path. A controller method that is never decorated with a route would still satisfy
+        // this test - the route claim is a different assertion in a different project (see the section comment).
         var declared = typeof(IKundaliFacade).GetMethods()
             .Where(method => method.Name == nameof(IKundaliFacade.CompareAsync))
             .ToArray();
