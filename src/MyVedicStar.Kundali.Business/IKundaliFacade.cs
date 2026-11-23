@@ -105,8 +105,9 @@ public interface IKundaliFacade
     /// <summary>
     /// KUN-14: evidence-based interpretations for one domain, or an explicit refusal (api#54).
     /// </summary>
-    /// <param name="domain">The requested domain. A closed set; an unknown domain is rejected in Business, not in the
-    /// controller, so the rule has one home.</param>
+    /// <param name="domain">The requested domain, or null/blank for no filter. A supplied value outside the closed set is
+    /// rejected in Business, not in the controller, so the rule has one home - and "absent" is never treated as
+    /// "unknown", because that would break the plain route.</param>
     /// <remarks>
     /// <para><b>The section always enumerates every domain.</b> The requested domain is the one that gets a full
     /// interpretation attempt; the others are reported with their own status and reason rather than omitted, because a
@@ -114,7 +115,7 @@ public interface IKundaliFacade
     /// <para><b>Never a whole-Kundali error.</b> A narration failure is a status on this section; the calculation
     /// sections of the same profile remain available.</para>
     /// </remarks>
-    Task<KundaliInterpretationsSection> GetInterpretationsAsync(ClaimsPrincipal user, Guid profileId, string domain,
+    Task<KundaliInterpretationsSection> GetInterpretationsAsync(ClaimsPrincipal user, Guid profileId, string? domain,
         CancellationToken token);
 
     KundaliCapabilityReport GetCapabilities();

@@ -347,4 +347,33 @@ public sealed class KundaliInterpretationsFacadeTests
         Assert.Equal("test/model", section.ModelProvenance);
         Assert.Equal(11, section.SourceRevision);
     }
+
+    [Fact]
+    public async Task An_absent_domain_means_no_filter_and_narrates_nothing()
+    {
+        // The plain route must be well defined: absent is not "unknown". No domain is narrated, every domain is
+        // enumerated with its own reason, and no 400 is thrown.
+        var narrator = new StubNarrator();
+        var facade = Facade(narrator);
+
+        var section = await facade.GetInterpretationsAsync(User(), ProfileId, domain: null, CancellationToken.None);
+
+        Assert.Null(narrator.LastDomain);
+        Assert.Equal(KundaliInterpretationDomains.All.Count, section.Sections.Count);
+        Assert.All(section.Sections, entry =>
+        {
+            Assert.Equal(KundaliInterpretationStatuses.NotEvaluated, entry.Status);
+            Assert.Equal(KundaliInterpretationReasons.NotRequested, entry.Reason);
+        });
+    }
+
+    [Fact]
+    public async Task A_blank_domain_is_treated_as_absent_not_as_an_error()
+    {
+        var facade = Facade(new StubNarrator());
+
+        var section = await facade.GetInterpretationsAsync(User(), ProfileId, "   ", CancellationToken.None);
+
+        Assert.Equal(KundaliInterpretationDomains.All.Count, section.Sections.Count);
+    }
 }

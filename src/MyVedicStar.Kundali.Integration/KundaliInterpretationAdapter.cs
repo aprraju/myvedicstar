@@ -41,7 +41,11 @@ public sealed record InterpretationOutcome(InterpretationVerdict? Verdict, strin
 public sealed class KundaliInterpretationAdapter : IKundaliInterpretationNarrator
 {
     /// <summary>Prompt version this build sends. Stamped onto the section so stored text is attributable.</summary>
-    public const string PromptVersion = "kundali-interpretation-2026-11-a";
+    public const string PromptVersionValue = "kundali-interpretation-2026-11-a";
+
+    /// <summary>The port's prompt-version member, so the value stamped on a stored section and the value sent to the
+    /// model cannot be two constants that drift apart.</summary>
+    public string PromptVersion => PromptVersionValue;
 
     /// <summary>The domain-level instruction sent with every request.</summary>
     internal const string Instructions =
@@ -105,7 +109,7 @@ public sealed class KundaliInterpretationAdapter : IKundaliInterpretationNarrato
 
         var input = string.Join('\n', request.Factors.Select(factor => $"{factor.Id}: {factor.Description}"));
         var aiRequest = new AiRequest($"kundali.interpret.{request.Domain}", Instructions,
-            $"domain: {request.Domain}\nlocale: {request.Locale}\nfactors:\n{input}", PromptVersion);
+            $"domain: {request.Domain}\nlocale: {request.Locale}\nfactors:\n{input}", PromptVersionValue);
 
         var response = await _ai.GenerateAsync<InterpretationDraft>(aiRequest, cancellationToken);
         if (response.Outcome != AiOutcome.Succeeded || response.Value is null)
@@ -160,7 +164,7 @@ public sealed class KundaliInterpretationAdapter : IKundaliInterpretationNarrato
 
         return new KundaliInterpretationsSection(
             sourceRevision,
-            PromptVersion,
+            PromptVersionValue,
             modelProvenance,
             locale,
             "traditional interpretation",

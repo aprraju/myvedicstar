@@ -279,9 +279,13 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     /// would invent an assessment that never happened.</para>
     /// </remarks>
     public async Task<KundaliInterpretationsSection> GetInterpretationsAsync(ClaimsPrincipal user, Guid profileId,
-        string domain, CancellationToken token)
+        string? domain, CancellationToken token)
     {
-        if (!KundaliInterpretationDomains.IsKnown(domain))
+        // An ABSENT domain means "no filter": every domain in the closed set is returned, un-narrated, with its own
+        // reason. A domain that IS supplied but is not in the closed set is a 400 - the two cases are deliberately not
+        // collapsed, because treating absent as unknown would break the plain route.
+        var domainSupplied = !string.IsNullOrWhiteSpace(domain);
+        if (domainSupplied && !KundaliInterpretationDomains.IsKnown(domain))
             throw new ValidationException(KundaliErrors.InvalidInterpretationDomain);
 
         var display = await ReadOwnedDisplayAsync(user, profileId, token);
@@ -297,13 +301,17 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
             .Select(position => (position.Graha, position.Sign))
             .ToArray();
 
-        var factors = InterpretationFactors.For(domain, published);
+        var verdicts = new Dictionary<string, InterpretationVerdict>(StringComparer.Ordinal);
+        if (domainSupplied)
+        {
+            var factors = InterpretationFactors.For(domain!, published);
+            verdicts[domain!] = factors.Count == 0
+                ? InterpretationRule.NotEvaluated(domain!, KundaliInterpretationReasons.InputMissing)
+                : await interpreter.NarrateAsync(domain!, "en", snapshot.ProfileRevision, factors, token);
+        }
 
-        var verdict = factors.Count == 0
-            ? InterpretationRule.NotEvaluated(domain, KundaliInterpretationReasons.InputMissing)
-            : await interpreter.NarrateAsync(domain, "en", snapshot.ProfileRevision, factors, token);
-
-        var verdicts = new Dictionary<string, InterpretationVerdict>(StringComparer.Ordinal) { [domain] = verdict };
+        // Domains not narrated in this response say so individually; "not requested" is not "withheld", which would
+        // claim an assessment that never happened.
         var missing = KundaliInterpretationDomains.All
             .Where(other => !verdicts.ContainsKey(other))
             .ToDictionary(other => other, _ => KundaliInterpretationReasons.NotRequested, StringComparer.Ordinal);
