@@ -68,7 +68,9 @@ $$;
 --    table was created, and GRANT ... ON ALL TABLES only sees tables that exist AT THE TIME IT RUNS. Re-running this
 --    grant after migrations therefore makes the app role's DML rights converge, whatever order the server was
 --    provisioned in. KUN-13's KundaliAlertPreferences table depends on this: without it the alerts endpoints return
---    500 with a permission error, which is exactly the failure the vedic-profiles outage produced.
+--    500 with a permission error, which is exactly the failure the vedic-profiles outage produced. KUN-15's
+--    KundaliAshtakootaComparisons table depends on it for the same reason: it is created by a later migration in
+--    myvedicstarkundali, and the GET comparisons route reads and writes it on every request.
 DO $$
 DECLARE
   s             text;

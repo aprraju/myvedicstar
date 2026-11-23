@@ -67,6 +67,7 @@ public static class KundaliIntegrationRegistration
         services.AddKundaliDivisionalMapper();
         services.AddKundaliDignityRules();
         services.AddKundaliAshtakavargaRules();
+        services.AddKundaliAshtakootaRules();
         // The result cache is the shared application cache behind a port: no new cache infrastructure is introduced
         // (KUN-21 Architect refinement). Registered as TryAdd so a host that has already registered an implementation -
         // or a test that supplies a fake - keeps it.

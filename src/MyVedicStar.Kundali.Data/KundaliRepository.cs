@@ -249,6 +249,78 @@ internal sealed class KundaliRepository(KundaliDbContext context, TimeProvider c
     }
 
     /// <summary>
+    /// KUN-15: reads a stored comparison for its exact identity. Null means "never stored for these revisions and this
+    /// rule version", which the caller treats as a cache miss rather than an error.
+    /// </summary>
+    /// <remarks>
+    /// The owner filter is the account, not either profile: a comparison belongs to the account that requested it, and
+    /// both profiles are already proven to be that account's by the time this is called. Filtering on a profile id here
+    /// would be redundant and would also mean a row could be found through one side and hidden through the other.
+    /// </remarks>
+    public async Task<KundaliStoredComparison?> GetComparisonAsync(Guid accountId, string pairKey, long revisionA,
+        long revisionB, string rulesVersion, CancellationToken token)
+    {
+        var row = await context.Comparisons.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.UserId == accountId && x.PairKey == pairKey && x.RevisionA == revisionA && x.RevisionB == revisionB
+            && x.RulesVersion == rulesVersion, token);
+
+        return row is null
+            ? null
+            : new KundaliStoredComparison(row.PairKey, row.ProfileAId, row.ProfileBId, row.RevisionA, row.RevisionB,
+                row.RulesVersion, row.PayloadJson);
+    }
+
+    /// <summary>
+    /// KUN-15: stores a comparison under its identity, idempotently.
+    /// </summary>
+    /// <remarks>
+    /// Two requests for the same pair can compute the same answer concurrently. The unique identity index makes the
+    /// loser a duplicate-key violation, which is caught and treated as success: both computed the same function of the
+    /// same inputs, so there is no disagreement to resolve - and overwriting would let a reordered write replace a
+    /// good row with an older payload.
+    /// </remarks>
+    public async Task StoreComparisonAsync(Guid accountId, KundaliStoredComparison comparison,
+        CancellationToken token)
+    {
+        // Canonical order enforced here as well as by the database check: the writer must not rely on the caller having
+        // sorted, and ProfileAId must always be the lower id for the pair's stored orientation to be meaningful.
+        var first = comparison.ProfileAId.CompareTo(comparison.ProfileBId) <= 0
+            ? (A: comparison.ProfileAId, B: comparison.ProfileBId, RevisionA: comparison.RevisionA,
+                RevisionB: comparison.RevisionB)
+            : (A: comparison.ProfileBId, B: comparison.ProfileAId, RevisionA: comparison.RevisionB,
+                RevisionB: comparison.RevisionA);
+
+        var exists = await context.Comparisons.AnyAsync(x =>
+            x.UserId == accountId && x.PairKey == comparison.PairKey && x.RevisionA == first.RevisionA
+            && x.RevisionB == first.RevisionB && x.RulesVersion == comparison.RulesVersion, token);
+        if (exists) return;
+
+        context.Comparisons.Add(new KundaliAshtakootaComparisonEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = accountId,
+            PairKey = comparison.PairKey,
+            ProfileAId = first.A,
+            ProfileBId = first.B,
+            RevisionA = first.RevisionA,
+            RevisionB = first.RevisionB,
+            RulesVersion = comparison.RulesVersion,
+            PayloadJson = comparison.PayloadJson,
+            CreatedAtUtc = clock.GetUtcNow()
+        });
+
+        try
+        {
+            await context.SaveChangesAsync(token);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            // Another writer won the race with the same identity. Its row is the same answer; nothing to fix.
+            context.ChangeTracker.Clear();
+        }
+    }
+
+    /// <summary>
     /// KUN-22 propagation, in one transaction: advance the profile revision (compare-and-swap), bump the aggregate
     /// revision, mark any in-flight revision superseded with a reason so a late worker result is visibly obsolete, and
     /// publish exactly one invalidation event. The event is written in the same transaction as the change, so a

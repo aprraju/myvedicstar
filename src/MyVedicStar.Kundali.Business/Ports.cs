@@ -78,6 +78,24 @@ public interface IKundaliRepository
         CancellationToken token);
 
     /// <summary>
+    /// KUN-15: reads a stored comparison for its exact identity, or null when it has never been stored or has been
+    /// invalidated by a revision or rule-version move.
+    /// </summary>
+    /// <remarks>
+    /// The identity is the whole key on purpose. A lookup by pair alone would serve a comparison computed from
+    /// superseded revisions as if it were current, which is the wrong-answer failure this cache exists to avoid. There
+    /// is no TTL parameter: freshness is the identity, not elapsed time.
+    /// </remarks>
+    Task<KundaliStoredComparison?> GetComparisonAsync(Guid accountId, string pairKey, long revisionA,
+        long revisionB, string rulesVersion, CancellationToken token);
+
+    /// <summary>
+    /// KUN-15: stores a comparison under its identity. Idempotent: an existing row for the same identity is returned
+    /// unchanged rather than overwritten, so two concurrent requests cannot produce two disagreeing rows.
+    /// </summary>
+    Task StoreComparisonAsync(Guid accountId, KundaliStoredComparison comparison, CancellationToken token);
+
+    /// <summary>
     /// Applies one profile revision change to this module's state atomically (KUN-22): the aggregate's
     /// <c>ProfileRevision</c> is advanced (compare-and-swap on the previous value), the aggregate revision is bumped and
     /// the in-flight revision, if any, is abandoned with a reason code. <paramref name="cancelledRevisionIds"/> receives
@@ -192,6 +210,25 @@ public interface IKundaliResultCache
 }
 
 /// <summary>Plain engine input. Built from the owned snapshot; contains no identity and no settings lookups.</summary>
+/// <summary>
+/// A persisted Ashtakoota comparison, keyed by (pairKey, revisionA, revisionB, rulesVersion).
+/// </summary>
+/// <param name="PairKey">Order-independent pair identity.</param>
+/// <param name="ProfileAId">Lower-sorting profile id, the canonical first side.</param>
+/// <param name="ProfileBId">Higher-sorting profile id, the canonical second side.</param>
+/// <param name="RevisionA">Revision of the first side when the comparison was computed.</param>
+/// <param name="RevisionB">Revision of the second side.</param>
+/// <param name="RulesVersion">Rule table version.</param>
+/// <param name="PayloadJson">The serialised comparison payload, served verbatim.</param>
+public sealed record KundaliStoredComparison(
+    string PairKey,
+    Guid ProfileAId,
+    Guid ProfileBId,
+    long RevisionA,
+    long RevisionB,
+    string RulesVersion,
+    string PayloadJson);
+
 public sealed record KundaliEngineInput(
     DateOnly BirthDate,
     BirthTimeMode BirthTimeMode,
