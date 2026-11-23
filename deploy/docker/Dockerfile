@@ -8,7 +8,6 @@
 # (environment variables and Key Vault secret references).
 
 ARG DOTNET_VERSION=10.0
-ARG NAIF_BASE=https://naif.jpl.nasa.gov/pub/naif
 
 # --- SPICE toolkit and kernels (api#173) ----------------------------------------------------------------
 # Fetched at BUILD time from a PINNED version (N0067), checksum-verified, then baked in. Nothing is downloaded at
@@ -21,13 +20,11 @@ ARG NAIF_BASE=https://naif.jpl.nasa.gov/pub/naif
 # It needs a shell and curl; the runtime stage below is chiseled and has neither, and the script arrives through the
 # named build context "spice-scripts" so this file stays a consumer of the publish output.
 FROM ubuntu:24.04 AS spice-fetch
-ARG NAIF_BASE
 RUN apt-get update \\
     && apt-get install --yes --no-install-recommends curl ca-certificates ncompress \\
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /provision
 COPY --from=spice-scripts provision-spice.sh /provision/provision-spice.sh
-ENV NAIF_BASE=${NAIF_BASE}
 # Fails loudly on a checksum mismatch or a missing libcspice.so; never falls back to whatever the network returned.
 RUN bash /provision/provision-spice.sh /out
 
