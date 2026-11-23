@@ -13,8 +13,14 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
     IKundaliShadbalaRules shadbalaRules,
     IKundaliYogaRules yogaRules,
     TimeProvider clock,
-    IKundaliResultCache cache) : IKundaliFacade
+    IKundaliResultCache cache,
+    IKundaliReportStore reportStore,
+    IKundaliReportRenderer reportRenderer) : IKundaliFacade
 {
+    /// <summary>How long a finished report remains downloadable. MaxValue means "until the profile is deleted", the
+    /// approved default; the download lease still caps each URL at its issue window.</summary>
+    private static readonly DateTimeOffset ReportLifetime = DateTimeOffset.MaxValue;
+
     public async Task<KundaliView> GetAsync(ClaimsPrincipal user, Guid profileId, CancellationToken token)
     {
         var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
@@ -1155,18 +1161,100 @@ internal sealed class KundaliFacade(IKundaliProfileReader profiles, IKundaliRepo
         public const string AfterInterval = "not-yet-active";
     }
 
-    /// <summary>KUN-17 report generation is not wired yet. This is an honest unsupported state, not a stub that
-    /// pretends: it refuses rather than returning a report that will never become ready, because a caller holding a
-    /// `queued` id that never settles cannot distinguish "slow" from "never implemented".</summary>
-    public Task<KundaliReport> RequestReportAsync(
-        ClaimsPrincipal user, Guid profileId, KundaliReportRequest request, CancellationToken token) =>
-        throw new NotSupportedException(
-            "Report generation is not configured in this host. KUN-17 delivery requires the report store and renderer.");
+    /// <summary>
+    /// KUN-17 (api#57) report request. The request is validated against both closed vocabularies before anything is
+    /// stored, the source revision is bound at request time, and generation runs inline so the caller never polls a
+    /// record that no one will ever settle.
+    /// </summary>
+    /// <remarks>
+    /// Validation precedes the store for a reason: a rejected section must cost nothing and must not leave a queued
+    /// record behind. The store de-duplicates on (profile, revision), so a re-request for the same revision is free
+    /// rather than a second render.
+    /// </remarks>
+    public async Task<KundaliReport> RequestReportAsync(
+        ClaimsPrincipal user, Guid profileId, KundaliReportRequest request, CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+        var snapshot = await ReadOwnedSnapshotAsync(user, profileId, token);
 
-    public Task<KundaliReport> GetReportAsync(
-        ClaimsPrincipal user, Guid profileId, Guid reportId, CancellationToken token) =>
-        throw new NotSupportedException(
-            "Report generation is not configured in this host. KUN-17 delivery requires the report store and renderer.");
+        var validated = KundaliReportRequestValidator.Validate(request);
+        var queued = await reportStore.EnqueueAsync(accountId, profileId, validated, snapshot.ProfileRevision,
+            clock, token);
+
+        return await ProduceAsync(accountId, queued, token);
+    }
+
+    /// <summary>
+    /// KUN-17 report read. A report the caller does not own is reported as missing, not forbidden: distinguishing the
+    /// two would confirm that a report id exists for someone else's profile.
+    /// </summary>
+    /// <remarks>
+    /// The download URL is issued here, not at generation: its expiry is the minimum of the issue window and the
+    /// report's own lifetime, and an instant baked in at generation would already be wrong when a caller asked.
+    /// </remarks>
+    public async Task<KundaliReport> GetReportAsync(
+        ClaimsPrincipal user, Guid profileId, Guid reportId, CancellationToken token)
+    {
+        var accountId = await profiles.GetRegisteredAccountIdAsync(user, token);
+        var stored = await reportStore.FindAsync(accountId, profileId, reportId, token)
+            ?? throw new ResourceNotFoundException(KundaliErrors.ReportNotFound);
+
+        return stored is { Status: KundaliReportStatus.Ready, DownloadUrl: not null }
+            ? stored with
+            {
+                DownloadExpiresAtUtc = KundaliReportDownloadLease.EffectiveExpiry(clock.GetUtcNow(), ReportLifetime)
+            }
+            : stored;
+    }
+
+    /// <summary>
+    /// Runs the renderer and settles the record. Every failure is a value from the closed
+    /// <see cref="KundaliReportFailureCodes"/> set - never an exception message - so nothing a renderer says can reach
+    /// a user as server prose.
+    /// </summary>
+    private async Task<KundaliReport> ProduceAsync(Guid accountId, KundaliReport queued, CancellationToken token)
+    {
+        if (!reportRenderer.IsAvailable)
+            return await SettleFailedAsync(accountId, queued, KundaliReportFailureCodes.RendererUnavailable, token);
+
+        KundaliReportRenderResult rendered;
+        try
+        {
+            // Rebuilt from the stored record rather than a caller's request object: what renders must be what was
+            // admitted, so a store's own copy is the only safe input here.
+            var admitted = new KundaliReportRequest(queued.Variant, queued.Sections);
+            rendered = await reportRenderer.RenderAsync(accountId, queued.ProfileId, admitted, queued.Revision,
+                token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // A renderer that throws is a generation failure, not a server error the caller can act on. The exception
+            // message is deliberately not propagated: it is free text, and this contract has no field for free text.
+            return await SettleFailedAsync(accountId, queued, KundaliReportFailureCodes.GenerationFailed, token);
+        }
+
+        if (!rendered.Succeeded)
+            return await SettleFailedAsync(accountId, queued,
+                rendered.FailureCode ?? KundaliReportFailureCodes.GenerationFailed, token);
+
+        // Empty sections are reported alongside a ready document, so a caller can tell a short report from a complete
+        // one. They do not fail the report: the sections that DID render are still worth reading.
+        var failures = rendered.EmptySections
+            .Select(section => new KundaliReportFailure(section, KundaliReportFailureCodes.SectionEmpty))
+            .ToArray();
+
+        return await reportStore.SettleAsync(accountId, queued.ProfileId, queued.ReportId,
+            KundaliReportStatus.Ready, rendered.DocumentReference, null, failures, clock, token);
+    }
+
+    private Task<KundaliReport> SettleFailedAsync(Guid accountId, KundaliReport queued, string code,
+        CancellationToken token) =>
+        reportStore.SettleAsync(accountId, queued.ProfileId, queued.ReportId, KundaliReportStatus.Failed, null, null,
+            [new KundaliReportFailure(string.Empty, code)], clock, token);
 
 
     /// <summary>

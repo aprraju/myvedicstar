@@ -154,10 +154,89 @@ public static class KundaliReportStatus
     public static readonly IReadOnlyList<string> All = [Queued, Running, Ready, Failed];
 }
 
-/// <summary>A reason a report could not be generated. `Path` names the thing that failed and `Reason` says what
-/// happened, so an unlisted reason still renders as a reason with its location rather than collapsing to silence.
-/// The pair is the contract; the set of reason strings is not closed.</summary>
-public sealed record KundaliReportFailure(string Path, string Reason);
+/// <summary>Which report sections this renderer currently supports (api#57, B2). Discoverable so a client offers
+/// only what will be accepted, rather than inventing ids and drifting from the server's structure.
+/// <para>This is NOT a capability probe performed at runtime: it is a closed, compile-time set published in the
+/// contract package, because a section id the server accepts cannot depend on which host answered.</para></summary>
+public static class KundaliReportSections
+{
+    /// <summary>Sections a short report renders. Every id is a member of <see cref="KundaliSections.All"/>.</summary>
+    public static readonly IReadOnlyList<string> Short =
+        [KundaliSections.Overview, KundaliSections.Planets, KundaliSections.Dashas];
+
+    /// <summary>Sections a detailed report renders - the short set plus the analytic ones.</summary>
+    public static readonly IReadOnlyList<string> Detailed =
+    [
+        KundaliSections.Overview, KundaliSections.Charts, KundaliSections.Planets, KundaliSections.Dashas,
+        KundaliSections.Yogas, KundaliSections.Ashtakavarga, KundaliSections.Bala, KundaliSections.Transits,
+        KundaliSections.Interpretations
+    ];
+
+    /// <summary>Every section any variant can render. The union, so a client can present one catalogue.</summary>
+    public static readonly IReadOnlyList<string> AnyVariant =
+        Detailed.Concat(Short).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+
+    /// <summary>The sections a given variant accepts, in the order this contract fixes. Unknown variant: empty, so the
+    /// caller sees "nothing supported" rather than an arbitrary default set.</summary>
+    public static IReadOnlyList<string> For(string variant) => variant switch
+    {
+        KundaliReportVariants.Short => Short,
+        KundaliReportVariants.Detailed => Detailed,
+        _ => []
+    };
+
+    /// <summary>True when this contract defines the id at all - independent of variant.</summary>
+    public static bool IsDefined(string section) => AnyVariant.Contains(section, StringComparer.Ordinal);
+
+    /// <summary>True when this variant accepts the id. Both halves are needed: a defined id can still be rejected by a
+    /// variant, and treating those as one check is how a short report silently gains a section it never rendered.</summary>
+    public static bool IsSupported(string variant, string section) =>
+        For(variant).Contains(section, StringComparer.Ordinal);
+}
+
+/// <summary>The closed vocabulary of report failure codes (api#57, B1). Every `RelatesTo` a failure names is a
+/// member here, so a client can map it through its catalogue and a server sentence can never reach a user.
+/// <para>This was an open string, which is the one route by which server prose reaches the UI - the overview
+/// contract forbids that outright, and every other Kundali reason is a code for the same reason. Detail that is not
+/// renderable lives in `Detail`, which is never shown directly.</para></summary>
+public static class KundaliReportFailureCodes
+{
+    /// <summary>Generation ran and produced no usable document. Terminal.</summary>
+    public const string GenerationFailed = "generation-failed";
+
+    /// <summary>The source profile revision moved while the report was being produced. Terminal; the caller
+    /// re-requests against the current revision.</summary>
+    public const string SourceStale = "source-stale";
+
+    /// <summary>The profile was deleted, so the report can no longer be produced or retained. Terminal.</summary>
+    public const string ProfileDeleted = "profile-deleted";
+
+    /// <summary>No renderer is configured in this host. Terminal for this host, not for the report concept: the same
+    /// request succeeds on a host that has one.</summary>
+    public const string RendererUnavailable = "renderer-unavailable";
+
+    /// <summary>One or more requested sections produced no content. The report may still be `ready`; this names the
+    /// section that came back empty rather than letting a short document imply a complete one.</summary>
+    public const string SectionEmpty = "section-empty";
+
+    /// <summary>A requested section is not supported by this renderer. Named so a caller can stop requesting it.</summary>
+    public const string SectionUnsupported = "section-unsupported";
+
+    public static readonly IReadOnlyList<string> All =
+        [GenerationFailed, SourceStale, ProfileDeleted, RendererUnavailable, SectionEmpty, SectionUnsupported];
+}
+
+/// <summary>A reason a report could not be produced. `Section` names WHAT was being produced (a member of
+/// <see cref="KundaliSections.All"/>, or empty for a whole-report failure) and `Code` says what happened, from the
+/// closed <see cref="KundaliReportFailureCodes"/> set.
+/// <para>`Code` is closed on purpose. An unlisted reason here would be a server-controlled string rendered to a user,
+/// which is the defect this record was changed to remove: a client cannot translate it, and the next author cannot
+/// tell whether it is safe to show. `Detail` carries anything else and is documented as never rendered.</para></summary>
+public sealed record KundaliReportFailure(string Section, string Code, string? Detail = null)
+{
+    /// <summary>The code is one this contract defines. A caller can rely on it; a server can be tested against it.</summary>
+    public bool IsKnownCode => KundaliReportFailureCodes.All.Contains(Code, StringComparer.Ordinal);
+}
 
 /// <summary>KUN-17 report request. `Sections` must be a non-empty subset of the published closed set; `Variant`
 /// must be one of <see cref="KundaliReportVariants"/>. An empty selection is a caller error, not a request for a

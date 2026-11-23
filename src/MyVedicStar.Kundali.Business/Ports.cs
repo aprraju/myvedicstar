@@ -339,3 +339,55 @@ public interface IKundaliAlertRepository
     Task<IReadOnlyList<KundaliAlertPreference>> GetForDeliveryAsync(Guid accountId, Guid profileId,
         CancellationToken token);
 }
+
+/// <summary>
+/// KUN-17 (api#57) storage for report records. Kept a port so the lifecycle can be tested without a database, and so
+/// the renderer and the store can be swapped independently.
+/// </summary>
+/// <remarks>
+/// Ownership is part of the query, not a check the caller performs afterwards: a read for a report the account does not
+/// own must be indistinguishable from a read for a report that does not exist, or the endpoint becomes an existence
+/// oracle.
+/// </remarks>
+public interface IKundaliReportStore
+{
+    /// <summary>Creates the queued record for this account and profile, bound to <paramref name="sourceRevision"/>.
+    /// A record already queued or running for the same profile and revision is returned unchanged rather than
+    /// duplicated, so a repeated click does not start a second render.</summary>
+    Task<KundaliReport> EnqueueAsync(Guid accountId, Guid profileId, KundaliReportRequest request,
+        long sourceRevision, TimeProvider clock, CancellationToken token);
+
+    /// <summary>The report, or null when it does not exist, is not owned by the account, or its profile was deleted.
+    /// The three cases are deliberately one answer.</summary>
+    Task<KundaliReport?> FindAsync(Guid accountId, Guid profileId, Guid reportId, CancellationToken token);
+
+    /// <summary>Writes a settled state. Used by generation once the document exists or the attempt failed.</summary>
+    Task<KundaliReport> SettleAsync(Guid accountId, Guid profileId, Guid reportId, string status, string? downloadUrl,
+        DateTimeOffset? downloadExpiresAtUtc, IReadOnlyList<KundaliReportFailure> failures, TimeProvider clock,
+        CancellationToken token);
+}
+
+/// <summary>
+/// KUN-17 (api#57) document production. A port because the renderer is the one piece that needs a PDF library, and its
+/// licence review is separate from this contract change.
+/// </summary>
+public interface IKundaliReportRenderer
+{
+    /// <summary>True when this host has a working renderer. False makes generation report
+    /// <see cref="KundaliReportFailureCodes.RendererUnavailable"/> instead of pretending to generate.</summary>
+    bool IsAvailable { get; }
+
+    /// <summary>Renders the requested sections. Returns the sections that produced no content, which become
+    /// <see cref="KundaliReportFailureCodes.SectionEmpty"/> entries rather than disappearing: a short document must not
+    /// imply a complete one.</summary>
+    Task<KundaliReportRenderResult> RenderAsync(Guid accountId, Guid profileId, KundaliReportRequest request,
+        long sourceRevision, CancellationToken token);
+}
+
+/// <summary>The renderer's outcome. <paramref name="EmptySections"/> is the honest list of what came back blank.</summary>
+public sealed record KundaliReportRenderResult(
+    bool Succeeded,
+    string? DocumentReference,
+    IReadOnlyList<string> EmptySections,
+    string? FailureCode);
+

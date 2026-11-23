@@ -162,16 +162,20 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
         Ok(KundaliPreferencesResponse.From(await facade.SavePreferencesAsync(User, profileId, request.ChartStyle,
             request.Revision, token)));
 
-    /// <summary>Requests a report (KUN-17). Not implemented in this host: the report store and renderer are absent, so
-    /// the action refuses and no report is ever created.</summary>
+    /// <summary>Requests a report (KUN-17). Returns 202 with the report in a settled state; the caller polls
+    /// <c>GetReport</c> with the id from the BODY (a Location header is also sent, but a contract must not assume the
+    /// client's HTTP layer exposes headers).</summary>
     /// <remarks>
-    /// The previous declaration of 202/400/404/409 was removed in api#57. It was unreachable: <c>RequestReportAsync</c>
-    /// throws unconditionally, so the only status this route can produce is 500 — a 202 behind a note describing
-    /// <c>Location</c> was documentation for an endpoint that does not exist. The declarations belong back in the same
-    /// change that wires report generation, not before it. Cross-cutting statuses stay declared class-wide at line 18.
+    /// The declarations below are now earned: <c>RequestReportAsync</c> validates the request against two closed
+    /// vocabularies (400 on a bad variant, an empty selection, an unknown section, or a section this variant does not
+    /// render), proves ownership (404), and settles <c>failed</c> with a closed failure code rather than throwing. A
+    /// generation failure is a 202 with <c>status: failed</c>, not a 500 - it is a fact about the report, and the
+    /// caller's next action is to read why.
     /// </remarks>
     [HttpPost("{profileId:guid}/reports"), RevisionCacheHeaders,
-     ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
+     ProducesResponseType<KundaliReportResponse>(StatusCodes.Status202Accepted),
+     ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json"),
+     ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<KundaliReportResponse>> RequestReport(Guid profileId,
         KundaliReportRequestResponse request, CancellationToken token)
     {
@@ -181,15 +185,16 @@ public sealed class KundaliController(IKundaliFacade facade) : ControllerBase
         return AcceptedAtAction(nameof(GetReport), new { profileId, reportId = report.ReportId }, report);
     }
 
-    /// <summary>Reads report state, and the download URL once ready. Not implemented in this host.</summary>
+    /// <summary>Reads report state, and the download URL once ready with the instant it dies.</summary>
     /// <remarks>
-    /// The previous declaration of 200/404/410 was removed in api#57, unreachable for the same reason as the POST
-    /// above: <c>GetReportAsync</c> throws unconditionally. The 410 ruling is NOT withdrawn — an expired or revoked
-    /// lease remains a distinct fact from 404, and <c>KundaliReportDownloadLease</c> still implements and tests it.
-    /// Only the unearned HTTP declaration is removed, to return with the surface that can produce it.
+    /// 200 and 404 are earned. <b>410 is deliberately NOT declared</b>: an expired download URL is refused at the
+    /// download route (which does not exist yet), not here - this read reports the report, and a report with an expired
+    /// URL is still a readable report. <c>KundaliReportDownloadLease</c> implements the expiry rule and is unit-tested;
+    /// declaring 410 on this route would be the same unearned promise api#57 removed.
     /// </remarks>
     [HttpGet("{profileId:guid}/reports/{reportId:guid}"), RevisionCacheHeaders,
-     ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
+     ProducesResponseType<KundaliReportResponse>(StatusCodes.Status200OK),
+     ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<KundaliReportResponse>> GetReport(Guid profileId, Guid reportId,
         CancellationToken token) =>
         Ok(KundaliReportResponse.From(await facade.GetReportAsync(User, profileId, reportId, token)));
