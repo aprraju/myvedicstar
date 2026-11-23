@@ -140,6 +140,48 @@ public static class KundaliReportVariants
     public static readonly IReadOnlyList<string> All = [Short, Detailed];
 }
 
+/// <summary>Which report sections each variant renders (api#57). Declared here because the merge order requires it: the
+/// renderer cannot compile without the closed set it selects from. PR #198 declares the same shape; whichever merges
+/// second drops its copy.</summary>
+/// <remarks>
+/// <para>This is NOT a runtime capability probe. It is a closed, compile-time set published in the contract package,
+/// because a section id the server accepts cannot depend on which host answered.</para>
+/// </remarks>
+public static class KundaliReportSections
+{
+    /// <summary>Sections a short report renders. Every id is a member of <see cref="KundaliSections.All"/>.</summary>
+    public static readonly IReadOnlyList<string> Short =
+        [KundaliSections.Overview, KundaliSections.Planets, KundaliSections.Dashas];
+
+    /// <summary>Sections a detailed report renders - the short set plus the analytic ones.</summary>
+    public static readonly IReadOnlyList<string> Detailed =
+    [
+        KundaliSections.Overview, KundaliSections.Charts, KundaliSections.Planets, KundaliSections.Dashas,
+        KundaliSections.Yogas, KundaliSections.Ashtakavarga, KundaliSections.Bala, KundaliSections.Transits,
+        KundaliSections.Interpretations
+    ];
+
+    /// <summary>Every section any variant can render. The union, so a client can present one catalogue.</summary>
+    public static readonly IReadOnlyList<string> AnyVariant =
+        Detailed.Concat(Short).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+
+    /// <summary>The sections a given variant accepts, in the order this contract fixes. An unknown variant yields
+    /// empty, so the caller sees "nothing supported" rather than an arbitrary default set.</summary>
+    public static IReadOnlyList<string> For(string variant) => variant switch
+    {
+        KundaliReportVariants.Short => Short,
+        KundaliReportVariants.Detailed => Detailed,
+        _ => []
+    };
+
+    /// <summary>True when the id names a section any variant can render.</summary>
+    public static bool IsDefined(string section) => AnyVariant.Contains(section, StringComparer.Ordinal);
+
+    /// <summary>True when the named variant renders the section.</summary>
+    public static bool IsSupported(string variant, string section) =>
+        For(variant).Contains(section, StringComparer.Ordinal);
+}
+
 /// <summary>KUN-17 report lifecycle. Deliberately has no `stale` member: a report generated from a superseded
 /// revision is not a new state, it is a <see cref="KundaliReportStatus"/> that no longer matches the profile's current
 /// revision, which the caller detects by comparing `Revision` with the profile. Adding a state here would make the

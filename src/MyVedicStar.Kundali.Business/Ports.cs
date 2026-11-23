@@ -406,3 +406,29 @@ public interface IKundaliReportStore
         CancellationToken token);
 }
 
+/// KUN-17 (api#57) document production. A port because the renderer is the one piece that needs a PDF library, and its
+/// licence review is separate from this contract change.
+/// </summary>
+/// <remarks>
+/// <para><b>Declared here because the merge order requires it.</b> PR #198 adds this same declaration along with the
+/// request validator; this PR lands the renderer and cannot compile without the contract it implements. Whichever of the
+/// two merges second drops its copy - the shapes are identical, so the second merge is a deletion and not a re-write.</para>
+/// </remarks>
+public interface IKundaliReportRenderer
+{
+    /// <summary>True when this host has a working renderer. False makes generation report
+    /// <c>renderer-unavailable</c> instead of pretending to generate.</summary>
+    bool IsAvailable { get; }
+
+    /// <summary>Renders the requested sections. Returns the sections that produced no content, which become
+    /// <c>section-empty</c> entries rather than disappearing: a short document must not imply a complete one.</summary>
+    Task<KundaliReportRenderResult> RenderAsync(Guid accountId, Guid profileId, KundaliReportRequest request,
+        long sourceRevision, CancellationToken token);
+}
+
+/// <summary>The renderer's outcome. <paramref name="EmptySections"/> is the honest list of what came back blank.</summary>
+public sealed record KundaliReportRenderResult(
+    bool Succeeded,
+    string? DocumentReference,
+    IReadOnlyList<string> EmptySections,
+    string? FailureCode);
