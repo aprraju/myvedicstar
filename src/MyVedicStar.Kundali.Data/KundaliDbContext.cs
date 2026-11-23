@@ -156,6 +156,31 @@ internal sealed class KundaliAshtakootaComparisonEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
 }
 
+/// <summary>
+/// KUN-17 (api#57) one report request. Written before generation and settled after it, so a caller who polls always
+/// reads a row that exists rather than racing the renderer for one.
+/// </summary>
+/// <remarks>
+/// <c>UserId</c> is on the row, not only on a join: report reads are owner-scoped, and a query that filtered through the
+/// profile would make "not mine" and "does not exist" different amounts of work - a timing difference the
+/// 404-indistinguishability requirement exists to prevent.
+/// </remarks>
+internal sealed class KundaliReportEntity
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public Guid ProfileId { get; set; }
+    public string Variant { get; set; } = "";
+    public string Sections { get; set; } = "";
+    public string Status { get; set; } = "";
+    public long SourceRevision { get; set; }
+    public DateTimeOffset RequestedAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
+    public string? DocumentReference { get; set; }
+    public string? FailuresJson { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
 internal sealed class AccountReference { public Guid Id { get; set; } }
 
 /// <summary>
@@ -190,6 +215,7 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
     public DbSet<KundaliProfileInvalidationEntity> ProfileInvalidations => Set<KundaliProfileInvalidationEntity>();
     public DbSet<KundaliAlertPreferenceEntity> AlertPreferences => Set<KundaliAlertPreferenceEntity>();
     public DbSet<KundaliAshtakootaComparisonEntity> Comparisons => Set<KundaliAshtakootaComparisonEntity>();
+    public DbSet<KundaliReportEntity> Reports => Set<KundaliReportEntity>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -292,6 +318,39 @@ internal sealed class KundaliDbContext(DbContextOptions<KundaliDbContext> option
             // produce a second event, so consumers can be idempotent on the revision and still be correct.
             b.HasIndex(x => new { x.UserId, x.ProfileId, x.NewRevision }).IsUnique()
                 .HasDatabaseName("UX_KundaliProfileInvalidations_UserProfileRevision");
+        });
+
+        model.Entity<KundaliReportEntity>(b =>
+        {
+            b.ToTable("KundaliReports", table =>
+            {
+                // The closed vocabularies, enforced at the last line of defence: a row that violates the contract cannot
+                // exist even if a future writer skips the business-layer validator.
+                table.HasCheckConstraint("CK_KundaliReports_Variant", "\"Variant\" IN ('short', 'detailed')");
+                table.HasCheckConstraint("CK_KundaliReports_Status",
+                    "\"Status\" IN ('queued', 'running', 'ready', 'failed')");
+                table.HasCheckConstraint("CK_KundaliReports_SourceRevision", "\"SourceRevision\" > 0");
+                table.HasCheckConstraint("CK_KundaliReports_CompletedAt",
+                    "(\"Status\" IN ('ready', 'failed') AND \"CompletedAtUtc\" IS NOT NULL) OR "
+                    + "(\"Status\" NOT IN ('ready', 'failed') AND \"CompletedAtUtc\" IS NULL)");
+            });
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedNever();
+            b.Property(x => x.Variant).HasMaxLength(16).IsRequired();
+            b.Property(x => x.Sections).HasMaxLength(256).IsRequired();
+            b.Property(x => x.Status).HasMaxLength(16).IsRequired();
+            b.Property(x => x.DocumentReference).HasMaxLength(512);
+            b.Property(x => x.SourceRevision).HasDefaultValue(0L);
+            b.HasOne<AccountReference>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+
+            // Owner-scoped reads are the only reads this table serves, so the index leads with the owner.
+            b.HasIndex(x => new { x.UserId, x.ProfileId, x.RequestedAtUtc })
+                .HasDatabaseName("IX_KundaliReports_UserProfileRequested");
+
+            // api#57: one report per (owner, profile, revision). A re-request returns the existing record instead of
+            // starting a second render.
+            b.HasIndex(x => new { x.UserId, x.ProfileId, x.SourceRevision }).IsUnique()
+                .HasDatabaseName("UX_KundaliReports_UserProfileRevision");
         });
 
         model.Entity<KundaliAlertPreferenceEntity>(b =>

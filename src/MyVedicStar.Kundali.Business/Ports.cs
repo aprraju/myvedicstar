@@ -376,3 +376,33 @@ public interface IKundaliAlertRepository
     Task<IReadOnlyList<KundaliAlertPreference>> GetForDeliveryAsync(Guid accountId, Guid profileId,
         CancellationToken token);
 }
+
+/// <summary>
+/// KUN-17 (api#57) storage for report records. A port so the lifecycle is testable without a database.
+/// </summary>
+/// <remarks>
+/// Ownership is part of every query, not a check performed afterwards. A read for a report the account does not own must
+/// be indistinguishable from a read for one that does not exist - otherwise the endpoint becomes an existence oracle,
+/// which the tests assert at the level of the identical answer rather than the status code alone.
+/// </remarks>
+public interface IKundaliReportStore
+{
+    /// <summary>Creates the queued record for this account and profile, bound to <paramref name="sourceRevision"/>.
+    /// A record already present for the same profile and revision is returned unchanged, so a repeated request does not
+    /// produce a second report for one revision.</summary>
+    Task<KundaliReport> EnqueueAsync(Guid accountId, Guid profileId, KundaliReportRequest request,
+        long sourceRevision, TimeProvider clock, CancellationToken token);
+
+    /// <summary>The report, or null when it does not exist, is not owned by the account, or its profile was deleted.
+    /// The three cases are deliberately one answer.</summary>
+    Task<KundaliReport?> FindAsync(Guid accountId, Guid profileId, Guid reportId, CancellationToken token);
+
+    /// <summary>Every report for this owner and profile, newest first.</summary>
+    Task<IReadOnlyList<KundaliReport>> ListAsync(Guid accountId, Guid profileId, CancellationToken token);
+
+    /// <summary>Writes a settled state once the document exists or the attempt failed.</summary>
+    Task<KundaliReport> SettleAsync(Guid accountId, Guid profileId, Guid reportId, string status, string? downloadUrl,
+        DateTimeOffset? downloadExpiresAtUtc, IReadOnlyList<KundaliReportFailure> failures, TimeProvider clock,
+        CancellationToken token);
+}
+
