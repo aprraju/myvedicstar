@@ -23,6 +23,7 @@ public sealed class KundaliComparisonFacadeTests : IDisposable
     private readonly Guid accountId = Guid.NewGuid();
     private readonly Guid profileA = new("11111111-1111-1111-1111-111111111111");
     private readonly Guid profileB = new("22222222-2222-2222-2222-222222222222");
+    private readonly Guid anyProfile = new("33333333-3333-3333-3333-333333333333");
     private readonly IKundaliProfileReader profiles = Substitute.For<IKundaliProfileReader>();
     private readonly IKundaliRepository repository = Substitute.For<IKundaliRepository>();
     private readonly IKundaliCalculationEngine engine = Substitute.For<IKundaliCalculationEngine>();
@@ -79,6 +80,26 @@ public sealed class KundaliComparisonFacadeTests : IDisposable
             facade.CompareAsync(user, profileA, profileB, Token));
         await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
             facade.CompareAsync(user, profileB, profileA, Token));
+    }
+
+    [Fact]
+    public async Task A_foreign_profile_is_404_and_never_403_so_the_route_cannot_become_an_ownership_oracle()
+    {
+        // 404 vs 403 is a security property, not an ergonomics one: a 403 tells the caller the profile EXISTS but is
+        // not theirs, which is exactly the probe this endpoint must refuse. The profile reader returns null for both
+        // "not yours" and "not there", and the facade maps that to ResourceNotFoundException - never to a
+        // forbidden/authorization exception - so the two cases are indistinguishable from outside.
+        profiles.GetSnapshotAsync(user, anyProfile, Token).Returns((KundaliInputSnapshot?)null);
+
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() => facade.CompareAsync(user, profileA, anyProfile, Token));
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() => facade.CompareAsync(user, anyProfile, profileB, Token));
+
+        // Explicit cast to the exact type the API maps to 404, so a later change to a broader exception type that the
+        // pipeline renders as 403 would fail here rather than silently becoming an ownership oracle.
+        var thrown = await Record.ExceptionAsync(() => facade.CompareAsync(user, profileA, anyProfile, Token));
+        Assert.IsType<ResourceNotFoundException>(thrown);
+        Assert.IsNotType<UnauthorizedAccessException>(thrown);
+        Assert.DoesNotContain("Forbidden", thrown!.GetType().Name, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
