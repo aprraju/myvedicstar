@@ -7,5 +7,8 @@
     <ProjectReference Include="../MyVedicStar.Settings.Business/MyVedicStar.Settings.Business.csproj" />
     <ProjectReference Include="../MyVedicDay.Astronomy.Calculation/MyVedicDay.Astronomy.Calculation.csproj" />
     <ProjectReference Include="../MyVedicStar.Kundali.Calculation/MyVedicStar.Kundali.Calculation.csproj" />
+    <!-- api#54 (KUN-14): interpretation narration reuses the existing AI integration port (ADR-0012); no new provider. -->
+    <ProjectReference Include="../MyVedicDay.Ai.Shared/MyVedicDay.Ai.Shared.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
   </ItemGroup>
 </Project>
