@@ -1,110 +1,110 @@
 # Api#214: a failed migration must print the job's own log before it throws.
 #
 # This is a FAILURE path, so a happy-path test proves nothing. The point of the change is that on
-# Failed/Stopped the script retrieves and prints the container app job's log, which is where the EF error
-# lives. The stub az below returns Failed and a realistic EF failure body, and the assertions are on what
-# the script PRINTED - not merely on the fact that it exited non-zero, which was already true before.
+# Failed/Stopped the script retrieves and prints the container app job's log, where the EF error lives.
+# Assertions are on what the script PRINTED - not on the fact that it exited non-zero, which was already
+# true before the change.
 #
-# No Azure resource is contacted: az is shadowed on PATH by a script that records its arguments and
-# answers from a table.
+# The fake follows the convention of MigrationContract.Tests.ps1: a PowerShell function named `az` shadowing
+# the real CLI, recording every call. An earlier attempt put a shell-script stub on PATH instead and it never
+# ran, because another test in this step had already defined a global `az` function that Windows and pwsh
+# resolve before PATH. Defining the function here is both simpler and immune to that.
 $ErrorActionPreference = 'Stop'
-$repositoryPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$scriptPath = Join-Path $repositoryPath 'deploy/scripts/run-migrations.ps1'
-if (-not (Test-Path -LiteralPath $scriptPath)) { throw "Missing script: $scriptPath" }
+$runner = Join-Path $PSScriptRoot '../../deploy/scripts/run-migrations.ps1'
+if (-not (Test-Path -LiteralPath $runner)) { throw "Missing script: $runner" }
 
-# The EF failure body the job would have written. Asserted on verbatim, because the whole defect is that
-# this text used to be discarded.
-$efError = @'
-info: Microsoft.EntityFrameworkCore.Migrations[20402]
-      Applying migration '20261122_AddKundaliComparisonTable'.
-fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
-      Failed executing DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
-      CREATE TABLE "KundaliComparisons" (
-          "Id" uuid NOT NULL,
-          "ProfileAId" uuid NOT NULL,
-          CONSTRAINT "PK_KundaliComparisons" PRIMARY KEY ("Id")
-      );
-Npgsql.PostgresException (0x80004005): 42P07: relation "KundaliComparisons" already exists
-   at Npgsql.Internal.Postgres.NpgsqlConnector.HandleCriticalMessage(Byte code)
-'@
+# The EF failure body the job would have written. Asserted on verbatim: the whole defect is that this text
+# used to be discarded, so if it does not reach the step output nothing has been fixed.
+$efLines = @(
+    'info: Microsoft.EntityFrameworkCore.Migrations[20402]'
+    "      Applying migration '20261122_AddKundaliComparisonTable'."
+    'fail: Microsoft.EntityFrameworkCore.Database.Command[20102]'
+    '      Failed executing DbCommand (2ms) [Parameters=[], CommandType=''Text'', CommandTimeout=''30'']'
+    '      CREATE TABLE "KundaliComparisons" ('
+    '          "Id" uuid NOT NULL,'
+    '          CONSTRAINT "PK_KundaliComparisons" PRIMARY KEY ("Id")'
+    '      );'
+    'Npgsql.PostgresException (0x80004005): 42P07: relation "KundaliComparisons" already exists'
+)
 
-$stubDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mig-stub-" + [guid]::NewGuid().ToString('N').Substring(0,8))
-New-Item -ItemType Directory -Path $stubDir | Out-Null
-$stubLog = Join-Path $stubDir 'calls.log'
-
-# The stub answers by subcommand: job show/update/start/execution show succeed, and execution show reports
-# Failed so the diagnostics branch is the one under test. `logs show` prints the EF body.
-$stubPath = Join-Path $stubDir 'az'
-$stub = @'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "__CALLS__"
-args="$*"
-case "$args" in
-  *'job logs show'*)
-    printf '%s\n' __EF__
-    exit 0 ;;
-  *'job execution show'*)
-    echo 'Failed'
-    exit 0 ;;
-  *'job start'*)
-    echo 'caj-myvedicstar-migrate-prod-abc123'
-    exit 0 ;;
-  *'job update'*)
-    exit 0 ;;
-  *'job show'*)
-    echo '/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/jobs/caj-myvedicstar-migrate-prod'
-    exit 0 ;;
-  *'account show'*)
-    echo 'sub-id'
-    exit 0 ;;
-  *) exit 0 ;;
-esac
-'@
-$stub = $stub.Replace('__CALLS__', $stubLog).Replace('__EF__', $efError)
-Set-Content -LiteralPath $stubPath -Value $stub -NoNewline
-& chmod +x $stubPath
-
-$previousPath = $env:PATH
-$env:PATH = "$stubDir$([System.IO.Path]::PathSeparator)$env:PATH"
-$env:REGISTRY_NAME = 'testregistry'
-$env:IMAGE_TAG = 'deadbeef'
-$env:RESOURCE_GROUP_NAME = 'rg-test'
-$env:AZURE_SUBSCRIPTION_ID = 'sub-id'
-
-try {
-    $output = & pwsh -NoProfile -File $scriptPath 2>&1 | Out-String
-    $threw = $false
-    $errorText = ''
-    if ($LASTEXITCODE -ne 0) {
-        $threw = $true
-        $errorText = $output
+$global:diagCalls = [Collections.Generic.List[object]]::new()
+$global:diagStatus = 'Failed'
+$global:diagLogFails = $false
+$global:diagDeclaredContainers = 'migrator'
+function global:az {
+    $global:LASTEXITCODE = 0
+    $global:diagCalls.Add(@($args))
+    $text = $args -join ' '
+    if ($args[0] -eq 'account') { return 'sub-id' }
+    # Order matters: every one of these strings contains 'job', and 'job logs show' / 'job execution show'
+    # both contain 'show'. The most specific patterns are tested first so a broader one cannot shadow them.
+    if ($text -like '*job logs show*') {
+        if ($global:diagLogFails) { $global:LASTEXITCODE = 1; return 'ERROR: container not found' }
+        return $efLines
     }
-}
-finally {
-    $env:PATH = $previousPath
-    Remove-Item -LiteralPath $stubDir -Recurse -Force -ErrorAction SilentlyContinue
+    if ($text -like '*job execution show*') { return $global:diagStatus }
+    if ($text -like '*job start*') { return 'caj-myvedicstar-migrate-prod-abc123' }
+    if ($text -like '*job update*') { return }
+    if ($text -like '*job show*') { return $global:diagDeclaredContainers }
+    return
 }
 
 function Assert-Mentions([string] $Haystack, [string] $Needle, [string] $Because) {
-    if (-not $Haystack.Contains($Needle)) { throw "$Because`n--- looked for: $Needle ---`n--- output was: ---`n$Haystack" }
+    if (-not $Haystack.Contains($Needle)) {
+        throw "$Because`n--- looked for: $Needle ---`n--- output was: ---`n$Haystack"
+    }
 }
 
-# 1. The failure verdict is unchanged - the script still fails on Failed.
-if (-not $threw) { throw 'Migration script did not fail on a Failed execution; the verdict semantics changed' }
+try {
+    # Run the real runner with arguments, capturing everything it writes.
+    $global:diagCalls.Clear()
+    $threw = $false
+    $output = ''
+    try {
+        $output = (& $runner -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id) 2>&1 | Out-String
+    }
+    catch {
+        $threw = $true
+        $output = $_.Exception.Message + [Environment]::NewLine + ($_ | Out-String)
+    }
 
-# 2. The log was actually fetched, with the documented argument names.
-$calls = Get-Content -LiteralPath $stubLog -Raw
-Assert-Mentions $calls 'job logs show' 'The script never asked for the job logs; the whole change is missing'
-Assert-Mentions $calls '--execution caj-myvedicstar-migrate-prod-abc123' 'Log fetch must name the failed execution'
-Assert-Mentions $calls '--tail 100' 'Log fetch must be tail-limited so the step stays readable'
+    # 1. Verdict unchanged - still fails on Failed. Pinned FIRST because it is the regression this change
+    #    could plausibly cause, and a diagnostics helper must never make a failure look like a pass.
+    if (-not $threw) { throw 'Migration script did not fail on a Failed execution; the verdict semantics changed' }
 
-# 3. The EF error reached the step output - the defect being fixed.
-Assert-Mentions $output 'Applying migration' 'The EF migration name must appear in the step log'
-Assert-Mentions $output '42P07: relation "KundaliComparisons" already exists' 'The SQLSTATE and failing statement must appear in the step log'
-Assert-Mentions $output '--- Migration job log' 'The printed log must be delimited so it is legible next to the wrapper output'
+    # 2. The log was actually fetched, for the right execution, with a bounded tail.
+    $calls = ($global:diagCalls | ForEach-Object { $_ -join ' ' }) -join [Environment]::NewLine
+    Assert-Mentions $calls 'job logs show' 'The script never asked for the job logs; the change is missing'
+    Assert-Mentions $calls '--execution caj-myvedicstar-migrate-prod-abc123' 'Log fetch must name the failed execution'
+    Assert-Mentions $calls '--tail 100' 'Log fetch must be tail-limited so the step stays readable'
 
-# 4. The throw still names the execution and points at the printed log.
-Assert-Mentions $output 'caj-myvedicstar-migrate-prod-abc123' 'The failure message must name the execution'
-Assert-Mentions $output 'API deployment stopped' 'The original failure wording must survive, so nothing downstream keying on it breaks'
+    # 3. The EF error reached the step output - the defect being fixed.
+    Assert-Mentions $output 'Applying migration' 'The EF migration name must appear in the step log'
+    Assert-Mentions $output '42P07: relation "KundaliComparisons" already exists' 'The SQLSTATE and failing statement must appear in the step log'
+    Assert-Mentions $output '--- Migration job log' 'The printed log must be delimited so it is legible beside wrapper output'
 
-Write-Host 'Migration failure diagnostics: log fetched, EF error printed, verdict unchanged.'
+    # 4. The throw still names the execution and keeps the original wording.
+    Assert-Mentions $output 'caj-myvedicstar-migrate-prod-abc123' 'The failure message must name the execution'
+    Assert-Mentions $output 'API deployment stopped' 'Original wording must survive so anything keying on it still works'
+
+    # 5. A log that cannot be read must not change the verdict, and must say what it tried.
+    $global:diagLogFails = $true
+    $global:diagDeclaredContainers = 'real-migrator-container'
+    $global:diagCalls.Clear()
+    $threw2 = $false
+    $output2 = ''
+    try {
+        $output2 = (& $runner -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id) 2>&1 | Out-String
+    }
+    catch { $threw2 = $true; $output2 = $_.Exception.Message + [Environment]::NewLine + ($_ | Out-String) }
+    if (-not $threw2) { throw 'An unreadable log changed the verdict: a diagnostics failure must never turn a failed migration into a pass' }
+    Assert-Mentions $output2 'Could not read logs for container' 'An unreadable log must be reported, not silently skipped'
+    Assert-Mentions $output2 'real-migrator-container' 'The fallback must name the containers the job actually declares'
+    Assert-Mentions $output2 'API deployment stopped' 'The verdict wording must survive a diagnostics failure too'
+
+    Write-Host 'Migration failure diagnostics: log fetched and printed, EF error in step output, fallback names real containers, verdict unchanged in both branches.'
+}
+finally {
+    Remove-Item Function:global:az -ErrorAction SilentlyContinue
+    Remove-Variable diagCalls, diagStatus, diagLogFails, diagDeclaredContainers -Scope Global -ErrorAction SilentlyContinue
+}
