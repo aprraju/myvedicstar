@@ -22,8 +22,13 @@ ARG DOTNET_VERSION=10.0
 # --build-context outright, because named contexts are a docker buildx feature the CLI does not forward. The
 # directory keeps it out of the publish output proper, so this file still reads as a consumer of that output.
 FROM ubuntu:24.04 AS spice-fetch
-RUN apt-get update \\
-    && apt-get install --yes --no-install-recommends curl ca-certificates ncompress \\
+# gcc is REQUIRED, not incidental (api#211): N0067 ships only STATIC archives, so provision-spice.sh relinks
+# cspice.a into libcspice.so with 'cc'. This image went without a compiler until the parse fix let the build reach
+# this RUN, and the first real run failed with 'line 86: cc: command not found' (run 45471760016). The CI job that
+# provisions the toolkit on a runner has gcc because GitHub's ubuntu image includes build-essential; this minimal
+# stage does not, so the dependency has to be stated here rather than inherited from a CI assumption.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl ca-certificates ncompress gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /provision
 COPY spice-scripts/provision-spice.sh /provision/provision-spice.sh
@@ -35,8 +40,8 @@ RUN bash /provision/provision-spice.sh /out
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION}-noble-chiseled-extra
 WORKDIR /app
 
-ENV ASPNETCORE_HTTP_PORTS=8080 \\
-    DOTNET_RUNNING_IN_CONTAINER=true \\
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_RUNNING_IN_CONTAINER=true \
     DOTNET_gcServer=1
 EXPOSE 8080
 
