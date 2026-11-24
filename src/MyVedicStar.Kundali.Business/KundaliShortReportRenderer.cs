@@ -130,6 +130,7 @@ public sealed record KundaliShortReportPlan(
         var withheld = KundaliSections.All
             .Where(section => !shortSet.Contains(section, StringComparer.Ordinal))
             .Select(section => new KundaliReportFailure(section,
+                KundaliReportFailureCodes.SectionUnsupported,
                 "Not rendered by the short variant; request the detailed report for this section."))
             .ToArray();
 
