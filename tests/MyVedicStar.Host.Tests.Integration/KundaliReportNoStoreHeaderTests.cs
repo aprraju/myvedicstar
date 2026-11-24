@@ -67,8 +67,21 @@ public sealed class KundaliReportNoStoreHeaderTests
     /// Read by reflection rather than through MVC's action-descriptor provider so it needs no host, matching
     /// KundaliReportCacheDisciplineTests.
     /// </remarks>
+    /// <summary>
+    /// Each report route declares exactly the codes it can produce, asserted PER ROUTE.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why not one shared expectation.</b> This test originally asserted <c>[500]</c> for both actions, which was
+    /// true only while every route was a throwing stub. Now that the routes are real, a single list applied to both would
+    /// have to be the union <c>[202, 400, 404]</c> - and that describes NEITHER route: <c>POST</c> cannot produce 404 for
+    /// a missing report (it creates one) and <c>GET</c> cannot produce 202 (it does not enqueue). A test whose expected
+    /// value fits no subject has stopped asking its own question, which is worse than deleting it.</para>
+    /// <para><b>Every declared code names the path that produces it.</b> If a code cannot be traced to a throw or an
+    /// explicit result in the controller, it does not belong in this list - declared codes are a promise the OpenAPI
+    /// document makes on the route's behalf.</para>
+    /// </remarks>
     [Fact]
-    public void Both_report_routes_declare_only_the_500_they_can_produce()
+    public void Each_report_route_declares_only_the_codes_it_can_produce()
     {
         var reportActions = typeof(KundaliController)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -81,14 +94,38 @@ public sealed class KundaliReportNoStoreHeaderTests
             new[] { nameof(KundaliController.GetReport), nameof(KundaliController.RequestReport) },
             reportActions.Select(action => action.Name).Order().ToArray());
 
-        foreach (var action in reportActions)
-        {
-            var declared = action.GetCustomAttributes<ProducesResponseTypeAttribute>()
-                .Select(attribute => attribute.StatusCode)
-                .Order()
-                .ToArray();
+        int[] Declared(MethodInfo action) => action
+            .GetCustomAttributes<ProducesResponseTypeAttribute>()
+            .Select(attribute => attribute.StatusCode)
+            .Order()
+            .ToArray();
 
-            Assert.Equal([StatusCodes.Status500InternalServerError], declared);
-        }
+        var request = reportActions.Single(action => action.Name == nameof(KundaliController.RequestReport));
+        Assert.Equal(
+            [
+                StatusCodes.Status202Accepted,   // the report was accepted and queued
+                StatusCodes.Status400BadRequest, // KundaliReportRequestValidator: unknown variant, empty selection,
+                                                 // undefined section, or a section this variant does not render
+                StatusCodes.Status404NotFound,   // the profile lookup throws ResourceNotFoundException
+            ],
+            Declared(request));
+
+        var get = reportActions.Single(action => action.Name == nameof(KundaliController.GetReport));
+        Assert.Equal(
+            [
+                StatusCodes.Status200OK,       // the report row exists and is owned by the caller
+                StatusCodes.Status404NotFound, // no row, not owned, or profile deleted - one answer on purpose
+            ],
+            Declared(get));
+
+        // 500 is deliberately NOT in either list, and NOT declared anywhere: it is produced by the throwing store and
+        // surfaces through the global exception handler. Declaring it would promise a code no attribute names, which is
+        // the same lie as omitting one that does. The wire test above is where the 500 is asserted, because that is the
+        // only place it is real.
+
+        // 410 is deliberately absent from both: no download route and no expiry producer exist, so declaring it would be
+        // an unearned promise. Asserted explicitly so a future author cannot add it without deleting this line first.
+        Assert.DoesNotContain(StatusCodes.Status410Gone, Declared(request));
+        Assert.DoesNotContain(StatusCodes.Status410Gone, Declared(get));
     }
 }

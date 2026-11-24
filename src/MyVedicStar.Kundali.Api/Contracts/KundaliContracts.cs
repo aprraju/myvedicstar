@@ -699,15 +699,13 @@ public sealed record KundaliReportResponse(
         value.Failures.Select(KundaliReportFailureResponse.From).ToArray());
 }
 
-/// <summary>Where a generation failure happened and what happened. The pair is the contract; the reason string is
-/// open, so an unrecognised reason still renders with its path instead of collapsing to silence.</summary>
-public sealed record KundaliReportFailureResponse(string Path, string Reason)
+/// <summary>Where a generation failure happened and what happened. `Code` is from the closed
+/// `KundaliReportFailureCodes` set so a client can translate it; `Detail` is diagnostic text that is never
+/// rendered to a user.</summary>
+public sealed record KundaliReportFailureResponse(string Section, string Code, string? Detail)
 {
     public static KundaliReportFailureResponse From(MyVedicStar.Kundali.Shared.KundaliReportFailure value) =>
-        new(value.Path, value.Reason);
-
-
-
+        new(value.Section, value.Code, value.Detail);
 }
 
 /// <summary>KUN-16 remedies (api#128). Every item is bound to the finding it addresses, with that finding's status.
