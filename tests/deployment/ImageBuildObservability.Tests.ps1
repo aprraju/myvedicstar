@@ -65,6 +65,20 @@ Assert-Contains $verifyJob 'REQUIRED' 'the required state must be named'
 Assert-Contains $verifyJob 'GITHUB_STEP_SUMMARY' 'the reason must be recorded on the job summary a reviewer reads'
 
 # --- Behaviour of the decision logic, executed rather than described ------------------------------------
+#
+# LIMITATION, stated here because this is where a future editor will be looking:
+# Test-ShouldBuild below is a MIRROR of shared-deploy.yml's build-image `if:` condition, not the condition
+# itself. It proves the DECISION TABLE is right; it cannot prove the YAML implements that table. If someone
+# edits the workflow's `if:` and does not edit this function, these cases keep passing while the real gate
+# has changed.
+#
+# The only thing binding the two is the Assert-Contains checks on the YAML body above, and those are
+# substring assertions - they catch a removed or reworded gate, not a subtly altered one.
+#
+# So: changing the workflow's `if:` MUST be paired with a change to Test-ShouldBuild. Nothing will fail if
+# you forget; that is the cost of testing a workflow file without being able to run GitHub's evaluator.
+#
+# Mirrors the step's conditions so the default/opt-in split is asserted by running it, not by reading it.
 # Mirrors the step's conditions so the default/opt-in split is asserted by running it, not by reading it.
 function Test-ShouldBuild {
     param([string] $EventName, [string] $Ref, [string] $InputVerify, [string[]] $Labels, [string] $LabelName = 'verify-image-build')
