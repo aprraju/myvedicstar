@@ -64,6 +64,8 @@ jobs:
           ./tests/deployment/MigrationContract.Tests.ps1
           # Api#193: fail if the image-build gate stops being observable, or if deploy-prod loses its guard.
           ./tests/deployment/ImageBuildObservability.Tests.ps1
+          # Api#214: a failed migration must print the job's own log, not just a generic verdict.
+          ./tests/deployment/MigrationFailureDiagnostics.Tests.ps1
       - name: Verify combined publish
         run: dotnet publish src/MyVedicStar.API/MyVedicStar.API.csproj --configuration Release --no-restore --output combined-publish -p:UseAppHost=false
       - name: Smoke test published host

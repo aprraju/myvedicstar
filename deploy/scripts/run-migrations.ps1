@@ -8,6 +8,56 @@ param(
     [string] $JobResourceId = $env:MIGRATION_JOB_RESOURCE_ID
 )
 . "$PSScriptRoot/_common.ps1"
+
+function Get-MigrationJobLogTail {
+    # Retrieves the job execution's own logs and prints a bounded tail into the step output.
+    # Never throws and never changes the caller's verdict: a log we cannot fetch is reported as unavailable
+    # rather than replacing the real failure with a diagnostics error.
+    param([string] $SubscriptionId, [string] $ResourceGroup, [string] $JobName, [string] $Execution)
+
+    $container = $env:MIGRATION_JOB_CONTAINER
+    if (-not $container) { $container = 'migrator' }
+    $tailLines = 100
+
+    Write-Host ''
+    Write-Host "---- Migration job log: $Execution (last $tailLines lines) ----"
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $logs = & az containerapp job logs show --subscription $SubscriptionId --name $JobName `
+            --resource-group $ResourceGroup --execution $Execution --container $container `
+            --tail $tailLines --format text 2>&1
+        $logExit = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previous }
+
+    if ($logExit -eq 0 -and $logs) {
+        $logs | ForEach-Object { Write-Host $_ }
+        Write-Host '---- end of migration job log ----'
+        Write-Host ''
+        return
+    }
+
+    # The container name belongs to the job template, not to this script, so a wrong guess is likely.
+    # Say what was tried and what the job actually declares, rather than printing only 'no logs'.
+    Write-Host "Could not read logs for container '$container' (exit $logExit)."
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $declared = & az containerapp job show --subscription $SubscriptionId --name $JobName `
+            --resource-group $ResourceGroup --query 'properties.template.containers[].name' --output tsv 2>&1
+        $declaredExit = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previous }
+    if ($declaredExit -eq 0 -and $declared) {
+        Write-Host "Containers declared by job '$JobName': $(@($declared) -join ', ')"
+        Write-Host 'Re-run with -container <name>, or set MIGRATION_JOB_CONTAINER.'
+    }
+    Write-Host 'Diagnostics above are unavailable; the migration failure itself is unaffected.'
+    Write-Host "---- end of migration job log ($Execution) ----"
+    Write-Host ''
+}
+
 Assert-Required $RegistryName 'RegistryName'
 Initialize-AzCli
 if ($JobResourceId) {
@@ -32,7 +82,14 @@ for ($attempt = 0; $attempt -lt 120; $attempt++) {
     $status = & az containerapp job execution show --subscription $SubscriptionId --name $JobName --resource-group $ResourceGroup --job-execution-name $execution --query properties.status --output tsv
     if ($LASTEXITCODE) { throw 'Migration status lookup failed.' }
     if ($status -eq 'Succeeded') { Write-Host "Migration $execution succeeded."; return }
-    if ($status -in 'Failed', 'Stopped') { throw "Migration $execution $status. API deployment stopped." }
+    if ($status -in 'Failed', 'Stopped') {
+        # Api#214: the job's own stdout carries the EF error (migration name, failing statement, SQLSTATE),
+        # and nothing in this script previously fetched it. Printing it before the throw is the whole point of
+        # this branch: the verdict is unchanged, only the explanation stops being discarded.
+        Get-MigrationJobLogTail -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup `
+            -JobName $JobName -Execution $execution
+        throw "Migration $execution $status. API deployment stopped. The failed job's log tail is printed above, in this step log."
+    }
     Start-Sleep -Seconds 5
 }
 throw "Migration $execution did not succeed within 10 minutes."
