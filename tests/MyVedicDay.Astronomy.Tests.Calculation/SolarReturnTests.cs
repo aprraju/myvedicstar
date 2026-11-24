@@ -17,9 +17,10 @@ namespace MyVedicDay.Astronomy.Tests.Calculation;
 public sealed class SolarReturnTests
 {
     /// <summary>
-    /// The tolerance is not a settled doctrinal budget - see the class remarks in the PR. It is the positional accuracy
-    /// the ephemeris claims per ADR-0016, and it bounds what a correct solver can be expected to hit, not what a
-    /// Varshaphal convention should accept.
+    /// INHERITED, NOT DERIVED. This is ADR-0016's positional claim for the analytical ephemeris, borrowed as a bound on
+    /// solver error - it is NOT a Varshaphal accuracy doctrine. A doctrinal tolerance is an open decision on #210 and
+    /// must not be read out of this constant: it answers "can the solver find the crossing", not "is this good enough
+    /// to publish".
     /// </summary>
     private const double ToleranceDegrees = 3.0 / 3600.0;
 
