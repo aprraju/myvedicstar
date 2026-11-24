@@ -79,7 +79,6 @@ Assert-Contains $verifyJob 'GITHUB_STEP_SUMMARY' 'the reason must be recorded on
 # you forget; that is the cost of testing a workflow file without being able to run GitHub's evaluator.
 #
 # Mirrors the step's conditions so the default/opt-in split is asserted by running it, not by reading it.
-# Mirrors the step's conditions so the default/opt-in split is asserted by running it, not by reading it.
 function Test-ShouldBuild {
     param([string] $EventName, [string] $Ref, [string] $InputVerify, [string[]] $Labels, [string] $LabelName = 'verify-image-build')
     if ($Ref -eq 'refs/heads/main' -and $EventName -ne 'pull_request') { return $true }
