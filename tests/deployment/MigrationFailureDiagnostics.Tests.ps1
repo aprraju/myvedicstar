@@ -86,7 +86,16 @@ try {
         Write-Host ('RESULT: threw - ' + $_.Exception.Message)
     }
 }
-finally { Stop-Transcript | Out-Null }
+finally {
+    # The transcript must be the LAST thing flushed: the runner's own Write-Host lines are only written
+    # to it when the host flushes, which happens as the transcript closes. An earlier revision stopped
+    # the transcript before those lines landed and then read a file containing only the header, so the
+    # assertions saw an empty log while the output was demonstrably in the step. Flush first, then stop,
+    # then give the writer a moment before the parent reads the file.
+    [Console]::Out.Flush()
+    Start-Sleep -Milliseconds 250
+    Stop-Transcript | Out-Null
+}
 '@
 Set-Content -LiteralPath $childScript -Value $childSource
 
@@ -95,7 +104,14 @@ function Invoke-DiagnosticsCase([hashtable] $Environment) {
     Remove-Item -LiteralPath $transcript -Force -ErrorAction SilentlyContinue
     & pwsh -NoProfile -File $childScript -ModulePath $fakeModule -RunnerPath $runner -TranscriptPath $transcript | Out-Null
     if (-not (Test-Path -LiteralPath $transcript)) { throw 'No transcript produced; the child run did not execute' }
-    return Get-Content -LiteralPath $transcript -Raw
+    # Read after the child has fully exited, and retry briefly: the transcript is flushed on close, and a
+    # read that races that flush sees a header-only file and reports the log as missing.
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $text = Get-Content -LiteralPath $transcript -Raw
+        if ($text -and $text -match 'Migration job log|RESULT:') { return $text }
+        Start-Sleep -Milliseconds 150
+    }
+    return $text
 }
 
 function Assert-Mentions([string] $Haystack, [string] $Needle, [string] $Because) {
