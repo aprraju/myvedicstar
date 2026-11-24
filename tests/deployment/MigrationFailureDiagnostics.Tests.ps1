@@ -4,12 +4,12 @@
 # Failed/Stopped the runner retrieves and prints the container app job's log, where the EF error lives.
 #
 # How the printed output is observed, and why it is done this way:
-# The runner prints diagnostics with Write-Host. That goes to the HOST, not to any PowerShell pipeline
-# stream, so `2>&1`, `6>&1` and `*>$null` all leave it visible in the step log but absent from the
-# captured string - two earlier revisions of this test failed for exactly that reason while the log was
-# in fact printed. The test therefore runs the runner in a child pwsh with TRANSCRIPTS enabled: the
-# transcript file records host writes, so the assertions read what the step would actually show. That is
-# strictly stronger than capturing a variable - it tests the observable the reviewer cares about.
+# The runner prints diagnostics with Write-Host, which goes to the information stream (6), not to stdout.
+# Three earlier revisions of this test failed while the runner was demonstrably printing: `2>&1` does not
+# carry Write-Host, and Start-Transcript produced a header-only file while the text went to the parent's
+# console. What works is redirecting the information stream of the child process to a FILE -
+# `& $RunnerPath ... 6> $OutputFile`. The assertions then read exactly what a reviewer reads in the step
+# log, with no host or flush ambiguity.
 #
 # The fake az is a PowerShell function, matching MigrationContract.Tests.ps1's convention. A shell script on
 # PATH does not work here: an earlier test in the same step leaves a global `az` function defined, and
@@ -20,12 +20,12 @@ if (-not (Test-Path -LiteralPath $runner)) { throw "Missing script: $runner" }
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("migdiag-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
-$transcript = Join-Path $tempRoot 'transcript.txt'
+$transcript = Join-Path $tempRoot 'runner-output.txt'
 $fakeModule = Join-Path $tempRoot 'FakeAz.psm1'
 $childScript = Join-Path $tempRoot 'run-child.ps1'
 
 # The EF failure body the job would have written. Asserted on verbatim: the defect is that this text was
-# discarded, so if it does not reach the transcript nothing has been fixed.
+# discarded, so if it does not reach the captured output nothing has been fixed.
 $efLines = @(
     'info: Microsoft.EntityFrameworkCore.Migrations[20402]'
     "      Applying migration '20261122_AddKundaliComparisonTable'."
@@ -70,31 +70,24 @@ Export-ModuleMember -Function az
 '@
 Set-Content -LiteralPath $fakeModule -Value $moduleSource
 
-# The child: import the fake, start a transcript, run the real runner, stop the transcript. The transcript
-# is what catches Write-Host. The runner's exit code is written to the transcript so the calling test can
-# assert the verdict as well as the printed text.
+# The child: import the fake, run the real runner with its HOST stream redirected to a file, and write the
+# verdict beside it.
+#
+# Why redirection and not Start-Transcript: three attempts using a transcript produced a header-only file
+# while the runner's output was visibly going to the parent's stdout. Start-Transcript captures the host it
+# is started in, and the runner's Write-Host was not landing there. `6>` redirects the information stream,
+# which is where Write-Host writes, to a file deterministically - no flush race, no host ambiguity.
+#
+# The assertion surface is unchanged: what a reviewer sees in the step log is what lands in this file.
 $childSource = @'
-param([string] $ModulePath, [string] $RunnerPath, [string] $TranscriptPath)
+param([string] $ModulePath, [string] $RunnerPath, [string] $OutputPath)
 Import-Module $ModulePath -Force
-Start-Transcript -Path $TranscriptPath -Force | Out-Null
 try {
-    try {
-        & $RunnerPath -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id
-        Write-Host 'RESULT: completed without throwing'
-    }
-    catch {
-        Write-Host ('RESULT: threw - ' + $_.Exception.Message)
-    }
+    & $RunnerPath -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id 6> $OutputPath
+    'RESULT: completed without throwing' | Out-File -LiteralPath ($OutputPath + '.result') -Encoding utf8
 }
-finally {
-    # The transcript must be the LAST thing flushed: the runner's own Write-Host lines are only written
-    # to it when the host flushes, which happens as the transcript closes. An earlier revision stopped
-    # the transcript before those lines landed and then read a file containing only the header, so the
-    # assertions saw an empty log while the output was demonstrably in the step. Flush first, then stop,
-    # then give the writer a moment before the parent reads the file.
-    [Console]::Out.Flush()
-    Start-Sleep -Milliseconds 250
-    Stop-Transcript | Out-Null
+catch {
+    ('RESULT: threw - ' + $_.Exception.Message) | Out-File -LiteralPath ($OutputPath + '.result') -Encoding utf8
 }
 '@
 Set-Content -LiteralPath $childScript -Value $childSource
@@ -102,21 +95,19 @@ Set-Content -LiteralPath $childScript -Value $childSource
 function Invoke-DiagnosticsCase([hashtable] $Environment) {
     foreach ($pair in $Environment.GetEnumerator()) { Set-Item -Path "env:$($pair.Key)" -Value $pair.Value }
     Remove-Item -LiteralPath $transcript -Force -ErrorAction SilentlyContinue
-    & pwsh -NoProfile -File $childScript -ModulePath $fakeModule -RunnerPath $runner -TranscriptPath $transcript | Out-Null
-    if (-not (Test-Path -LiteralPath $transcript)) { throw 'No transcript produced; the child run did not execute' }
-    # Read after the child has fully exited, and retry briefly: the transcript is flushed on close, and a
-    # read that races that flush sees a header-only file and reports the log as missing.
-    for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        $text = Get-Content -LiteralPath $transcript -Raw
-        if ($text -and $text -match 'Migration job log|RESULT:') { return $text }
-        Start-Sleep -Milliseconds 150
+    Remove-Item -LiteralPath ($transcript + '.result') -Force -ErrorAction SilentlyContinue
+    & pwsh -NoProfile -File $childScript -ModulePath $fakeModule -RunnerPath $runner -OutputPath $transcript | Out-Null
+    if (-not (Test-Path -LiteralPath $transcript)) { throw 'No output file produced; the child run did not execute' }
+    $text = Get-Content -LiteralPath $transcript -Raw
+    if (Test-Path -LiteralPath ($transcript + '.result')) {
+        $text = $text + [Environment]::NewLine + (Get-Content -LiteralPath ($transcript + '.result') -Raw)
     }
     return $text
 }
 
 function Assert-Mentions([string] $Haystack, [string] $Needle, [string] $Because) {
     if (-not $Haystack.Contains($Needle)) {
-        throw "$Because`n--- looked for: $Needle ---`n--- transcript was: ---`n$Haystack"
+        throw "$Because`n--- looked for: $Needle ---`n--- captured output was: ---`n$Haystack"
     }
 }
 
