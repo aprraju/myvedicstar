@@ -105,7 +105,7 @@ function Invoke-DiagnosticsCase([hashtable] $Environment) {
     # Start-Process with file redirection captures the child's console output byte-exactly, which is where
     # Write-Host ends up when the child runs as its own process. `| Out-Null` would have swallowed it and
     # `6>` truncates long lines; neither is a faithful capture.
-    $process = Start-Process -FilePath 'pwsh' -NoProfile -PassThru -Wait -NoNewWindow `
+    $process = Start-Process -FilePath 'pwsh' -PassThru -Wait -NoNewWindow `
         -ArgumentList @('-NoProfile', '-File', $childScript, '-ModulePath', $fakeModule, '-RunnerPath', $runner, '-OutputPath', $transcript) `
         -RedirectStandardOutput $transcript -RedirectStandardError ($transcript + '.err')
     if (-not (Test-Path -LiteralPath $transcript)) { throw 'No output file produced; the child run did not execute' }
