@@ -196,46 +196,6 @@ public static class KundaliReportStatus
     public static readonly IReadOnlyList<string> All = [Queued, Running, Ready, Failed];
 }
 
-/// <summary>Which report sections this renderer currently supports (api#57, B2). Discoverable so a client offers
-/// only what will be accepted, rather than inventing ids and drifting from the server's structure.
-/// <para>This is NOT a capability probe performed at runtime: it is a closed, compile-time set published in the
-/// contract package, because a section id the server accepts cannot depend on which host answered.</para></summary>
-public static class KundaliReportSections
-{
-    /// <summary>Sections a short report renders. Every id is a member of <see cref="KundaliSections.All"/>.</summary>
-    public static readonly IReadOnlyList<string> Short =
-        [KundaliSections.Overview, KundaliSections.Planets, KundaliSections.Dashas];
-
-    /// <summary>Sections a detailed report renders - the short set plus the analytic ones.</summary>
-    public static readonly IReadOnlyList<string> Detailed =
-    [
-        KundaliSections.Overview, KundaliSections.Charts, KundaliSections.Planets, KundaliSections.Dashas,
-        KundaliSections.Yogas, KundaliSections.Ashtakavarga, KundaliSections.Bala, KundaliSections.Transits,
-        KundaliSections.Interpretations
-    ];
-
-    /// <summary>Every section any variant can render. The union, so a client can present one catalogue.</summary>
-    public static readonly IReadOnlyList<string> AnyVariant =
-        Detailed.Concat(Short).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal).ToArray();
-
-    /// <summary>The sections a given variant accepts, in the order this contract fixes. Unknown variant: empty, so the
-    /// caller sees "nothing supported" rather than an arbitrary default set.</summary>
-    public static IReadOnlyList<string> For(string variant) => variant switch
-    {
-        KundaliReportVariants.Short => Short,
-        KundaliReportVariants.Detailed => Detailed,
-        _ => []
-    };
-
-    /// <summary>True when this contract defines the id at all - independent of variant.</summary>
-    public static bool IsDefined(string section) => AnyVariant.Contains(section, StringComparer.Ordinal);
-
-    /// <summary>True when this variant accepts the id. Both halves are needed: a defined id can still be rejected by a
-    /// variant, and treating those as one check is how a short report silently gains a section it never rendered.</summary>
-    public static bool IsSupported(string variant, string section) =>
-        For(variant).Contains(section, StringComparer.Ordinal);
-}
-
 /// <summary>The closed vocabulary of report failure codes (api#57, B1). Every `RelatesTo` a failure names is a
 /// member here, so a client can map it through its catalogue and a server sentence can never reach a user.
 /// <para>This was an open string, which is the one route by which server prose reaches the UI - the overview

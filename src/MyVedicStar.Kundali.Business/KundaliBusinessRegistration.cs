@@ -433,6 +433,9 @@ internal sealed class UnconfiguredReportStore : IKundaliReportStore
     public Task<KundaliReport?> FindAsync(Guid accountId, Guid profileId, Guid reportId, CancellationToken token) =>
         throw new NotSupportedException(Message);
 
+    public Task<IReadOnlyList<KundaliReport>> ListAsync(Guid accountId, Guid profileId, CancellationToken token) =>
+        throw new NotSupportedException(Message);
+
     public Task<KundaliReport> SettleAsync(Guid accountId, Guid profileId, Guid reportId, string status,
         string? downloadUrl, DateTimeOffset? downloadExpiresAtUtc, IReadOnlyList<KundaliReportFailure> failures,
         TimeProvider clock, CancellationToken token) => throw new NotSupportedException(Message);
