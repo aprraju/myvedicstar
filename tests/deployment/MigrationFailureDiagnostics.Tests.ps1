@@ -4,12 +4,12 @@
 # Failed/Stopped the runner retrieves and prints the container app job's log, where the EF error lives.
 #
 # How the printed output is observed, and why it is done this way:
-# The runner prints diagnostics with Write-Host. That goes to the HOST, not to any PowerShell pipeline
-# stream, so `2>&1`, `6>&1` and `*>$null` all leave it visible in the step log but absent from the
-# captured string - two earlier revisions of this test failed for exactly that reason while the log was
-# in fact printed. The test therefore runs the runner in a child pwsh with TRANSCRIPTS enabled: the
-# transcript file records host writes, so the assertions read what the step would actually show. That is
-# strictly stronger than capturing a variable - it tests the observable the reviewer cares about.
+# The runner prints diagnostics with Write-Host, which goes to the information stream (6), not to stdout.
+# Three earlier revisions of this test failed while the runner was demonstrably printing: `2>&1` does not
+# carry Write-Host, and Start-Transcript produced a header-only file while the text went to the parent's
+# console. What works is redirecting the information stream of the child process to a FILE -
+# `& $RunnerPath ... 6> $OutputFile`. The assertions then read exactly what a reviewer reads in the step
+# log, with no host or flush ambiguity.
 #
 # The fake az is a PowerShell function, matching MigrationContract.Tests.ps1's convention. A shell script on
 # PATH does not work here: an earlier test in the same step leaves a global `az` function defined, and
@@ -20,12 +20,12 @@ if (-not (Test-Path -LiteralPath $runner)) { throw "Missing script: $runner" }
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("migdiag-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
-$transcript = Join-Path $tempRoot 'transcript.txt'
+$transcript = Join-Path $tempRoot 'runner-output.txt'
 $fakeModule = Join-Path $tempRoot 'FakeAz.psm1'
 $childScript = Join-Path $tempRoot 'run-child.ps1'
 
 # The EF failure body the job would have written. Asserted on verbatim: the defect is that this text was
-# discarded, so if it does not reach the transcript nothing has been fixed.
+# discarded, so if it does not reach the captured output nothing has been fixed.
 $efLines = @(
     'info: Microsoft.EntityFrameworkCore.Migrations[20402]'
     "      Applying migration '20261122_AddKundaliComparisonTable'."
@@ -46,13 +46,23 @@ function global:az {
     $global:LASTEXITCODE = 0
     $text = $args -join ' '
     if ($text -like '*job logs show*') {
-        if ($env:DIAG_LOG_FAILS -eq '1') { $global:LASTEXITCODE = 1; return 'ERROR: container not found' }
+        if ($env:DIAG_LOG_FAILS -eq '1') {
+            # The stub must produce EXACTLY what the runner captures from a failing az: a non-zero exit
+            # code plus text on the stream `2>&1` merges. Two earlier attempts missed in opposite ways -
+            # Write-Error (a PowerShell error record, not captured as text) and [Console]::Error (written
+            # to the process console, which the in-process `2>&1` does not merge either). Emitting the
+            # line on the output stream WITH a non-zero exit is what the runner's capture actually sees.
+            $global:LASTEXITCODE = 1
+            Write-Output $env:DIAG_LOG_ERROR
+            return
+        }
         foreach ($line in ($env:DIAG_EF_LINES -split [Environment]::NewLine)) { Write-Output $line }
         return
     }
     if ($text -like '*job execution show*') { return $env:DIAG_STATUS }
     if ($text -like '*job start*') { return 'caj-myvedicstar-migrate-prod-abc123' }
     if ($text -like '*job update*') { return }
+    # tsv returns one string with embedded newlines, not one object per line - reproduce that exactly.
     if ($text -like '*job show*') { return $env:DIAG_CONTAINERS }
     if ($args[0] -eq 'account') { return 'sub-id' }
     return
@@ -61,37 +71,58 @@ Export-ModuleMember -Function az
 '@
 Set-Content -LiteralPath $fakeModule -Value $moduleSource
 
-# The child: import the fake, start a transcript, run the real runner, stop the transcript. The transcript
-# is what catches Write-Host. The runner's exit code is written to the transcript so the calling test can
-# assert the verdict as well as the printed text.
+# The child: import the fake, run the real runner with its HOST stream redirected to a file, and write the
+# verdict beside it.
+#
+# Why redirection and not Start-Transcript: three attempts using a transcript produced a header-only file
+# while the runner's output was visibly going to the parent's stdout. Start-Transcript captures the host it
+# is started in, and the runner's Write-Host was not landing there. `6>` redirects the information stream,
+# which is where Write-Host writes, to a file deterministically - no flush race, no host ambiguity.
+#
+# The assertion surface is unchanged: what a reviewer sees in the step log is what lands in this file.
 $childSource = @'
-param([string] $ModulePath, [string] $RunnerPath, [string] $TranscriptPath)
+param([string] $ModulePath, [string] $RunnerPath, [string] $OutputPath)
 Import-Module $ModulePath -Force
-Start-Transcript -Path $TranscriptPath -Force | Out-Null
+# `6>` serialises information records with a fixed formatter and truncates long lines - the captured
+# file came back with lines cut mid-word and whole lines missing. Redirection is the wrong tool for
+# capture at this length. Instead, redirect the child PROCESS's stdout+stderr at the OS level, which is
+# byte-exact, and have the runner's Write-Host go there by running the child with its own console.
+# Start-Transcript would be idiomatic but demonstrably did not capture the runner's host writes.
+$ErrorActionPreference = 'Continue'
 try {
-    try {
-        & $RunnerPath -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id
-        Write-Host 'RESULT: completed without throwing'
-    }
-    catch {
-        Write-Host ('RESULT: threw - ' + $_.Exception.Message)
-    }
+    & $RunnerPath -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id
+    'RESULT: completed without throwing' | Out-File -LiteralPath ($OutputPath + '.result') -Encoding utf8
 }
-finally { Stop-Transcript | Out-Null }
+catch {
+    ('RESULT: threw - ' + $_.Exception.Message) | Out-File -LiteralPath ($OutputPath + '.result') -Encoding utf8
+}
 '@
 Set-Content -LiteralPath $childScript -Value $childSource
 
 function Invoke-DiagnosticsCase([hashtable] $Environment) {
     foreach ($pair in $Environment.GetEnumerator()) { Set-Item -Path "env:$($pair.Key)" -Value $pair.Value }
     Remove-Item -LiteralPath $transcript -Force -ErrorAction SilentlyContinue
-    & pwsh -NoProfile -File $childScript -ModulePath $fakeModule -RunnerPath $runner -TranscriptPath $transcript | Out-Null
-    if (-not (Test-Path -LiteralPath $transcript)) { throw 'No transcript produced; the child run did not execute' }
-    return Get-Content -LiteralPath $transcript -Raw
+    Remove-Item -LiteralPath ($transcript + '.result') -Force -ErrorAction SilentlyContinue
+    # Start-Process with file redirection captures the child's console output byte-exactly, which is where
+    # Write-Host ends up when the child runs as its own process. `| Out-Null` would have swallowed it and
+    # `6>` truncates long lines; neither is a faithful capture.
+    $process = Start-Process -FilePath 'pwsh' -PassThru -Wait -NoNewWindow `
+        -ArgumentList @('-NoProfile', '-File', $childScript, '-ModulePath', $fakeModule, '-RunnerPath', $runner, '-OutputPath', $transcript) `
+        -RedirectStandardOutput $transcript -RedirectStandardError ($transcript + '.err')
+    if (-not (Test-Path -LiteralPath $transcript)) { throw 'No output file produced; the child run did not execute' }
+    $text = Get-Content -LiteralPath $transcript -Raw
+    if (Test-Path -LiteralPath ($transcript + '.err')) {
+        $text = $text + [Environment]::NewLine + (Get-Content -LiteralPath ($transcript + '.err') -Raw)
+    }
+    if (Test-Path -LiteralPath ($transcript + '.result')) {
+        $text = $text + [Environment]::NewLine + (Get-Content -LiteralPath ($transcript + '.result') -Raw)
+    }
+    return $text
 }
 
 function Assert-Mentions([string] $Haystack, [string] $Needle, [string] $Because) {
     if (-not $Haystack.Contains($Needle)) {
-        throw "$Because`n--- looked for: $Needle ---`n--- transcript was: ---`n$Haystack"
+        throw "$Because`n--- looked for: $Needle ---`n--- captured output was: ---`n$Haystack"
     }
 }
 
@@ -122,16 +153,37 @@ try {
     Assert-Mentions $t1 '--- end of migration job log' 'The log block must be closed'
 
     # --- Case 2: Failed execution, log UNREADABLE. Diagnostics must degrade, not change the verdict. ---
+    # The container list is returned exactly as production returns it: the extension notice is the first
+    # line, which is what made the real diagnostic read 'WARNING: ..., migrator'.
+    $logError = 'ERROR: (ContainerAppNotFound) The Resource Microsoft.App/jobs/caj-myvedicstar-migrate-prod was not found'
     $t2 = Invoke-DiagnosticsCase @{
         DIAG_STATUS     = 'Failed'
         DIAG_LOG_FAILS  = '1'
-        DIAG_CONTAINERS = 'real-migrator-container'
+        DIAG_LOG_ERROR  = $logError
+        DIAG_CONTAINERS = "WARNING: The behavior of this command has been altered by the following extension: containerapp`nmigrator"
         DIAG_EF_LINES   = $efBody
     }
     Assert-Mentions $t2 'RESULT: threw' 'An unreadable log must not change the verdict'
     Assert-Mentions $t2 'Could not read logs for container' 'An unreadable log must be reported, not silently skipped'
-    Assert-Mentions $t2 'real-migrator-container' 'The fallback must name the containers the job actually declares'
+    Assert-Mentions $t2 "'migrator' IS among them" 'The fallback must say the guessed container is in fact declared, so the operator does not chase the wrong cause'
     Assert-Mentions $t2 'API deployment stopped' 'The verdict wording must survive a diagnostics failure too'
+
+    # The branch that failed in production, and that the previous version of this test did not cover:
+    # the log command exits non-zero, so the CLI's own error must reach the step output instead of being
+    # swallowed with the message 'diagnostics unavailable'.
+    Assert-Mentions $t2 'The Azure CLI said' 'A failed fetch must say it is printing the CLI error'
+    # Pins the stub-vs-script confusion that broke the previous revision of this test: a stub using
+    # Write-Error produces no captured stderr, so the runner prints '(no output was captured)'. If that
+    # string appears here, the STUB has stopped behaving like a native command, not the runner stopped
+    # printing - say so explicitly rather than let the next assertion's message imply the runner is at fault.
+    Assert-NotMentions $t2 '(no output was captured from the CLI)' 'The stub must emit real stderr; this string means the test stopped simulating a native command, not that the runner dropped output'
+    Assert-Mentions $t2 'ContainerAppNotFound' 'The az error text must reach the step output, not be discarded'
+    Assert-Mentions $t2 'was not found' 'The full CLI error, not a truncation, must be printed'
+
+    # The extension notice must not be joined into the container list - that is what produced the
+    # production line 'WARNING: The behavior of this command ... containerapp, migrator'.
+    Assert-NotMentions $t2 'has been altered by the following extension: containerapp, migrator' 'The az extension WARNING must be filtered out of the container list'
+    Assert-NotMentions $t2 "Containers declared by job 'caj-myvedicstar-migrate-prod': WARNING" 'The container list must start with a container name, never the extension notice'
 
     # --- Case 3: Succeeded. Unchanged behaviour: no throw, no log fetch. ---
     $t3 = Invoke-DiagnosticsCase @{
