@@ -47,10 +47,13 @@ function global:az {
     $text = $args -join ' '
     if ($text -like '*job logs show*') {
         if ($env:DIAG_LOG_FAILS -eq '1') {
-            # Mirrors the real failure shape: az writes the error to stderr and exits 1, and the script
-            # captures both streams into $logs. The error text is what the fix now prints.
+            # A native command writes its error to stderr and exits non-zero; the runner captures that with
+            # `2>&1` and prints it. NOT Write-Error: that raises a PowerShell error record, which `2>&1`
+            # does not convert into the string a native command would emit, so the runner correctly
+            # reported 'no output captured' while this stub believed it had produced text. Writing to the
+            # real stderr stream is what makes the stub behave like az.
             $global:LASTEXITCODE = 1
-            Write-Error $env:DIAG_LOG_ERROR -ErrorAction Continue
+            [Console]::Error.WriteLine($env:DIAG_LOG_ERROR)
             return
         }
         foreach ($line in ($env:DIAG_EF_LINES -split [Environment]::NewLine)) { Write-Output $line }
@@ -147,6 +150,11 @@ try {
     # the log command exits non-zero, so the CLI's own error must reach the step output instead of being
     # swallowed with the message 'diagnostics unavailable'.
     Assert-Mentions $t2 'The Azure CLI said' 'A failed fetch must say it is printing the CLI error'
+    # Pins the stub-vs-script confusion that broke the previous revision of this test: a stub using
+    # Write-Error produces no captured stderr, so the runner prints '(no output was captured)'. If that
+    # string appears here, the STUB has stopped behaving like a native command, not the runner stopped
+    # printing - say so explicitly rather than let the next assertion's message imply the runner is at fault.
+    Assert-NotMentions $t2 '(no output was captured from the CLI)' 'The stub must emit real stderr; this string means the test stopped simulating a native command, not that the runner dropped output'
     Assert-Mentions $t2 'ContainerAppNotFound' 'The az error text must reach the step output, not be discarded'
     Assert-Mentions $t2 'was not found' 'The full CLI error, not a truncation, must be printed'
 
