@@ -40,7 +40,11 @@ function global:az {
     # both contain 'show'. The most specific patterns are tested first so a broader one cannot shadow them.
     if ($text -like '*job logs show*') {
         if ($global:diagLogFails) { $global:LASTEXITCODE = 1; return 'ERROR: container not found' }
-        return $efLines
+        # Emitted line by line, the way a real CLI prints, so the script's own tail-printing is what puts
+        # them in the step output. Returning the array as one object would let a single Write-Host of the
+        # collection pass the assertions without the per-line path working.
+        foreach ($line in $efLines) { Write-Output $line }
+        return
     }
     if ($text -like '*job execution show*') { return $global:diagStatus }
     if ($text -like '*job start*') { return 'caj-myvedicstar-migrate-prod-abc123' }
@@ -60,12 +64,17 @@ try {
     $global:diagCalls.Clear()
     $threw = $false
     $output = ''
+    # The script writes diagnostics with Write-Host, which is NOT part of PowerShell's output stream -
+    # only the object pipeline is. 2>&1 therefore captures nothing of the printed log, and an earlier
+    # version of this test failed for exactly that reason while the log was in fact printed to the step.
+    # Write-Host goes to the host, so the host information stream is what has to be redirected: 6>&1.
+    $output = ''
     try {
-        $output = (& $runner -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id) 2>&1 | Out-String
+        $output = (& $runner -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id) 2>&1 6>&1 | Out-String
     }
     catch {
         $threw = $true
-        $output = $_.Exception.Message + [Environment]::NewLine + ($_ | Out-String)
+        $output = $output + [Environment]::NewLine + $_.Exception.Message
     }
 
     # 1. Verdict unchanged - still fails on Failed. Pinned FIRST because it is the regression this change
@@ -94,9 +103,9 @@ try {
     $threw2 = $false
     $output2 = ''
     try {
-        $output2 = (& $runner -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id) 2>&1 | Out-String
+        $output2 = (& $runner -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id) 2>&1 6>&1 | Out-String
     }
-    catch { $threw2 = $true; $output2 = $_.Exception.Message + [Environment]::NewLine + ($_ | Out-String) }
+    catch { $threw2 = $true; $output2 = $output2 + [Environment]::NewLine + $_.Exception.Message }
     if (-not $threw2) { throw 'An unreadable log changed the verdict: a diagnostics failure must never turn a failed migration into a pass' }
     Assert-Mentions $output2 'Could not read logs for container' 'An unreadable log must be reported, not silently skipped'
     Assert-Mentions $output2 'real-migrator-container' 'The fallback must name the containers the job actually declares'
