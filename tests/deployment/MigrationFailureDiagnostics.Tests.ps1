@@ -82,8 +82,14 @@ Set-Content -LiteralPath $fakeModule -Value $moduleSource
 $childSource = @'
 param([string] $ModulePath, [string] $RunnerPath, [string] $OutputPath)
 Import-Module $ModulePath -Force
+# `6>` serialises information records with a fixed formatter and truncates long lines - the captured
+# file came back with lines cut mid-word and whole lines missing. Redirection is the wrong tool for
+# capture at this length. Instead, redirect the child PROCESS's stdout+stderr at the OS level, which is
+# byte-exact, and have the runner's Write-Host go there by running the child with its own console.
+# Start-Transcript would be idiomatic but demonstrably did not capture the runner's host writes.
+$ErrorActionPreference = 'Continue'
 try {
-    & $RunnerPath -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id 6> $OutputPath
+    & $RunnerPath -RegistryName testregistry -ImageTag test-tag -ResourceGroup rg-test -SubscriptionId sub-id
     'RESULT: completed without throwing' | Out-File -LiteralPath ($OutputPath + '.result') -Encoding utf8
 }
 catch {
@@ -96,9 +102,17 @@ function Invoke-DiagnosticsCase([hashtable] $Environment) {
     foreach ($pair in $Environment.GetEnumerator()) { Set-Item -Path "env:$($pair.Key)" -Value $pair.Value }
     Remove-Item -LiteralPath $transcript -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath ($transcript + '.result') -Force -ErrorAction SilentlyContinue
-    & pwsh -NoProfile -File $childScript -ModulePath $fakeModule -RunnerPath $runner -OutputPath $transcript | Out-Null
+    # Start-Process with file redirection captures the child's console output byte-exactly, which is where
+    # Write-Host ends up when the child runs as its own process. `| Out-Null` would have swallowed it and
+    # `6>` truncates long lines; neither is a faithful capture.
+    $process = Start-Process -FilePath 'pwsh' -NoProfile -PassThru -Wait -NoNewWindow `
+        -ArgumentList @('-NoProfile', '-File', $childScript, '-ModulePath', $fakeModule, '-RunnerPath', $runner, '-OutputPath', $transcript) `
+        -RedirectStandardOutput $transcript -RedirectStandardError ($transcript + '.err')
     if (-not (Test-Path -LiteralPath $transcript)) { throw 'No output file produced; the child run did not execute' }
     $text = Get-Content -LiteralPath $transcript -Raw
+    if (Test-Path -LiteralPath ($transcript + '.err')) {
+        $text = $text + [Environment]::NewLine + (Get-Content -LiteralPath ($transcript + '.err') -Raw)
+    }
     if (Test-Path -LiteralPath ($transcript + '.result')) {
         $text = $text + [Environment]::NewLine + (Get-Content -LiteralPath ($transcript + '.result') -Raw)
     }
