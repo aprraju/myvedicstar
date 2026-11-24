@@ -39,6 +39,12 @@ public static class KundaliBusinessRegistration
         // an empty list from a missing store is indistinguishable from a reader who opted out - and would silently
         // disable email they asked for.
         services.TryAddScoped<IKundaliAlertRepository, UnconfiguredAlertRepository>();
+
+        // KUN-17 (api#57): both report ports default to a refusal, so a host that forgets to wire the store or the
+        // renderer reports renderer-unavailable rather than producing a report that will never settle. Composition
+        // replaces them; neither fallback can fabricate a document.
+        services.TryAddScoped<IKundaliReportStore, UnconfiguredReportStore>();
+        services.TryAddScoped<IKundaliReportRenderer, UnconfiguredReportRenderer>();
         return services;
     }
 }
@@ -412,4 +418,37 @@ internal sealed class UnconfiguredInterpretationNarrator : IKundaliInterpretatio
     public Task<InterpretationVerdict> NarrateAsync(string domain, string locale, long sourceRevision,
         IReadOnlyList<KundaliInterpretationFactor> factors, CancellationToken token) =>
         Task.FromResult(InterpretationRule.NotEvaluated(domain, KundaliInterpretationReasons.AiDisabled));
+}
+
+/// <summary>KUN-17 (api#57) fallback store. Every operation throws, so a host without the Data layer fails loudly at the
+/// report route rather than creating a record nothing will ever settle.</summary>
+internal sealed class UnconfiguredReportStore : IKundaliReportStore
+{
+    private const string Message =
+        "No Kundali report store is registered. Compose the Data layer, or leave reports unsupported on this host.";
+
+    public Task<KundaliReport> EnqueueAsync(Guid accountId, Guid profileId, KundaliReportRequest request,
+        long sourceRevision, TimeProvider clock, CancellationToken token) => throw new NotSupportedException(Message);
+
+    public Task<KundaliReport?> FindAsync(Guid accountId, Guid profileId, Guid reportId, CancellationToken token) =>
+        throw new NotSupportedException(Message);
+
+    public Task<IReadOnlyList<KundaliReport>> ListAsync(Guid accountId, Guid profileId, CancellationToken token) =>
+        throw new NotSupportedException(Message);
+
+    public Task<KundaliReport> SettleAsync(Guid accountId, Guid profileId, Guid reportId, string status,
+        string? downloadUrl, DateTimeOffset? downloadExpiresAtUtc, IReadOnlyList<KundaliReportFailure> failures,
+        TimeProvider clock, CancellationToken token) => throw new NotSupportedException(Message);
+}
+
+/// <summary>KUN-17 (api#57) fallback renderer. Reports itself unavailable rather than pretending to render: the facade
+/// then settles the report as <c>renderer-unavailable</c>, which is a fact a caller can act on, instead of a document
+/// that never arrives.</summary>
+internal sealed class UnconfiguredReportRenderer : IKundaliReportRenderer
+{
+    public bool IsAvailable => false;
+
+    public Task<KundaliReportRenderResult> RenderAsync(Guid accountId, Guid profileId, KundaliReportRequest request,
+        long sourceRevision, CancellationToken token) =>
+        throw new NotSupportedException("No Kundali report renderer is registered.");
 }

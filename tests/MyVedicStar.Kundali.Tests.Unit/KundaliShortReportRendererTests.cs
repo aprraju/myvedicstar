@@ -52,12 +52,15 @@ public sealed class KundaliShortReportRendererTests
         var shortSet = KundaliReportSections.Short;
         var expectedWithheld = KundaliSections.All.Where(s => !shortSet.Contains(s, StringComparer.Ordinal));
 
-        Assert.Equal(expectedWithheld, plan.WithheldSections.Select(w => w.Path));
+        Assert.Equal(expectedWithheld, plan.WithheldSections.Select(w => w.Section));
 
         Assert.All(plan.WithheldSections, withheld =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(withheld.Reason),
-                $"Withheld section '{withheld.Path}' states no reason, so a reader cannot tell it was withheld rather than lost.");
+            Assert.Equal(KundaliReportFailureCodes.SectionUnsupported, withheld.Code);
+            Assert.True(withheld.IsKnownCode,
+                "A withheld section must carry a code from the closed set, not free text a client cannot map.");
+            Assert.False(string.IsNullOrWhiteSpace(withheld.Detail),
+                $"Withheld section '{withheld.Section}' states no reason, so a reader cannot tell it was withheld rather than lost.");
         });
     }
 
@@ -67,7 +70,7 @@ public sealed class KundaliShortReportRendererTests
         // The two lists must partition the catalogue: a section in both would make the statement self-contradictory.
         var plan = Plan(KundaliSections.Overview);
 
-        Assert.Empty(plan.Sections.Intersect(plan.WithheldSections.Select(w => w.Path), StringComparer.Ordinal));
+        Assert.Empty(plan.Sections.Intersect(plan.WithheldSections.Select(w => w.Section), StringComparer.Ordinal));
         // Partition is exhaustive only relative to what this plan speaks about: rendered + withheld = the whole
         // catalogue minus nothing, since withheld is built from every section the SHORT variant does not render.
         Assert.Equal(KundaliSections.All.Count - KundaliReportSections.Short.Count,
@@ -124,7 +127,7 @@ public sealed class KundaliShortReportRendererTests
         Assert.NotNull(producer.Seen);
 
         Assert.Equal([KundaliSections.Overview], producer.Seen!.Sections);
-        Assert.Contains(producer.Seen.WithheldSections, w => w.Path == KundaliSections.Charts);
+        Assert.Contains(producer.Seen.WithheldSections, w => w.Section == KundaliSections.Charts);
         Assert.Equal(41, producer.Seen.SourceRevision);
         Assert.Equal(Account, producer.Seen.AccountId);
         Assert.Equal(Profile, producer.Seen.ProfileId);
