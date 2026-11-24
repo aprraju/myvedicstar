@@ -38,9 +38,22 @@ function Get-MigrationJobLogTail {
         return
     }
 
-    # The container name belongs to the job template, not to this script, so a wrong guess is likely.
-    # Say what was tried and what the job actually declares, rather than printing only 'no logs'.
-    Write-Host "Could not read logs for container '$container' (exit $logExit)."
+    # Api#214 follow-on: the az error was captured by 2>&1 but only printed on the success path, so a
+    # failed fetch reported 'unavailable' and discarded its own reason - the same defect as the discarded
+    # EF error, one layer down. Print what the CLI actually said, before anything else.
+    Write-Host "Could not read logs for container '$container' (exit $logExit). The Azure CLI said:"
+    if ($logs) {
+        $logs | ForEach-Object { Write-Host "    $_" }
+    }
+    else {
+        Write-Host '    (no output was captured from the CLI)'
+    }
+
+    # The container name belongs to the job template, not to this script, so a wrong guess is possible.
+    # Say what the job actually declares. The extension notice ('WARNING: The behavior of this command has
+    # been altered by the following extension: containerapp') is prepended to stdout and was being joined
+    # with the names, so the list read 'WARNING: ..., migrator' - accurate names, unreadable line. Filter
+    # the notice rather than accept a diagnostic that needs decoding.
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
@@ -49,9 +62,17 @@ function Get-MigrationJobLogTail {
         $declaredExit = $LASTEXITCODE
     }
     finally { $ErrorActionPreference = $previous }
-    if ($declaredExit -eq 0 -and $declared) {
-        Write-Host "Containers declared by job '$JobName': $(@($declared) -join ', ')"
-        Write-Host 'Re-run with -container <name>, or set MIGRATION_JOB_CONTAINER.'
+    $containerNames = @(if ($declaredExit -eq 0) {
+            @($declared) | ForEach-Object { "$_".Trim() } | Where-Object { $_ -and $_ -notmatch '^WARNING:' }
+        })
+    if ($containerNames.Count -gt 0) {
+        Write-Host "Containers declared by job '$JobName': $($containerNames -join ', ')"
+        if ($containerNames -notcontains $container) {
+            Write-Host "'$container' is not among them; set MIGRATION_JOB_CONTAINER to one of the names above."
+        }
+        else {
+            Write-Host "'$container' IS among them, so the container name is not the problem - the failure is the CLI call itself (see the message above)."
+        }
     }
     Write-Host 'Diagnostics above are unavailable; the migration failure itself is unaffected.'
     Write-Host "---- end of migration job log ($Execution) ----"

@@ -46,7 +46,13 @@ function global:az {
     $global:LASTEXITCODE = 0
     $text = $args -join ' '
     if ($text -like '*job logs show*') {
-        if ($env:DIAG_LOG_FAILS -eq '1') { $global:LASTEXITCODE = 1; return 'ERROR: container not found' }
+        if ($env:DIAG_LOG_FAILS -eq '1') {
+            # Mirrors the real failure shape: az writes the error to stderr and exits 1, and the script
+            # captures both streams into $logs. The error text is what the fix now prints.
+            $global:LASTEXITCODE = 1
+            Write-Error $env:DIAG_LOG_ERROR -ErrorAction Continue
+            return
+        }
         foreach ($line in ($env:DIAG_EF_LINES -split [Environment]::NewLine)) { Write-Output $line }
         return
     }
@@ -122,16 +128,32 @@ try {
     Assert-Mentions $t1 '--- end of migration job log' 'The log block must be closed'
 
     # --- Case 2: Failed execution, log UNREADABLE. Diagnostics must degrade, not change the verdict. ---
+    # The container list is returned exactly as production returns it: the extension notice is the first
+    # line, which is what made the real diagnostic read 'WARNING: ..., migrator'.
+    $logError = 'ERROR: (ContainerAppNotFound) The Resource Microsoft.App/jobs/caj-myvedicstar-migrate-prod was not found'
     $t2 = Invoke-DiagnosticsCase @{
         DIAG_STATUS     = 'Failed'
         DIAG_LOG_FAILS  = '1'
-        DIAG_CONTAINERS = 'real-migrator-container'
+        DIAG_LOG_ERROR  = $logError
+        DIAG_CONTAINERS = "WARNING: The behavior of this command has been altered by the following extension: containerapp`nmigrator"
         DIAG_EF_LINES   = $efBody
     }
     Assert-Mentions $t2 'RESULT: threw' 'An unreadable log must not change the verdict'
     Assert-Mentions $t2 'Could not read logs for container' 'An unreadable log must be reported, not silently skipped'
-    Assert-Mentions $t2 'real-migrator-container' 'The fallback must name the containers the job actually declares'
+    Assert-Mentions $t2 "'migrator' IS among them" 'The fallback must say the guessed container is in fact declared, so the operator does not chase the wrong cause'
     Assert-Mentions $t2 'API deployment stopped' 'The verdict wording must survive a diagnostics failure too'
+
+    # The branch that failed in production, and that the previous version of this test did not cover:
+    # the log command exits non-zero, so the CLI's own error must reach the step output instead of being
+    # swallowed with the message 'diagnostics unavailable'.
+    Assert-Mentions $t2 'The Azure CLI said' 'A failed fetch must say it is printing the CLI error'
+    Assert-Mentions $t2 'ContainerAppNotFound' 'The az error text must reach the step output, not be discarded'
+    Assert-Mentions $t2 'was not found' 'The full CLI error, not a truncation, must be printed'
+
+    # The extension notice must not be joined into the container list - that is what produced the
+    # production line 'WARNING: The behavior of this command ... containerapp, migrator'.
+    Assert-NotMentions $t2 'has been altered by the following extension: containerapp, migrator' 'The az extension WARNING must be filtered out of the container list'
+    Assert-NotMentions $t2 "Containers declared by job 'caj-myvedicstar-migrate-prod': WARNING" 'The container list must start with a container name, never the extension notice'
 
     # --- Case 3: Succeeded. Unchanged behaviour: no throw, no log fetch. ---
     $t3 = Invoke-DiagnosticsCase @{
