@@ -47,13 +47,13 @@ function global:az {
     $text = $args -join ' '
     if ($text -like '*job logs show*') {
         if ($env:DIAG_LOG_FAILS -eq '1') {
-            # A native command writes its error to stderr and exits non-zero; the runner captures that with
-            # `2>&1` and prints it. NOT Write-Error: that raises a PowerShell error record, which `2>&1`
-            # does not convert into the string a native command would emit, so the runner correctly
-            # reported 'no output captured' while this stub believed it had produced text. Writing to the
-            # real stderr stream is what makes the stub behave like az.
+            # The stub must produce EXACTLY what the runner captures from a failing az: a non-zero exit
+            # code plus text on the stream `2>&1` merges. Two earlier attempts missed in opposite ways -
+            # Write-Error (a PowerShell error record, not captured as text) and [Console]::Error (written
+            # to the process console, which the in-process `2>&1` does not merge either). Emitting the
+            # line on the output stream WITH a non-zero exit is what the runner's capture actually sees.
             $global:LASTEXITCODE = 1
-            [Console]::Error.WriteLine($env:DIAG_LOG_ERROR)
+            Write-Output $env:DIAG_LOG_ERROR
             return
         }
         foreach ($line in ($env:DIAG_EF_LINES -split [Environment]::NewLine)) { Write-Output $line }
@@ -62,6 +62,7 @@ function global:az {
     if ($text -like '*job execution show*') { return $env:DIAG_STATUS }
     if ($text -like '*job start*') { return 'caj-myvedicstar-migrate-prod-abc123' }
     if ($text -like '*job update*') { return }
+    # tsv returns one string with embedded newlines, not one object per line - reproduce that exactly.
     if ($text -like '*job show*') { return $env:DIAG_CONTAINERS }
     if ($args[0] -eq 'account') { return 'sub-id' }
     return

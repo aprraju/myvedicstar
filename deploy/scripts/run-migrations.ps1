@@ -62,8 +62,14 @@ function Get-MigrationJobLogTail {
         $declaredExit = $LASTEXITCODE
     }
     finally { $ErrorActionPreference = $previous }
+    # $declared arrives as tsv: possibly ONE string containing every line, not one object per line. Wrapping
+    # it in @() therefore yields a single item, and a per-item '^WARNING:' filter then discards the whole
+    # block - names included. That is exactly what happened in the first production run of this diagnostic
+    # ('WARNING: ..., containerapp' then 'migrator' were one string). Split on newlines first, then filter.
     $containerNames = @(if ($declaredExit -eq 0) {
-            @($declared) | ForEach-Object { "$_".Trim() } | Where-Object { $_ -and $_ -notmatch '^WARNING:' }
+            (@($declared) | ForEach-Object { "$_" }) -split "`r?`n" |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and $_ -notmatch '^WARNING:' }
         })
     if ($containerNames.Count -gt 0) {
         Write-Host "Containers declared by job '$JobName': $($containerNames -join ', ')"
